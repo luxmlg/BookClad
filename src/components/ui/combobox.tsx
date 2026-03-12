@@ -33,9 +33,12 @@ export function Combobox({
     o.label.toLowerCase().includes(inputValue.toLowerCase())
   );
 
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? "";
+
   const showCreate =
     onCreateOption &&
     inputValue.trim() !== "" &&
+    inputValue.trim() !== selectedLabel &&
     !options.some(
       (o) => o.label.toLowerCase() === inputValue.trim().toLowerCase()
     );
@@ -47,6 +50,11 @@ export function Combobox({
         if (v !== null) onChange(v);
       }}
       onInputValueChange={setInputValue}
+      itemToStringLabel={(optionValue) => {
+        const opt = options.find((o) => o.value === optionValue);
+        return opt ? opt.label : String(optionValue);
+      }}
+      filteredItems={filtered.map((o) => o.value)}
     >
       <div className={cn("relative", className)}>
         <ComboboxPrimitive.Input

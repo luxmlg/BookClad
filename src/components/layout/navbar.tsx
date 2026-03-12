@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { auth, signOut } from "@/lib/auth";
-import { BookOpen, Settings } from "lucide-react";
+import { BookOpen, LogOut, Settings } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -51,31 +52,35 @@ export async function Navbar() {
                     </AvatarFallback>
                   </Avatar>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    className="text-sm text-muted-foreground"
-                    disabled
-                  >
-                    {session.user.email}
-                  </DropdownMenuItem>
+                <DropdownMenuContent align="end" className="min-w-56">
+                  <div className="flex flex-col gap-0.5 px-2 py-1.5">
+                    <span className="text-sm font-medium text-foreground">
+                      {session.user.name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {session.user.email}
+                    </span>
+                  </div>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem>
-                    <Link href="/settings" className="flex w-full items-center gap-2">
-                      <Settings className="size-3.5" />
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <form
-                      action={async () => {
-                        "use server";
-                        await signOut({ redirectTo: "/" });
-                      }}
-                    >
-                      <button type="submit" className="w-full text-left">
-                        Sign out
-                      </button>
-                    </form>
-                  </DropdownMenuItem>
+                      <Link href="/settings" className="flex w-full items-center gap-2">
+                        <Settings className="size-3.5" />
+                        Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <form
+                        action={async () => {
+                          "use server";
+                          await signOut({ redirectTo: "/" });
+                        }}
+                      >
+                        <button type="submit" className="flex w-full items-center gap-2 text-left">
+                          <LogOut className="size-3.5" />
+                          Sign out
+                        </button>
+                      </form>
+                    </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
