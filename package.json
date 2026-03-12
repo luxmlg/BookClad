@@ -19,6 +19,8 @@
     "bullmq": "^5.70.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "embla-carousel-autoplay": "^8.6.0",
+    "embla-carousel-react": "^8.6.0",
     "ioredis": "^5.10.0",
     "konva": "^10.2.0",
     "lucide-react": "^0.577.0",

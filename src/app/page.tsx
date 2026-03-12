@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
+import { CoverCarousel } from "@/components/landing/cover-carousel";
 
 const features = [
   {
@@ -102,16 +103,16 @@ export default function LandingPage() {
             AI-powered cover generation
           </div>
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            Professional Book Covers
+            Your Book Deserves a Cover
             <br />
             <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              in Minutes, Not Days
+              That Sells
             </span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Describe your book. Pick a genre and style. Get 4 AI-generated,
-            KDP-compliant cover options — then fine-tune with typography, region
-            editing, and a built-in compliance checker.
+            Describe your story, choose a style, and get 4 KDP-ready cover
+            options in minutes. Fine-tune with typography, AI region editing, and
+            compliance checks.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
@@ -135,25 +136,17 @@ export default function LandingPage() {
             </Link>
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            3 free generations per month. No credit card required.
+            Start with 3 free covers. No credit card required.
           </p>
         </div>
       </section>
 
-      {/* Cover preview placeholder */}
+      {/* Cover showcase */}
       <section className="container mx-auto max-w-5xl px-4 pb-20">
-        <div className="mx-auto flex max-w-3xl items-center justify-center gap-4 perspective-1000">
-          {[
-            "from-indigo-500/20 to-purple-600/20",
-            "from-amber-500/20 to-rose-600/20",
-            "from-emerald-500/20 to-teal-600/20",
-          ].map((gradient, i) => (
-            <div
-              key={i}
-              className={`aspect-[5/8] w-36 rounded-xl bg-gradient-to-br ${gradient} border shadow-xl transition-transform hover:scale-105 sm:w-48`}
-            />
-          ))}
-        </div>
+        <p className="mb-8 text-center text-sm font-medium tracking-wide text-muted-foreground uppercase">
+          Covers crafted by AI, tailored to your genre
+        </p>
+        <CoverCarousel />
       </section>
 
       {/* Features */}
@@ -161,7 +154,7 @@ export default function LandingPage() {
         <div className="container mx-auto max-w-6xl px-4">
           <div className="mb-16 text-center">
             <h2 className="text-3xl font-bold">
-              Everything You Need for a Professional Cover
+              Built for Self-Publishers
             </h2>
             <p className="mt-3 text-muted-foreground">
               From generation to KDP upload — no design skills required.
@@ -201,7 +194,7 @@ export default function LandingPage() {
                 key={plan.name}
                 className={`flex flex-col ${
                   plan.highlighted
-                    ? "relative border-primary shadow-lg ring-1 ring-primary/20"
+                    ? "relative overflow-visible border-primary shadow-lg ring-1 ring-primary/20"
                     : ""
                 }`}
               >
@@ -250,7 +243,7 @@ export default function LandingPage() {
             CoverCraft
           </div>
           <p className="text-sm text-muted-foreground">
-            AI-powered book covers for Amazon KDP
+            &copy; 2026 CoverCraft. AI-powered book covers for Amazon KDP.
           </p>
         </div>
       </footer>
