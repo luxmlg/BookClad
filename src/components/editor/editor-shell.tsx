@@ -5,47 +5,21 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
-  Download,
-  Layers,
-  Paintbrush,
-  Type,
+  Loader2,
   ImageIcon,
   RefreshCw,
-  Save,
-  Loader2,
-  Settings,
-  ChevronDown,
   ChevronRight,
   Sparkles,
-  Eye,
-  EyeOff,
-  Lock,
-  Unlock,
-  GripVertical,
   Tablet,
-  Bold,
-  Italic,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -59,11 +33,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { GenerationPoller } from "./generation-poller";
-import { GENRES, MOODS, ART_STYLES, AI_MODELS } from "@/lib/constants";
 import type { TextNodeConfig, CanvasState } from "./cover-canvas";
-import { getDefaultCanvasState } from "./cover-canvas";
+import { getDefaultCanvasState, migrateCanvasState } from "./cover-canvas";
+import { LeftSidebar } from "./left-sidebar";
+import { RightSidebar } from "./right-sidebar";
+import type Konva from "konva";
 const BrushTool = dynamic(
   () => import("./brush-tool").then((m) => m.BrushTool),
   { ssr: false }
@@ -103,32 +78,18 @@ interface Project {
   generations: Generation[];
 }
 
-const FONT_OPTIONS = [
-  "Georgia, serif",
-  "Times New Roman, serif",
-  "Garamond, serif",
-  "Palatino, serif",
-  "Helvetica, sans-serif",
-  "Arial, sans-serif",
-  "Futura, sans-serif",
-  "Verdana, sans-serif",
-  "Courier New, monospace",
-  "Impact, sans-serif",
-];
-
 export function EditorShell({ project }: { project: Project }) {
   const router = useRouter();
 
+  const stageRef = useRef<Konva.Stage>(null);
+
   const initialCanvas = useMemo(() => {
-    if (project.canvasState && typeof project.canvasState === "object") {
-      const cs = project.canvasState as CanvasState;
-      if (cs.titleNode && cs.authorNode) return cs;
-    }
+    const migrated = migrateCanvasState(project.canvasState);
+    if (migrated?.textNodes?.length) return migrated;
     return getDefaultCanvasState(project.title, project.author);
   }, [project.canvasState, project.title, project.author]);
 
-  const [titleNode, setTitleNode] = useState<TextNodeConfig>(initialCanvas.titleNode);
-  const [authorNode, setAuthorNode] = useState<TextNodeConfig>(initialCanvas.authorNode);
+  const [textNodes, setTextNodes] = useState<TextNodeConfig[]>(initialCanvas.textNodes);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [genre, setGenre] = useState(project.genre);
   const [moods, setMoods] = useState<string[]>(project.mood ?? []);
@@ -147,8 +108,19 @@ export function EditorShell({ project }: { project: Project }) {
   const [inpaintMask, setInpaintMask] = useState<string | null>(null);
   const [inpaintSubmitting, setInpaintSubmitting] = useState(false);
   const [model, setModel] = useState("openai");
+  const [historyOpen, setHistoryOpen] = useState(true);
+  const [kindlePreview, setKindlePreview] = useState<string | null>(null);
+  const [showKindlePreview, setShowKindlePreview] = useState(true);
   const fetchedRef = useRef(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Prevent page-level scroll while editor is mounted
+  useEffect(() => {
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.documentElement.style.overflow = "";
+    };
+  }, []);
 
   const completedGenerations = project.generations.filter(
     (g) => g.status === "COMPLETED"
@@ -162,7 +134,6 @@ export function EditorShell({ project }: { project: Project }) {
     ? imageUrls[selectedImageId]
     : undefined;
 
-  const activeNode = selectedNodeId === "title" ? titleNode : selectedNodeId === "author" ? authorNode : null;
 
   useEffect(() => {
     const sel = allImages.find((img) => img.selected);
@@ -200,7 +171,7 @@ export function EditorShell({ project }: { project: Project }) {
   useEffect(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
-      const canvasState: CanvasState = { titleNode, authorNode };
+      const canvasState: CanvasState = { textNodes };
       fetch(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -210,18 +181,42 @@ export function EditorShell({ project }: { project: Project }) {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [titleNode, authorNode, project.id]);
+  }, [textNodes, project.id]);
+
+  // Capture Kindle preview from canvas (debounced 500ms)
+  const kindleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (kindleTimerRef.current) clearTimeout(kindleTimerRef.current);
+    kindleTimerRef.current = setTimeout(() => {
+      if (!stageRef.current) return;
+      try {
+        const dataUrl = stageRef.current.toDataURL({
+          pixelRatio: 0.3,
+          mimeType: "image/jpeg",
+          quality: 0.6,
+        });
+        setKindlePreview(dataUrl);
+      } catch {
+        // canvas not ready
+      }
+    }, 500);
+    return () => {
+      if (kindleTimerRef.current) clearTimeout(kindleTimerRef.current);
+    };
+  }, [textNodes, selectedImageUrl]);
 
   const saveProject = useCallback(async () => {
     setSaving(true);
     try {
-      const canvasState: CanvasState = { titleNode, authorNode };
+      const canvasState: CanvasState = { textNodes };
+      const titleText = textNodes.find(n => n.id === "title")?.text ?? textNodes[0]?.text ?? project.title;
+      const authorText = textNodes.find(n => n.id === "author")?.text ?? project.author;
       const res = await fetch(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: titleNode.text,
-          author: authorNode.text,
+          title: titleText,
+          author: authorText,
           genre,
           mood: moods,
           style,
@@ -236,7 +231,7 @@ export function EditorShell({ project }: { project: Project }) {
     } finally {
       setSaving(false);
     }
-  }, [project.id, titleNode, authorNode, genre, moods, style, brief]);
+  }, [project.id, project.title, project.author, textNodes, genre, moods, style, brief]);
 
   async function selectImage(imageId: string) {
     setSelectedImageId(imageId);
@@ -332,22 +327,29 @@ export function EditorShell({ project }: { project: Project }) {
   }
 
   async function handleExport(format: "jpeg" | "png") {
-    if (!selectedImageUrl) {
-      toast.error("No image selected to export");
+    if (!stageRef.current) {
+      toast.error("No canvas to export");
       return;
     }
     try {
-      const res = await fetch(selectedImageUrl);
-      if (!res.ok) throw new Error("Failed to fetch image");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      // Deselect to hide transformer handles
+      setSelectedNodeId(null);
+      // Wait one frame for React re-render
+      await new Promise((r) => setTimeout(r, 50));
+
+      const dataUrl = stageRef.current.toDataURL({
+        pixelRatio: 1600 / 400, // exports at full 1600x2560
+        mimeType: format === "jpeg" ? "image/jpeg" : "image/png",
+        quality: format === "jpeg" ? 0.95 : undefined,
+      });
+
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `${titleNode.text.replace(/\s+/g, "_")}_cover.${format}`;
+      a.href = dataUrl;
+      const titleText = textNodes.find(n => n.id === "title")?.text ?? textNodes[0]?.text ?? "cover";
+      a.download = `${titleText.replace(/\s+/g, "_") || "cover"}_cover.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
       toast.success(`Exported as ${format.toUpperCase()}`);
     } catch {
       toast.error("Export failed");
@@ -361,8 +363,33 @@ export function EditorShell({ project }: { project: Project }) {
   }
 
   function updateNode(id: string, attrs: Partial<TextNodeConfig>) {
-    if (id === "title") setTitleNode((prev) => ({ ...prev, ...attrs }));
-    if (id === "author") setAuthorNode((prev) => ({ ...prev, ...attrs }));
+    setTextNodes(prev => prev.map(n => n.id === id ? { ...n, ...attrs } : n));
+  }
+
+  function addTextNode() {
+    const id = crypto.randomUUID();
+    const newNode: TextNodeConfig = {
+      id,
+      name: "Text Layer",
+      text: "New Text",
+      x: 160,
+      y: 1200,
+      fontSize: 48,
+      fontFamily: "Georgia, serif",
+      fill: "#ffffff",
+      align: "center",
+      fontStyle: "normal",
+      width: 1280,
+      visible: true,
+      draggable: true,
+    };
+    setTextNodes(prev => [...prev, newNode]);
+    setSelectedNodeId(id);
+  }
+
+  function removeTextNode(id: string) {
+    setTextNodes(prev => prev.filter(n => n.id !== id));
+    if (selectedNodeId === id) setSelectedNodeId(null);
   }
 
   function handleNodeDragEnd(id: string, x: number, y: number) {
@@ -380,737 +407,192 @@ export function EditorShell({ project }: { project: Project }) {
     updateNode(id, mapped);
   }
 
-  function moveLayer(fromIdx: number, toIdx: number) {
-    // Layers order doesn't affect Konva rendering in this simple setup,
-    // but visually reorders the list
-    // (full z-index support requires a Konva layer reorder which is Phase C advanced)
-  }
-
-  const layerItems = [
-    { id: "bg", name: "Background Image", type: "image" as const, visible: true, locked: true },
-    { id: "title", name: "Title Text", type: "text" as const, visible: titleNode.visible, locked: !titleNode.draggable },
-    { id: "author", name: "Author Text", type: "text" as const, visible: authorNode.visible, locked: !authorNode.draggable },
-  ];
-
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
-      {/* Canvas area */}
-      <div className="flex flex-1 flex-col items-center justify-center bg-muted/20 p-4 lg:p-8">
-        <div
-          className="relative overflow-hidden rounded-xl border bg-background shadow-xl"
-          style={{
-            width: 400,
-            height: 640,
-          }}
-        >
-          {allImages.length > 0 ? (
-            loadingUrls ? (
-              <div className="flex h-full items-center justify-center">
-                <Loader2 className="size-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : selectedImageUrl ? (
-              <>
-                <CoverCanvas
-                  imageUrl={selectedImageUrl}
-                  titleNode={titleNode}
-                  authorNode={authorNode}
-                  selectedNodeId={brushMode ? null : selectedNodeId}
-                  onSelectNode={brushMode ? () => {} : setSelectedNodeId}
-                  onNodeDragEnd={handleNodeDragEnd}
-                  onNodeTransformEnd={handleNodeTransformEnd}
-                />
-                {brushMode && !inpaintMask && (
-                  <div className="absolute inset-0">
-                    <BrushTool
-                      onExportMask={(dataUrl) => setInpaintMask(dataUrl)}
-                      onCancel={() => setBrushMode(false)}
-                    />
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-                <div>
-                  <ImageIcon className="mx-auto mb-2 size-8 text-muted-foreground/50" />
-                  <p>Select an image below</p>
-                </div>
-              </div>
-            )
-          ) : pendingGeneration ? (
-            <GenerationPoller
-              generationId={pendingGeneration.id}
-              status={pendingGeneration.status}
-            />
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-              <ImageIcon className="size-12 text-muted-foreground/30" />
-              <p className="font-medium text-muted-foreground">
-                No generated images yet
-              </p>
-              <Button variant="outline" size="sm" onClick={handleRegenerate}>
-                <RefreshCw className="mr-2 size-3.5" />
-                Generate Now
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Generation history */}
-        <div className="mt-4 w-full max-w-xl">
-          <ScrollArea className="max-h-40">
-            <div className="space-y-2">
-              {completedGenerations.map((gen, idx) => (
-                <GenerationGroup
-                  key={gen.id}
-                  generation={gen}
-                  index={completedGenerations.length - idx}
-                  imageUrls={imageUrls}
-                  selectedImageId={selectedImageId}
-                  onSelect={selectImage}
-                  defaultOpen={idx === 0}
-                />
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
+    <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
+      {/* Left sidebar */}
+      <div className="hidden lg:flex w-72 flex-col border-r bg-background">
+        <LeftSidebar
+          genre={genre}
+          setGenre={setGenre}
+          moods={moods}
+          toggleMood={toggleMood}
+          style={style}
+          setStyle={setStyle}
+          brief={brief}
+          setBrief={setBrief}
+          imageCount={imageCount}
+          setImageCount={setImageCount}
+          model={model}
+          setModel={setModel}
+          saving={saving}
+          onSave={saveProject}
+          onRegenerate={handleRegenerate}
+          onOpenSimilarDialog={() => setRefDialogOpen(true)}
+          selectedImageId={selectedImageId}
+          pendingGeneration={!!pendingGeneration}
+        />
       </div>
 
-      {/* Properties panel */}
-      <div className="flex w-80 flex-col border-l bg-background">
-        {/* Kindle preview at top of panel */}
-        <div className="flex items-center gap-3 border-b p-3">
+      {/* Center: canvas + generation history */}
+      <div className="flex flex-1 flex-col overflow-hidden bg-muted/20">
+        <div className="flex flex-1 items-center justify-center gap-3 overflow-hidden p-4">
+          {/* Canvas */}
           <div
-            className="shrink-0 overflow-hidden rounded border bg-muted/50 shadow-sm"
-            style={{ width: 40, aspectRatio: "1600/2560" }}
+            className="relative shrink-0 overflow-hidden rounded-xl border bg-background shadow-xl"
+            style={{
+              width: 400,
+              height: 640,
+            }}
           >
-            {selectedImageUrl ? (
-              <Image
-                src={selectedImageUrl}
-                alt="Kindle preview"
-                width={40}
-                height={64}
-                className="h-full w-full object-cover"
-                unoptimized
+            {allImages.length > 0 ? (
+              loadingUrls || Object.keys(imageUrls).length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
+                  <Skeleton className="h-[60%] w-[80%] rounded-lg" />
+                  <Skeleton className="h-4 w-[50%]" />
+                  <Skeleton className="h-3 w-[30%]" />
+                </div>
+              ) : selectedImageUrl ? (
+                <>
+                  <CoverCanvas
+                    imageUrl={selectedImageUrl}
+                    textNodes={textNodes}
+                    selectedNodeId={brushMode ? null : selectedNodeId}
+                    onSelectNode={brushMode ? () => {} : setSelectedNodeId}
+                    onNodeDragEnd={handleNodeDragEnd}
+                    onNodeTransformEnd={handleNodeTransformEnd}
+                    stageRef={stageRef}
+                  />
+                  {brushMode && !inpaintMask && (
+                    <div className="absolute inset-0">
+                      <BrushTool
+                        onExportMask={(dataUrl) => setInpaintMask(dataUrl)}
+                        onCancel={() => setBrushMode(false)}
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
+                  <div>
+                    <ImageIcon className="mx-auto mb-2 size-8 text-muted-foreground/50" />
+                    <p>Select an image below</p>
+                  </div>
+                </div>
+              )
+            ) : pendingGeneration ? (
+              <GenerationPoller
+                generationId={pendingGeneration.id}
+                status={pendingGeneration.status}
               />
             ) : (
-              <div className="flex h-full items-center justify-center">
-                <Tablet className="size-3 text-muted-foreground/50" />
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+                <ImageIcon className="size-12 text-muted-foreground/30" />
+                <p className="font-medium text-muted-foreground">
+                  No generated images yet
+                </p>
+                <Button variant="outline" size="sm" onClick={handleRegenerate}>
+                  <RefreshCw className="mr-2 size-3.5" />
+                  Generate Now
+                </Button>
               </div>
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Kindle Preview (~120px)
-            </p>
-            <p className="truncate text-xs font-medium">{titleNode.text || "Untitled"}</p>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={saveProject}
-            disabled={saving}
-            className="shrink-0 gap-1.5"
-          >
-            <Save className="size-3.5" />
-            {saving ? "..." : "Save"}
-          </Button>
+
+          {/* Kindle preview — flex sibling to the right of canvas */}
+          {showKindlePreview ? (
+            <div className="flex w-[75px] shrink-0 flex-col items-center justify-end" style={{ height: 640 }}>
+              <p className="mb-1 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Kindle ~120px
+              </p>
+              <button
+                onClick={() => setShowKindlePreview(false)}
+                className="group relative overflow-hidden rounded-lg border bg-muted/50 shadow-sm"
+                style={{ width: 75, aspectRatio: "1600/2560" }}
+                title="Hide preview"
+              >
+                {kindlePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={kindlePreview}
+                    alt="Kindle preview"
+                    className="h-full w-full object-cover transition-[filter] group-hover:blur-sm"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center transition-[filter] group-hover:blur-sm">
+                    <Tablet className="size-4 text-muted-foreground/50" />
+                  </div>
+                )}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+                  <EyeOff className="size-5 text-white drop-shadow-md" />
+                </div>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowKindlePreview(true)}
+              className="flex shrink-0 flex-col items-center justify-end gap-1 pb-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              style={{ height: 640 }}
+            >
+              <Tablet className="size-3.5" />
+              <span>Preview</span>
+            </button>
+          )}
         </div>
 
-        <Tabs defaultValue="text" className="flex-1 overflow-hidden flex flex-col">
-          <TabsList className="w-full justify-start rounded-none border-b px-2 shrink-0">
-            <TabsTrigger value="text" className="gap-1 text-xs">
-              <Type className="size-3" />
-              Text
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-1 text-xs">
-              <Settings className="size-3" />
-              Settings
-            </TabsTrigger>
-            <TabsTrigger value="layers" className="gap-1 text-xs">
-              <Layers className="size-3" />
-              Layers
-            </TabsTrigger>
-            <TabsTrigger value="edit" className="gap-1 text-xs">
-              <Paintbrush className="size-3" />
-              Edit
-            </TabsTrigger>
-          </TabsList>
-
-          <div className="flex-1 overflow-hidden">
-            <TabsContent value="text" className="h-full m-0">
-              <ScrollArea className="h-full">
-                <div className="space-y-4 p-4">
-                  {/* Title controls */}
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Title
-                    </Label>
-                    <Input
-                      value={titleNode.text}
-                      onChange={(e) =>
-                        updateNode("title", { text: e.target.value })
-                      }
-                      placeholder="Book title"
+        {/* History panel */}
+        <Collapsible open={historyOpen} onOpenChange={setHistoryOpen} className="shrink-0 border-t bg-background/80">
+          <CollapsibleTrigger className="flex w-full items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 transition-colors">
+            <ChevronRight className={`size-3.5 transition-transform duration-200 ${historyOpen ? "rotate-90" : ""}`} />
+            Generation History
+            {completedGenerations.length > 0 && (
+              <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
+                {completedGenerations.length}
+              </Badge>
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            {completedGenerations.length > 0 && (
+              <div className="overflow-y-auto px-4 pb-3" style={{ maxHeight: 200 }}>
+                <div className="space-y-1">
+                  {completedGenerations.map((gen, idx) => (
+                    <GenerationGroup
+                      key={gen.id}
+                      generation={gen}
+                      index={completedGenerations.length - idx}
+                      imageUrls={imageUrls}
+                      selectedImageId={selectedImageId}
+                      onSelect={selectImage}
+                      defaultOpen={idx === 0}
                     />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Font</Label>
-                        <Select
-                          value={titleNode.fontFamily}
-                          onValueChange={(v) =>
-                            v && updateNode("title", { fontFamily: v })
-                          }
-                        >
-                          <SelectTrigger className="w-full text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {FONT_OPTIONS.map((f) => (
-                              <SelectItem key={f} value={f}>
-                                <span style={{ fontFamily: f }}>
-                                  {f.split(",")[0]}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Size</Label>
-                        <Input
-                          type="number"
-                          value={Math.round(titleNode.fontSize)}
-                          onChange={(e) =>
-                            updateNode("title", {
-                              fontSize: Number(e.target.value) || 48,
-                            })
-                          }
-                          min={12}
-                          max={300}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Color</Label>
-                        <Input
-                          type="color"
-                          value={titleNode.fill.startsWith("rgba") ? "#ffffff" : titleNode.fill}
-                          onChange={(e) =>
-                            updateNode("title", { fill: e.target.value })
-                          }
-                          className="h-8 w-12 p-0.5"
-                        />
-                      </div>
-                      <div className="flex gap-1 pt-4">
-                        <Button
-                          variant={
-                            titleNode.fontStyle.includes("bold")
-                              ? "default"
-                              : "outline"
-                          }
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("title", {
-                              fontStyle: titleNode.fontStyle.includes("bold")
-                                ? titleNode.fontStyle.replace("bold", "").trim() || "normal"
-                                : (titleNode.fontStyle + " bold").trim(),
-                            })
-                          }
-                        >
-                          <Bold className="size-3" />
-                        </Button>
-                        <Button
-                          variant={
-                            titleNode.fontStyle.includes("italic")
-                              ? "default"
-                              : "outline"
-                          }
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("title", {
-                              fontStyle: titleNode.fontStyle.includes("italic")
-                                ? titleNode.fontStyle.replace("italic", "").trim() || "normal"
-                                : (titleNode.fontStyle + " italic").trim(),
-                            })
-                          }
-                        >
-                          <Italic className="size-3" />
-                        </Button>
-                        <Button
-                          variant={titleNode.align === "left" ? "default" : "outline"}
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("title", { align: "left" })
-                          }
-                        >
-                          <AlignLeft className="size-3" />
-                        </Button>
-                        <Button
-                          variant={titleNode.align === "center" ? "default" : "outline"}
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("title", { align: "center" })
-                          }
-                        >
-                          <AlignCenter className="size-3" />
-                        </Button>
-                        <Button
-                          variant={titleNode.align === "right" ? "default" : "outline"}
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("title", { align: "right" })
-                          }
-                        >
-                          <AlignRight className="size-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Author controls */}
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Author
-                    </Label>
-                    <Input
-                      value={authorNode.text}
-                      onChange={(e) =>
-                        updateNode("author", { text: e.target.value })
-                      }
-                      placeholder="Author name"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Font</Label>
-                        <Select
-                          value={authorNode.fontFamily}
-                          onValueChange={(v) =>
-                            v && updateNode("author", { fontFamily: v })
-                          }
-                        >
-                          <SelectTrigger className="w-full text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {FONT_OPTIONS.map((f) => (
-                              <SelectItem key={f} value={f}>
-                                <span style={{ fontFamily: f }}>
-                                  {f.split(",")[0]}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Size</Label>
-                        <Input
-                          type="number"
-                          value={Math.round(authorNode.fontSize)}
-                          onChange={(e) =>
-                            updateNode("author", {
-                              fontSize: Number(e.target.value) || 32,
-                            })
-                          }
-                          min={12}
-                          max={200}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Color</Label>
-                        <Input
-                          type="color"
-                          value={authorNode.fill.startsWith("rgba") ? "#ffffff" : authorNode.fill}
-                          onChange={(e) =>
-                            updateNode("author", { fill: e.target.value })
-                          }
-                          className="h-8 w-12 p-0.5"
-                        />
-                      </div>
-                      <div className="flex gap-1 pt-4">
-                        <Button
-                          variant={
-                            authorNode.fontStyle.includes("bold")
-                              ? "default"
-                              : "outline"
-                          }
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("author", {
-                              fontStyle: authorNode.fontStyle.includes("bold")
-                                ? authorNode.fontStyle.replace("bold", "").trim() || "normal"
-                                : (authorNode.fontStyle + " bold").trim(),
-                            })
-                          }
-                        >
-                          <Bold className="size-3" />
-                        </Button>
-                        <Button
-                          variant={
-                            authorNode.fontStyle.includes("italic")
-                              ? "default"
-                              : "outline"
-                          }
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("author", {
-                              fontStyle: authorNode.fontStyle.includes("italic")
-                                ? authorNode.fontStyle.replace("italic", "").trim() || "normal"
-                                : (authorNode.fontStyle + " italic").trim(),
-                            })
-                          }
-                        >
-                          <Italic className="size-3" />
-                        </Button>
-                        <Button
-                          variant={authorNode.align === "left" ? "default" : "outline"}
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("author", { align: "left" })
-                          }
-                        >
-                          <AlignLeft className="size-3" />
-                        </Button>
-                        <Button
-                          variant={authorNode.align === "center" ? "default" : "outline"}
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("author", { align: "center" })
-                          }
-                        >
-                          <AlignCenter className="size-3" />
-                        </Button>
-                        <Button
-                          variant={authorNode.align === "right" ? "default" : "outline"}
-                          size="icon-sm"
-                          onClick={() =>
-                            updateNode("author", { align: "right" })
-                          }
-                        >
-                          <AlignRight className="size-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="settings" className="h-full m-0">
-              <ScrollArea className="h-full">
-                <div className="space-y-4 p-4">
-                  <div className="space-y-2">
-                    <Label>Genre</Label>
-                    <Select value={genre} onValueChange={(v) => v && setGenre(v)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select genre" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {GENRES.map((g) => (
-                          <SelectItem key={g.value} value={g.value}>
-                            {g.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Mood</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {MOODS.map((m) => (
-                        <Badge
-                          key={m}
-                          variant={moods.includes(m) ? "default" : "outline"}
-                          className="cursor-pointer text-xs"
-                          onClick={() => toggleMood(m)}
-                        >
-                          {m}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Art Style</Label>
-                    <Select value={style} onValueChange={(v) => v && setStyle(v)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select style" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ART_STYLES.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>
-                            {s.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Brief / Description</Label>
-                    <Textarea
-                      value={brief}
-                      onChange={(e) => setBrief(e.target.value)}
-                      rows={4}
-                      placeholder="Describe visual elements, themes..."
-                    />
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <Label>Images per generation: {imageCount}</Label>
-                    <Slider
-                      value={[imageCount]}
-                      onValueChange={(v) =>
-                        setImageCount(Array.isArray(v) ? v[0] : v)
-                      }
-                      min={1}
-                      max={8}
-                      step={1}
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>1</span>
-                      <span>8</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>AI Model</Label>
-                    <Select value={model} onValueChange={(v) => v && setModel(v)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select model" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {AI_MODELS.map((m) => (
-                          <SelectItem key={m.value} value={m.value}>
-                            {m.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Used for generation, reference generation, and inpainting
-                    </p>
-                  </div>
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="layers" className="h-full m-0">
-              <ScrollArea className="h-full">
-                <div className="space-y-1 p-4">
-                  {layerItems.map((layer) => (
-                    <Card
-                      key={layer.id}
-                      className={`flex items-center gap-2 rounded-lg p-2.5 cursor-pointer transition-colors ${
-                        selectedNodeId === layer.id
-                          ? "ring-1 ring-primary bg-primary/5"
-                          : "hover:bg-muted/50"
-                      }`}
-                      onClick={() => {
-                        if (layer.type === "text") setSelectedNodeId(layer.id);
-                      }}
-                    >
-                      <GripVertical className="size-3.5 text-muted-foreground/50 cursor-grab" />
-                      <div className="flex h-7 w-5 items-center justify-center rounded bg-muted text-[10px] text-muted-foreground">
-                        {layer.type === "image" ? "img" : "T"}
-                      </div>
-                      <span className="flex-1 text-sm truncate">{layer.name}</span>
-                      {layer.type === "text" && (
-                        <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateNode(layer.id, {
-                                visible: !layer.visible,
-                              });
-                            }}
-                            className="p-0.5 text-muted-foreground hover:text-foreground"
-                          >
-                            {layer.visible ? (
-                              <Eye className="size-3.5" />
-                            ) : (
-                              <EyeOff className="size-3.5" />
-                            )}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateNode(layer.id, {
-                                draggable: layer.locked,
-                              });
-                            }}
-                            className="p-0.5 text-muted-foreground hover:text-foreground"
-                          >
-                            {layer.locked ? (
-                              <Lock className="size-3.5" />
-                            ) : (
-                              <Unlock className="size-3.5" />
-                            )}
-                          </button>
-                        </>
-                      )}
-                    </Card>
                   ))}
                 </div>
-              </ScrollArea>
-            </TabsContent>
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
 
-            <TabsContent value="edit" className="h-full m-0">
-              <ScrollArea className="h-full">
-                <div className="space-y-3 p-4">
-                  {!brushMode ? (
-                    <>
-                      <p className="text-sm text-muted-foreground">
-                        Paint over an area of the selected image you want to change,
-                        then describe the replacement. Uses Ideogram V3 (if configured)
-                        or OpenAI for inpainting.
-                      </p>
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2"
-                        onClick={() => setBrushMode(true)}
-                        disabled={!selectedImageUrl}
-                      >
-                        <Paintbrush className="size-4" />
-                        Edit Region
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      {inpaintMask ? (
-                        <div className="space-y-3">
-                          <div className="flex items-start gap-3">
-                            <div className="shrink-0 overflow-hidden rounded border" style={{ width: 48, aspectRatio: "1600/2560" }}>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={inpaintMask}
-                                alt="Mask preview"
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">Mask captured</p>
-                              <p className="text-xs text-muted-foreground">
-                                White regions will be edited.
-                              </p>
-                            </div>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Describe what should replace the painted region.
-                          </p>
-                          <Textarea
-                            value={inpaintPrompt}
-                            onChange={(e) => setInpaintPrompt(e.target.value)}
-                            placeholder="e.g. Replace with a sunset sky, add a castle in the background..."
-                            rows={3}
-                          />
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1"
-                              onClick={() => {
-                                setInpaintMask(null);
-                              }}
-                            >
-                              Re-paint
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="flex-1 gap-1.5"
-                              onClick={handleInpaintSubmit}
-                              disabled={
-                                inpaintSubmitting || !inpaintPrompt.trim()
-                              }
-                            >
-                              {inpaintSubmitting ? (
-                                <Loader2 className="size-3.5 animate-spin" />
-                              ) : (
-                                <Sparkles className="size-3.5" />
-                              )}
-                              Apply Edit
-                            </Button>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full"
-                            onClick={() => {
-                              setBrushMode(false);
-                              setInpaintMask(null);
-                              setInpaintPrompt("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <p className="text-xs text-muted-foreground">
-                            Paint over the area you want to change, then click
-                            &quot;Done&quot; on the canvas toolbar.
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </ScrollArea>
-            </TabsContent>
-          </div>
-        </Tabs>
-
-        <Separator />
-        <div className="space-y-2 p-3 shrink-0">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRegenerate}
-              className="flex-1 gap-1.5"
-            >
-              <RefreshCw className="size-3.5" />
-              Regenerate
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRefDialogOpen(true)}
-              disabled={!selectedImageId}
-              className="flex-1 gap-1.5"
-            >
-              <Sparkles className="size-3.5" />
-              Similar
-            </Button>
-          </div>
-          <Button
-            className="w-full gap-2"
-            size="sm"
-            onClick={() => handleExport("jpeg")}
-            disabled={!selectedImageUrl}
-          >
-            <Download className="size-4" />
-            Export JPEG (KDP-Ready)
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full gap-2"
-            size="sm"
-            onClick={() => handleExport("png")}
-            disabled={!selectedImageUrl}
-          >
-            <Download className="size-4" />
-            Export PNG
-          </Button>
-        </div>
+      {/* Right sidebar */}
+      <div className="hidden lg:flex w-72 flex-col border-l bg-background">
+        <RightSidebar
+          textNodes={textNodes}
+          selectedNodeId={selectedNodeId}
+          setSelectedNodeId={setSelectedNodeId}
+          updateNode={updateNode}
+          addTextNode={addTextNode}
+          removeTextNode={removeTextNode}
+          brushMode={brushMode}
+          setBrushMode={setBrushMode}
+          inpaintMask={inpaintMask}
+          setInpaintMask={setInpaintMask}
+          inpaintPrompt={inpaintPrompt}
+          setInpaintPrompt={setInpaintPrompt}
+          inpaintSubmitting={inpaintSubmitting}
+          onInpaintSubmit={handleInpaintSubmit}
+          selectedImageUrl={selectedImageUrl}
+          onExportJpeg={() => handleExport("jpeg")}
+          onExportPng={() => handleExport("png")}
+        />
       </div>
 
       {/* Generate Similar Dialog */}
@@ -1215,11 +697,7 @@ function GenerationGroup({
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 transition-colors">
-        {open ? (
-          <ChevronDown className="size-3.5 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="size-3.5 text-muted-foreground" />
-        )}
+        <ChevronRight className={`size-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
         <span className="font-medium">{label}</span>
         <span className="text-xs text-muted-foreground">
           {generation.images.length} images
@@ -1256,9 +734,7 @@ function GenerationGroup({
                   unoptimized
                 />
               ) : (
-                <div className="flex h-full items-center justify-center bg-muted/50 text-[7px] text-muted-foreground">
-                  {img.id.slice(0, 4)}
-                </div>
+                <Skeleton className="h-full w-full" />
               )}
             </button>
           ))}

@@ -7,6 +7,7 @@ import {
   Image as KonvaImage,
   Text,
   Transformer,
+  Line,
 } from "react-konva";
 import type Konva from "konva";
 
@@ -18,6 +19,7 @@ const SCALE = CANVAS_WIDTH / EXPORT_WIDTH;
 
 export interface TextNodeConfig {
   id: string;
+  name?: string;
   text: string;
   x: number;
   y: number;
@@ -29,37 +31,75 @@ export interface TextNodeConfig {
   width: number;
   visible: boolean;
   draggable: boolean;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  shadowOpacity?: number;
+  stroke?: string;
+  strokeWidth?: number;
 }
 
 export interface CanvasState {
+  textNodes: TextNodeConfig[];
+}
+
+interface LegacyCanvasState {
   titleNode: TextNodeConfig;
   authorNode: TextNodeConfig;
+  subtitleNode?: TextNodeConfig;
+}
+
+export function migrateCanvasState(raw: unknown): CanvasState | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.textNodes)) return obj as unknown as CanvasState;
+  // Legacy shape
+  if (obj.titleNode && obj.authorNode) {
+    const legacy = obj as unknown as LegacyCanvasState;
+    const idToName: Record<string, string> = { title: "Title", subtitle: "Subtitle", author: "Author" };
+    const withName = (n: TextNodeConfig) => ({ ...n, name: n.name ?? idToName[n.id] ?? n.id });
+    const nodes = [withName(legacy.titleNode), withName(legacy.authorNode)];
+    if (legacy.subtitleNode) nodes.splice(1, 0, withName(legacy.subtitleNode));
+    return { textNodes: nodes };
+  }
+  return null;
+}
+
+interface Guide {
+  x?: number;
+  y?: number;
 }
 
 interface CoverCanvasProps {
   imageUrl: string | undefined;
-  titleNode: TextNodeConfig;
-  authorNode: TextNodeConfig;
+  textNodes: TextNodeConfig[];
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onNodeDragEnd: (id: string, x: number, y: number) => void;
   onNodeTransformEnd: (id: string, attrs: Partial<TextNodeConfig>) => void;
+  stageRef?: React.RefObject<Konva.Stage | null>;
 }
+
+const SNAP_THRESHOLD = 5;
+const CENTER_X = CANVAS_WIDTH / 2;
+const CENTER_Y = CANVAS_HEIGHT / 2;
 
 export function CoverCanvas({
   imageUrl,
-  titleNode,
-  authorNode,
+  textNodes,
   selectedNodeId,
   onSelectNode,
   onNodeDragEnd,
   onNodeTransformEnd,
+  stageRef: externalStageRef,
 }: CoverCanvasProps) {
-  const stageRef = useRef<Konva.Stage>(null);
-  const titleRef = useRef<Konva.Text>(null);
-  const authorRef = useRef<Konva.Text>(null);
+  const internalStageRef = useRef<Konva.Stage>(null);
+  const stageRef = externalStageRef || internalStageRef;
+  const nodeRefs = useRef<Record<string, Konva.Text | null>>({});
   const transformerRef = useRef<Konva.Transformer>(null);
   const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
+  const [guides, setGuides] = useState<Guide[]>([]);
 
   useEffect(() => {
     if (!imageUrl) {
@@ -76,10 +116,7 @@ export function CoverCanvas({
     const tr = transformerRef.current;
     if (!tr) return;
 
-    let node: Konva.Text | null = null;
-    if (selectedNodeId === "title") node = titleRef.current;
-    if (selectedNodeId === "author") node = authorRef.current;
-
+    const node = selectedNodeId ? nodeRefs.current[selectedNodeId] : null;
     if (node) {
       tr.nodes([node]);
     } else {
@@ -97,12 +134,31 @@ export function CoverCanvas({
     [onSelectNode],
   );
 
+  function handleDragMove(e: Konva.KonvaEventObject<DragEvent>) {
+    const node = e.target;
+    const nodeCenterX = node.x() + node.width() / 2;
+    const nodeCenterY = node.y() + node.height() / 2;
+    const newGuides: Guide[] = [];
+
+    if (Math.abs(nodeCenterX - CENTER_X) < SNAP_THRESHOLD) {
+      node.x(CENTER_X - node.width() / 2);
+      newGuides.push({ x: CENTER_X });
+    }
+    if (Math.abs(nodeCenterY - CENTER_Y) < SNAP_THRESHOLD) {
+      node.y(CENTER_Y - node.height() / 2);
+      newGuides.push({ y: CENTER_Y });
+    }
+
+    setGuides(newGuides);
+  }
+
   function handleDragEnd(id: string, e: Konva.KonvaEventObject<DragEvent>) {
+    setGuides([]);
     onNodeDragEnd(id, e.target.x(), e.target.y());
   }
 
   function handleTransformEnd(id: string) {
-    const node = id === "title" ? titleRef.current : authorRef.current;
+    const node = nodeRefs.current[id];
     if (!node) return;
 
     const scaleX = node.scaleX();
@@ -115,6 +171,41 @@ export function CoverCanvas({
       width: Math.max(20, node.width() * scaleX),
       fontSize: Math.round(node.fontSize() * scaleX),
     });
+  }
+
+  function renderTextNode(config: TextNodeConfig) {
+    if (!config.visible) return null;
+    return (
+      <Text
+        key={config.id}
+        ref={(ref) => {
+          nodeRefs.current[config.id] = ref;
+        }}
+        id={config.id}
+        text={config.text}
+        x={config.x * SCALE}
+        y={config.y * SCALE}
+        fontSize={config.fontSize * SCALE}
+        fontFamily={config.fontFamily}
+        fill={config.fill}
+        align={config.align}
+        fontStyle={config.fontStyle}
+        width={config.width * SCALE}
+        draggable={config.draggable}
+        shadowColor={config.shadowColor}
+        shadowBlur={(config.shadowBlur ?? 0) * SCALE}
+        shadowOffsetX={(config.shadowOffsetX ?? 2) * SCALE}
+        shadowOffsetY={(config.shadowOffsetY ?? 2) * SCALE}
+        shadowOpacity={config.shadowOpacity ?? 0.7}
+        stroke={config.stroke || ""}
+        strokeWidth={(config.strokeWidth ?? 0) * SCALE}
+        onClick={() => onSelectNode(config.id)}
+        onTap={() => onSelectNode(config.id)}
+        onDragMove={handleDragMove}
+        onDragEnd={(e) => handleDragEnd(config.id, e)}
+        onTransformEnd={() => handleTransformEnd(config.id)}
+      />
+    );
   }
 
   return (
@@ -136,46 +227,7 @@ export function CoverCanvas({
         )}
       </Layer>
       <Layer>
-        {titleNode.visible && (
-          <Text
-            ref={titleRef}
-            id="title"
-            text={titleNode.text}
-            x={titleNode.x * SCALE}
-            y={titleNode.y * SCALE}
-            fontSize={titleNode.fontSize * SCALE}
-            fontFamily={titleNode.fontFamily}
-            fill={titleNode.fill}
-            align={titleNode.align}
-            fontStyle={titleNode.fontStyle}
-            width={titleNode.width * SCALE}
-            draggable={titleNode.draggable}
-            onClick={() => onSelectNode("title")}
-            onTap={() => onSelectNode("title")}
-            onDragEnd={(e) => handleDragEnd("title", e)}
-            onTransformEnd={() => handleTransformEnd("title")}
-          />
-        )}
-        {authorNode.visible && (
-          <Text
-            ref={authorRef}
-            id="author"
-            text={authorNode.text}
-            x={authorNode.x * SCALE}
-            y={authorNode.y * SCALE}
-            fontSize={authorNode.fontSize * SCALE}
-            fontFamily={authorNode.fontFamily}
-            fill={authorNode.fill}
-            align={authorNode.align}
-            fontStyle={authorNode.fontStyle}
-            width={authorNode.width * SCALE}
-            draggable={authorNode.draggable}
-            onClick={() => onSelectNode("author")}
-            onTap={() => onSelectNode("author")}
-            onDragEnd={(e) => handleDragEnd("author", e)}
-            onTransformEnd={() => handleTransformEnd("author")}
-          />
-        )}
+        {textNodes.map(renderTextNode)}
         <Transformer
           ref={transformerRef}
           enabledAnchors={["middle-left", "middle-right"]}
@@ -184,6 +236,28 @@ export function CoverCanvas({
             return newBox;
           }}
         />
+      </Layer>
+      {/* Snap guide layer */}
+      <Layer listening={false}>
+        {guides.map((g, i) =>
+          g.x !== undefined ? (
+            <Line
+              key={`gx-${i}`}
+              points={[g.x, 0, g.x, CANVAS_HEIGHT]}
+              stroke="#00bfff"
+              strokeWidth={1}
+              dash={[4, 4]}
+            />
+          ) : g.y !== undefined ? (
+            <Line
+              key={`gy-${i}`}
+              points={[0, g.y, CANVAS_WIDTH, g.y]}
+              stroke="#00bfff"
+              strokeWidth={1}
+              dash={[4, 4]}
+            />
+          ) : null
+        )}
       </Layer>
     </Stage>
   );
@@ -194,33 +268,37 @@ export function getDefaultCanvasState(
   author: string,
 ): CanvasState {
   return {
-    titleNode: {
-      id: "title",
-      text: title,
-      x: 160,
-      y: 200,
-      fontSize: 96,
-      fontFamily: "Georgia, serif",
-      fill: "#ffffff",
-      align: "center",
-      fontStyle: "bold",
-      width: 1280,
-      visible: true,
-      draggable: true,
-    },
-    authorNode: {
-      id: "author",
-      text: author,
-      x: 160,
-      y: 2200,
-      fontSize: 56,
-      fontFamily: "Helvetica, sans-serif",
-      fill: "rgba(255,255,255,0.9)",
-      align: "center",
-      fontStyle: "normal",
-      width: 1280,
-      visible: true,
-      draggable: true,
-    },
+    textNodes: [
+      {
+        id: "title",
+        name: "Title",
+        text: title,
+        x: 160,
+        y: 200,
+        fontSize: 96,
+        fontFamily: "Georgia, serif",
+        fill: "#ffffff",
+        align: "center",
+        fontStyle: "bold",
+        width: 1280,
+        visible: true,
+        draggable: true,
+      },
+      {
+        id: "author",
+        name: "Author",
+        text: author,
+        x: 160,
+        y: 2200,
+        fontSize: 56,
+        fontFamily: "Helvetica, sans-serif",
+        fill: "rgba(255,255,255,0.9)",
+        align: "center",
+        fontStyle: "normal",
+        width: 1280,
+        visible: true,
+        draggable: true,
+      },
+    ],
   };
 }

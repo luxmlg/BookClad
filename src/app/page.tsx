@@ -199,18 +199,18 @@ export default function LandingPage() {
             {plans.map((plan) => (
               <Card
                 key={plan.name}
-                className={
+                className={`flex flex-col ${
                   plan.highlighted
                     ? "relative border-primary shadow-lg ring-1 ring-primary/20"
                     : ""
-                }
+                }`}
               >
                 {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-xs font-medium text-primary-foreground">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 rounded-full bg-primary px-4 py-1 text-sm font-medium text-primary-foreground">
                     Most Popular
                   </div>
                 )}
-                <CardContent className="p-6 text-center">
+                <CardContent className="flex flex-col flex-1 p-6 text-center">
                   <h3 className="text-lg font-semibold">{plan.name}</h3>
                   <div className="mt-3">
                     <span className="text-4xl font-bold">{plan.price}</span>
@@ -218,7 +218,7 @@ export default function LandingPage() {
                       {plan.period}
                     </span>
                   </div>
-                  <ul className="mt-6 space-y-3 text-left text-sm">
+                  <ul className="mt-6 flex-1 space-y-3 text-left text-sm">
                     {plan.features.map((f) => (
                       <li key={f} className="flex items-center gap-2">
                         <Check className="size-4 shrink-0 text-primary" />
