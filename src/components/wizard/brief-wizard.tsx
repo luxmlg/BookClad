@@ -1,28 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  BookText,
-  Palette,
-  Sparkles,
-  FileText,
-  Rocket,
-  Check,
-} from "lucide-react";
+import { BookText, Palette, FileText, Rocket, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { GENRES, MOODS, ART_STYLES } from "@/lib/constants";
+import { AttributeCategoryInput } from "@/components/editor/attribute-category-input";
+import type {
+  AttributeConfigJson,
+  AttributeSelection,
+} from "@/lib/attributes";
+import { buildDefaultConfig, buildDefaultSelection } from "@/lib/attributes";
 
 const STEPS = [
   { label: "Book Info", icon: BookText },
-  { label: "Genre & Mood", icon: Palette },
-  { label: "Style", icon: Sparkles },
+  { label: "Attributes", icon: Palette },
   { label: "Details", icon: FileText },
   { label: "Generate", icon: Rocket },
 ];
@@ -35,16 +31,50 @@ export function BriefWizard() {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [subtitle, setSubtitle] = useState("");
-  const [genre, setGenre] = useState("");
-  const [moods, setMoods] = useState<string[]>([]);
-  const [style, setStyle] = useState("");
+  const [attributeConfig, setAttributeConfig] = useState<AttributeConfigJson>(
+    buildDefaultConfig()
+  );
+  const [attributes, setAttributes] = useState<AttributeSelection>({});
   const [brief, setBrief] = useState("");
   const [imageCount, setImageCount] = useState(4);
 
-  function toggleMood(mood: string) {
-    setMoods((prev) =>
-      prev.includes(mood) ? prev.filter((m) => m !== mood) : [...prev, mood]
-    );
+  // Fetch user's attribute config
+  useEffect(() => {
+    fetch("/api/attributes")
+      .then((r) => r.json())
+      .then((config: AttributeConfigJson) => {
+        setAttributeConfig(config);
+        setAttributes(buildDefaultSelection(config));
+      })
+      .catch(() => {
+        const def = buildDefaultConfig();
+        setAttributes(buildDefaultSelection(def));
+      });
+  }, []);
+
+  const enabledCategories = attributeConfig.categories.filter(
+    (c) => c.enabled
+  );
+
+  function addCustomValue(categoryId: string, value: string, label: string) {
+    const updated = {
+      ...attributeConfig,
+      categories: attributeConfig.categories.map((c) =>
+        c.id === categoryId
+          ? {
+              ...c,
+              values: [...c.values, { value, label, builtIn: false }],
+            }
+          : c
+      ),
+    };
+    setAttributeConfig(updated);
+    // Persist to server
+    fetch("/api/attributes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updated),
+    }).catch(() => {});
   }
 
   async function handleSubmit() {
@@ -56,9 +86,7 @@ export function BriefWizard() {
         body: JSON.stringify({
           title,
           author,
-          genre,
-          mood: moods,
-          style,
+          attributes,
           brief: [subtitle, brief].filter(Boolean).join(". "),
         }),
       });
@@ -95,10 +123,14 @@ export function BriefWizard() {
     switch (step) {
       case 0:
         return title.trim() !== "" && author.trim() !== "";
-      case 1:
-        return genre !== "" && moods.length > 0;
-      case 2:
-        return style !== "";
+      case 1: {
+        // At least one single-select category has a value
+        return enabledCategories.some((c) => {
+          const val = attributes[c.id];
+          if (c.type === "single") return typeof val === "string" && val !== "";
+          return Array.isArray(val) && val.length > 0;
+        });
+      }
       default:
         return true;
     }
@@ -108,10 +140,8 @@ export function BriefWizard() {
 
   return (
     <div>
-      {/* Progress bar */}
       <Progress value={progressValue} className="mb-8 h-1.5" />
 
-      {/* Step indicators */}
       <div className="mb-8 flex items-center justify-center gap-2">
         {STEPS.map((s, i) => {
           const Icon = s.icon;
@@ -131,7 +161,11 @@ export function BriefWizard() {
                       : "bg-muted text-muted-foreground"
                 }`}
               >
-                {isDone ? <Check className="size-4" /> : <Icon className="size-4" />}
+                {isDone ? (
+                  <Check className="size-4" />
+                ) : (
+                  <Icon className="size-4" />
+                )}
               </button>
               {i < STEPS.length - 1 && (
                 <div
@@ -192,90 +226,39 @@ export function BriefWizard() {
 
           {step === 1 && (
             <div className="space-y-6">
-              <div className="space-y-3">
-                <div>
-                  <h2 className="text-xl font-semibold">Genre</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Pick the genre that best fits your book.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {GENRES.map((g) => (
-                    <button
-                      key={g.value}
-                      type="button"
-                      onClick={() => setGenre(g.value)}
-                      className={`rounded-lg border p-3 text-left text-sm transition-all ${
-                        genre === g.value
-                          ? "border-primary bg-primary/10 font-medium ring-1 ring-primary/30"
-                          : "border-border hover:border-primary/50 hover:bg-muted/50"
-                      }`}
-                    >
-                      {g.label}
-                    </button>
-                  ))}
-                </div>
+              <div>
+                <h2 className="text-xl font-semibold">Style Attributes</h2>
+                <p className="text-sm text-muted-foreground">
+                  Customize the look and feel of your cover. You can select from
+                  presets or type custom values.
+                </p>
               </div>
-              <div className="space-y-3">
-                <div>
-                  <h2 className="text-xl font-semibold">Mood</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Select one or more moods to guide the AI.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {MOODS.map((m) => (
-                    <Badge
-                      key={m}
-                      variant={moods.includes(m) ? "default" : "outline"}
-                      className="cursor-pointer transition-all hover:scale-105"
-                      onClick={() => toggleMood(m)}
-                    >
-                      {m}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+              {enabledCategories.map((category) => (
+                <AttributeCategoryInput
+                  key={category.id}
+                  category={category}
+                  value={
+                    attributes[category.id] ??
+                    (category.type === "multi" ? [] : "")
+                  }
+                  onChange={(v) =>
+                    setAttributes({ ...attributes, [category.id]: v })
+                  }
+                  onAddCustomValue={(value, label) =>
+                    addCustomValue(category.id, value, label)
+                  }
+                />
+              ))}
             </div>
           )}
 
           {step === 2 && (
-            <div className="space-y-3">
-              <div>
-                <h2 className="text-xl font-semibold">Art Style</h2>
-                <p className="text-sm text-muted-foreground">
-                  Choose the visual style for your cover.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {ART_STYLES.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => setStyle(s.value)}
-                    className={`flex flex-col items-center rounded-lg border p-6 transition-all ${
-                      style === s.value
-                        ? "border-primary bg-primary/10 ring-1 ring-primary/30"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-lg bg-linear-to-br from-muted to-muted/50">
-                      <Palette className="size-6 text-muted-foreground" />
-                    </div>
-                    <span className="font-medium">{s.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
             <div className="space-y-4">
               <div>
                 <h2 className="text-xl font-semibold">Additional Details</h2>
                 <p className="text-sm text-muted-foreground">
-                  Describe specific visual elements, themes, or imagery you&apos;d
-                  like. The more detail, the better.
+                  Describe specific visual elements, themes, or imagery
+                  you&apos;d like. The more detail, the better.
                 </p>
               </div>
               <div className="space-y-2">
@@ -292,7 +275,7 @@ export function BriefWizard() {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 3 && (
             <div className="space-y-6 text-center">
               <div>
                 <h2 className="text-xl font-semibold">Ready to Generate</h2>
@@ -302,32 +285,36 @@ export function BriefWizard() {
               </div>
               <div className="mx-auto max-w-sm space-y-3 rounded-lg border bg-muted/30 p-4 text-left text-sm">
                 <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Title</span>
+                  <span className="font-medium text-muted-foreground">
+                    Title
+                  </span>
                   <span className="text-right">{title}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Author</span>
+                  <span className="font-medium text-muted-foreground">
+                    Author
+                  </span>
                   <span className="text-right">{author}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Genre</span>
-                  <span className="text-right">
-                    {GENRES.find((g) => g.value === genre)?.label}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Mood</span>
-                  <span className="text-right">{moods.join(", ")}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Style</span>
-                  <span className="text-right">
-                    {ART_STYLES.find((s) => s.value === style)?.label}
-                  </span>
-                </div>
+                {enabledCategories.map((cat) => {
+                  const val = attributes[cat.id];
+                  if (!val || (Array.isArray(val) && val.length === 0))
+                    return null;
+                  const display = Array.isArray(val) ? val.join(", ") : val;
+                  return (
+                    <div key={cat.id} className="flex justify-between">
+                      <span className="font-medium text-muted-foreground">
+                        {cat.name}
+                      </span>
+                      <span className="text-right">{display}</span>
+                    </div>
+                  );
+                })}
                 {brief && (
                   <div>
-                    <span className="font-medium text-muted-foreground">Details</span>
+                    <span className="font-medium text-muted-foreground">
+                      Details
+                    </span>
                     <p className="mt-1 text-muted-foreground">{brief}</p>
                   </div>
                 )}

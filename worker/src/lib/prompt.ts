@@ -26,43 +26,64 @@ export const GENRE_VISUAL_RULES: Record<string, string> = {
 };
 
 interface ProjectBrief {
-  genre: string;
-  style: string;
-  mood: string[];
+  attributes: Record<string, string | string[]>;
   brief: string | null;
   title: string;
 }
 
+function formatAttrValue(val: string | string[]): string {
+  return Array.isArray(val) ? val.join(", ") : val;
+}
+
+function categoryLabel(key: string): string {
+  return key.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function buildPrompt(project: ProjectBrief): string {
-  const genreRules = GENRE_VISUAL_RULES[project.genre] ?? "";
-  const moodStr = project.mood.join(", ");
+  const attrs = project.attributes;
+  const genre = (attrs.genre as string) ?? "";
+  const style = (attrs.style as string) ?? "";
+  const mood = formatAttrValue(attrs.mood ?? []);
+  const genreRules = GENRE_VISUAL_RULES[genre] ?? "";
 
-  return `You are a professional book cover designer specializing in ${project.genre} covers for Amazon Kindle.
+  const extraAttrs = Object.entries(attrs)
+    .filter(([key]) => !["genre", "mood", "style"].includes(key))
+    .map(([key, val]) => `- ${categoryLabel(key)}: ${formatAttrValue(val)}`)
+    .join("\n");
 
-Create a ${project.style} book cover image with the following specifications:
+  return `You are a professional book cover designer specializing in ${genre} covers for Amazon Kindle.
+
+Create a ${style} book cover image with the following specifications:
 - Canvas: Portrait orientation, 1.6:1 aspect ratio (will be cropped to exact dimensions later)
-- Genre conventions: ${genreRules}
-- Mood: ${moodStr}
-- Key visual elements: ${project.brief ?? "Use genre-typical imagery"}
+${genreRules ? `- Genre conventions: ${genreRules}\n` : ""}- Mood: ${mood}
+${extraAttrs ? extraAttrs + "\n" : ""}- Key visual elements: ${project.brief ?? "Use genre-typical imagery"}
 - Leave clear, uncluttered space in the upper third for the title text
 - Leave clear space in the lower fifth for the author name
 - Color palette: Derived from the genre and mood
 - NO text, NO watermarks, NO borders in the generated image
 
-The cover must look competitive on the Amazon bestseller page for ${project.genre}. It should immediately communicate the book's theme to a browsing reader in thumbnail size.`;
+The cover must look competitive on the Amazon bestseller page for ${genre}. It should immediately communicate the book's theme to a browsing reader in thumbnail size.`;
 }
 
 export function buildReferencePrompt(project: ProjectBrief): string {
-  const genreRules = GENRE_VISUAL_RULES[project.genre] ?? "";
-  const moodStr = project.mood.join(", ");
+  const attrs = project.attributes;
+  const genre = (attrs.genre as string) ?? "";
+  const style = (attrs.style as string) ?? "";
+  const mood = formatAttrValue(attrs.mood ?? []);
+  const genreRules = GENRE_VISUAL_RULES[genre] ?? "";
+
+  const extraAttrs = Object.entries(attrs)
+    .filter(([key]) => !["genre", "mood", "style"].includes(key))
+    .map(([key, val]) => `- ${categoryLabel(key)}: ${formatAttrValue(val)}`)
+    .join("\n");
 
   return `You are a professional book cover designer. I am providing a reference book cover image. Create a new variation inspired by this reference, keeping the same visual mood, composition style, and color palette, but creating an original image.
 
 Specifications:
-- Genre: ${project.genre} (${genreRules})
-- Art style: ${project.style}
-- Mood: ${moodStr}
-- Key visual elements: ${project.brief ?? "Follow the reference image's theme"}
+- Genre: ${genre}${genreRules ? ` (${genreRules})` : ""}
+- Art style: ${style}
+- Mood: ${mood}
+${extraAttrs ? extraAttrs + "\n" : ""}- Key visual elements: ${project.brief ?? "Follow the reference image's theme"}
 - Maintain portrait orientation, 1.6:1 aspect ratio
 - Leave clear space in the upper third for title and lower fifth for author name
 - NO text, NO watermarks, NO borders

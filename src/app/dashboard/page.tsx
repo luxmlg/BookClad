@@ -106,7 +106,7 @@ export default async function DashboardPage() {
                       {project.title}
                     </CardTitle>
                     <CardDescription className="truncate">
-                      {project.author} &middot; {project.genre}
+                      {project.author} &middot; {(project.attributes as Record<string, unknown>)?.genre as string ?? ""}
                     </CardDescription>
                   </Link>
                   <DropdownMenu>

@@ -1,17 +1,17 @@
 import { z } from "zod";
-import { GENRES, MOODS, ART_STYLES, AI_MODELS } from "./constants";
+import { AI_MODELS } from "./constants";
 
-const genreValues = GENRES.map((g) => g.value) as [string, ...string[]];
-const styleValues = ART_STYLES.map((s) => s.value) as [string, ...string[]];
-const moodValues = [...MOODS] as [string, ...string[]];
 const modelValues = AI_MODELS.map((m) => m.value) as [string, ...string[]];
+
+const attributeSelectionField = z.record(
+  z.string(),
+  z.union([z.string(), z.array(z.string())])
+);
 
 export const createProjectSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
   author: z.string().min(1, "Author name is required").max(200),
-  genre: z.enum(genreValues, { message: "Invalid genre" }),
-  mood: z.array(z.enum(moodValues)).min(1, "Select at least one mood"),
-  style: z.enum(styleValues, { message: "Invalid style" }),
+  attributes: attributeSelectionField,
   brief: z.string().max(2000).optional().nullable(),
 });
 
@@ -25,9 +25,7 @@ export const createGenerationSchema = z.object({
 export const updateProjectSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   author: z.string().min(1).max(200).optional(),
-  genre: z.enum(genreValues).optional(),
-  mood: z.array(z.enum(moodValues)).min(1).optional(),
-  style: z.enum(styleValues).optional(),
+  attributes: attributeSelectionField.optional(),
   brief: z.string().max(2000).optional().nullable(),
   canvasState: z.any().optional(),
 });

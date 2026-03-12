@@ -38,6 +38,8 @@ import type { TextNodeConfig, CanvasState } from "./cover-canvas";
 import { getDefaultCanvasState, migrateCanvasState } from "./cover-canvas";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
+import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
+import { buildDefaultConfig } from "@/lib/attributes";
 import type Konva from "konva";
 const BrushTool = dynamic(
   () => import("./brush-tool").then((m) => m.BrushTool),
@@ -70,9 +72,7 @@ interface Project {
   id: string;
   title: string;
   author: string;
-  genre: string;
-  mood: string[];
-  style: string;
+  attributes: unknown;
   brief: string | null;
   canvasState: unknown;
   generations: Generation[];
@@ -91,9 +91,15 @@ export function EditorShell({ project }: { project: Project }) {
 
   const [textNodes, setTextNodes] = useState<TextNodeConfig[]>(initialCanvas.textNodes);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [genre, setGenre] = useState(project.genre);
-  const [moods, setMoods] = useState<string[]>(project.mood ?? []);
-  const [style, setStyle] = useState(project.style);
+  const [attributes, setAttributes] = useState<AttributeSelection>(
+    (project.attributes as AttributeSelection | null) ?? {}
+  );
+  const [attributeConfig, setAttributeConfig] = useState<AttributeConfigJson>(
+    buildDefaultConfig()
+  );
+  const [presets, setPresets] = useState<
+    Array<{ id: string; name: string; attributes: AttributeSelection }>
+  >([]);
   const [brief, setBrief] = useState(project.brief ?? "");
   const [saving, setSaving] = useState(false);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
@@ -120,6 +126,18 @@ export function EditorShell({ project }: { project: Project }) {
     return () => {
       document.documentElement.style.overflow = "";
     };
+  }, []);
+
+  // Fetch attribute config and presets
+  useEffect(() => {
+    fetch("/api/attributes")
+      .then((r) => r.json())
+      .then((config) => setAttributeConfig(config))
+      .catch(() => {});
+    fetch("/api/presets")
+      .then((r) => r.json())
+      .then((data) => setPresets(data))
+      .catch(() => {});
   }, []);
 
   const completedGenerations = project.generations.filter(
@@ -217,9 +235,7 @@ export function EditorShell({ project }: { project: Project }) {
         body: JSON.stringify({
           title: titleText,
           author: authorText,
-          genre,
-          mood: moods,
-          style,
+          attributes,
           brief: brief || null,
           canvasState,
         }),
@@ -231,7 +247,7 @@ export function EditorShell({ project }: { project: Project }) {
     } finally {
       setSaving(false);
     }
-  }, [project.id, project.title, project.author, textNodes, genre, moods, style, brief]);
+  }, [project.id, project.title, project.author, textNodes, attributes, brief]);
 
   async function selectImage(imageId: string) {
     setSelectedImageId(imageId);
@@ -356,10 +372,39 @@ export function EditorShell({ project }: { project: Project }) {
     }
   }
 
-  function toggleMood(m: string) {
-    setMoods((prev) =>
-      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
-    );
+  function handleConfigChange(config: AttributeConfigJson) {
+    setAttributeConfig(config);
+    fetch("/api/attributes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    }).catch(() => {});
+  }
+
+  async function handleSavePreset(name: string) {
+    try {
+      const res = await fetch("/api/presets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, attributes }),
+      });
+      if (res.ok) {
+        const preset = await res.json();
+        setPresets((prev) => [preset, ...prev]);
+        toast.success(`Preset "${name}" saved`);
+      }
+    } catch {
+      toast.error("Failed to save preset");
+    }
+  }
+
+  function handleApplyPreset(preset: {
+    id: string;
+    name: string;
+    attributes: AttributeSelection;
+  }) {
+    setAttributes(preset.attributes as AttributeSelection);
+    toast.success(`Applied preset "${preset.name}"`);
   }
 
   function updateNode(id: string, attrs: Partial<TextNodeConfig>) {
@@ -412,12 +457,13 @@ export function EditorShell({ project }: { project: Project }) {
       {/* Left sidebar */}
       <div className="hidden lg:flex w-72 flex-col border-r bg-background">
         <LeftSidebar
-          genre={genre}
-          setGenre={setGenre}
-          moods={moods}
-          toggleMood={toggleMood}
-          style={style}
-          setStyle={setStyle}
+          attributeConfig={attributeConfig}
+          attributes={attributes}
+          setAttributes={setAttributes}
+          onConfigChange={handleConfigChange}
+          presets={presets}
+          onSavePreset={handleSavePreset}
+          onApplyPreset={handleApplyPreset}
           brief={brief}
           setBrief={setBrief}
           imageCount={imageCount}

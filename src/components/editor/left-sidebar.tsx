@@ -1,14 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import {
   Save,
   Loader2,
   RefreshCw,
   Sparkles,
+  PlusIcon,
+  XIcon,
+  BookmarkIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -19,15 +23,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GENRES, MOODS, ART_STYLES, AI_MODELS } from "@/lib/constants";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { AI_MODELS } from "@/lib/constants";
+import type {
+  AttributeConfigJson,
+  AttributeSelection,
+  AttributeCategory,
+} from "@/lib/attributes";
+import { AttributeCategoryInput } from "./attribute-category-input";
+
+interface StylePreset {
+  id: string;
+  name: string;
+  attributes: AttributeSelection;
+}
 
 interface LeftSidebarProps {
-  genre: string;
-  setGenre: (v: string) => void;
-  moods: string[];
-  toggleMood: (m: string) => void;
-  style: string;
-  setStyle: (v: string) => void;
+  attributeConfig: AttributeConfigJson;
+  attributes: AttributeSelection;
+  setAttributes: (attrs: AttributeSelection) => void;
+  onConfigChange: (config: AttributeConfigJson) => void;
+  presets: StylePreset[];
+  onSavePreset: (name: string) => void;
+  onApplyPreset: (preset: StylePreset) => void;
   brief: string;
   setBrief: (v: string) => void;
   imageCount: number;
@@ -43,12 +67,13 @@ interface LeftSidebarProps {
 }
 
 export function LeftSidebar({
-  genre,
-  setGenre,
-  moods,
-  toggleMood,
-  style,
-  setStyle,
+  attributeConfig,
+  attributes,
+  setAttributes,
+  onConfigChange,
+  presets,
+  onSavePreset,
+  onApplyPreset,
   brief,
   setBrief,
   imageCount,
@@ -62,6 +87,96 @@ export function LeftSidebar({
   selectedImageId,
   pendingGeneration,
 }: LeftSidebarProps) {
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryType, setNewCategoryType] = useState<"single" | "multi">(
+    "single"
+  );
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+  const [presetName, setPresetName] = useState("");
+
+  const enabledCategories = attributeConfig.categories.filter(
+    (c) => c.enabled
+  );
+
+  function updateAttribute(categoryId: string, value: string | string[]) {
+    setAttributes({ ...attributes, [categoryId]: value });
+  }
+
+  function addCustomValue(categoryId: string, value: string, label: string) {
+    const updated = {
+      ...attributeConfig,
+      categories: attributeConfig.categories.map((c) =>
+        c.id === categoryId
+          ? {
+              ...c,
+              values: [
+                ...c.values,
+                { value, label, builtIn: false },
+              ],
+            }
+          : c
+      ),
+    };
+    onConfigChange(updated);
+  }
+
+  function removeCustomValue(categoryId: string, value: string) {
+    const updated = {
+      ...attributeConfig,
+      categories: attributeConfig.categories.map((c) =>
+        c.id === categoryId
+          ? {
+              ...c,
+              values: c.values.filter((v) => v.value !== value || v.builtIn),
+            }
+          : c
+      ),
+    };
+    onConfigChange(updated);
+  }
+
+  function addCategory() {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    const id = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    const newCat: AttributeCategory = {
+      id,
+      name,
+      type: newCategoryType,
+      builtIn: false,
+      enabled: true,
+      values: [],
+    };
+
+    onConfigChange({
+      ...attributeConfig,
+      categories: [...attributeConfig.categories, newCat],
+    });
+    setAttributes({
+      ...attributes,
+      [id]: newCategoryType === "multi" ? [] : "",
+    });
+    setNewCategoryName("");
+    setAddingCategory(false);
+  }
+
+  function removeCategory(categoryId: string) {
+    const updated = {
+      ...attributeConfig,
+      categories: attributeConfig.categories.filter(
+        (c) => c.id !== categoryId
+      ),
+    };
+    onConfigChange(updated);
+    const { [categoryId]: _removed, ...rest } = attributes;
+    setAttributes(rest);
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -84,57 +199,121 @@ export function LeftSidebar({
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
         <div className="space-y-4 p-4">
-          <div className="space-y-2">
-            <Label>Genre</Label>
-            <Select value={genre} onValueChange={(v) => v && setGenre(v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select genre">
-                  {GENRES.find((g) => g.value === genre)?.label ?? "Select genre"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {GENRES.map((g) => (
-                  <SelectItem key={g.value} value={g.value}>
-                    {g.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Mood</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {MOODS.map((m) => (
-                <Badge
-                  key={m}
-                  variant={moods.includes(m) ? "default" : "outline"}
-                  className="cursor-pointer text-xs"
-                  onClick={() => toggleMood(m)}
-                >
-                  {m}
-                </Badge>
-              ))}
+          {/* Presets */}
+          {presets.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Style Preset</Label>
+              <Select
+                onValueChange={(v) => {
+                  if (!v) return;
+                  const preset = presets.find((p) => p.id === v);
+                  if (preset) onApplyPreset(preset);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Apply a preset..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {presets.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
+          )}
 
-          <div className="space-y-2">
-            <Label>Art Style</Label>
-            <Select value={style} onValueChange={(v) => v && setStyle(v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select style">
-                  {ART_STYLES.find((s) => s.value === style)?.label ?? "Select style"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {ART_STYLES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Dynamic attribute categories */}
+          {enabledCategories.map((category) => (
+            <div key={category.id} className="relative">
+              <AttributeCategoryInput
+                category={category}
+                value={
+                  attributes[category.id] ??
+                  (category.type === "multi" ? [] : "")
+                }
+                onChange={(v) => updateAttribute(category.id, v)}
+                onAddCustomValue={(value, label) =>
+                  addCustomValue(category.id, value, label)
+                }
+                onRemoveCustomValue={(value) =>
+                  removeCustomValue(category.id, value)
+                }
+              />
+              {!category.builtIn && (
+                <button
+                  type="button"
+                  className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeCategory(category.id)}
+                >
+                  <XIcon className="size-3" />
+                </button>
+              )}
+            </div>
+          ))}
+
+          {/* Add category */}
+          {addingCategory ? (
+            <div className="space-y-2 rounded-lg border border-dashed p-3">
+              <Input
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Category name..."
+                className="h-7 text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addCategory();
+                  if (e.key === "Escape") setAddingCategory(false);
+                }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant={
+                    newCategoryType === "single" ? "default" : "outline"
+                  }
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => setNewCategoryType("single")}
+                >
+                  Single
+                </Button>
+                <Button
+                  variant={
+                    newCategoryType === "multi" ? "default" : "outline"
+                  }
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => setNewCategoryType("multi")}
+                >
+                  Multi
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" className="h-6 text-xs" onClick={addCategory}>
+                  Add
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => setAddingCategory(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5 text-xs"
+              onClick={() => setAddingCategory(true)}
+            >
+              <PlusIcon className="size-3.5" />
+              Add Attribute
+            </Button>
+          )}
 
           <div className="space-y-2">
             <Label>Brief / AI Prompt</Label>
@@ -153,7 +332,8 @@ export function LeftSidebar({
             <Select value={model} onValueChange={(v) => v && setModel(v)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select model">
-                  {AI_MODELS.find((m) => m.value === model)?.label ?? "Select model"}
+                  {AI_MODELS.find((m) => m.value === model)?.label ??
+                    "Select model"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -211,7 +391,58 @@ export function LeftSidebar({
           <Sparkles className="size-4" />
           Generate Similar
         </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full gap-1.5 text-xs"
+          onClick={() => setPresetDialogOpen(true)}
+        >
+          <BookmarkIcon className="size-3.5" />
+          Save as Preset
+        </Button>
       </div>
+
+      {/* Save Preset Dialog */}
+      <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save Style Preset</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Preset Name</Label>
+            <Input
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              placeholder="e.g., Dark Sci-Fi Noir"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && presetName.trim()) {
+                  onSavePreset(presetName.trim());
+                  setPresetName("");
+                  setPresetDialogOpen(false);
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPresetDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!presetName.trim()}
+              onClick={() => {
+                onSavePreset(presetName.trim());
+                setPresetName("");
+                setPresetDialogOpen(false);
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

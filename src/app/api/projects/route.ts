@@ -49,16 +49,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { title, author, genre, mood, style, brief } = parsed.data;
+    const { title, author, attributes, brief } = parsed.data;
 
     const project = await prisma.coverProject.create({
       data: {
         userId: session.user.id,
         title,
         author,
-        genre,
-        mood,
-        style,
+        attributes,
         brief: brief ?? null,
       },
     });

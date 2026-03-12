@@ -22,9 +22,11 @@ model User {
   generationsUsed  Int       @default(0)
   generationsReset DateTime?
 
-  accounts Account[]
-  sessions Session[]
-  projects CoverProject[]
+  accounts        Account[]
+  sessions        Session[]
+  projects        CoverProject[]
+  attributeConfig AttributeConfig?
+  stylePresets    StylePreset[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -95,9 +97,7 @@ model CoverProject {
   userId      String
   title       String
   author      String
-  genre       String
-  mood        String[]
-  style       String
+  attributes  Json
   brief       String?
   canvasState Json?
 
@@ -155,4 +155,30 @@ model Export {
   createdAt DateTime @default(now())
 
   @@index([projectId])
+}
+
+model AttributeConfig {
+  id     String @id @default(cuid())
+  userId String @unique
+  config Json
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StylePreset {
+  id             String  @id @default(cuid())
+  userId         String
+  name           String
+  attributes     Json
+  promptTemplate String? @db.Text
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }

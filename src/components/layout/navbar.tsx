@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { auth, signOut } from "@/lib/auth";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Settings } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   DropdownMenu,
@@ -57,6 +57,12 @@ export async function Navbar() {
                     disabled
                   >
                     {session.user.email}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/settings" className="flex w-full items-center gap-2">
+                      <Settings className="size-3.5" />
+                      Settings
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
                     <form
