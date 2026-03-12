@@ -1,0 +1,30 @@
+{
+  "name": "covergen-worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "latest",
+    "@prisma/adapter-pg": "^7.4.2",
+    "@prisma/client": "latest",
+    "bullmq": "latest",
+    "express": "latest",
+    "ioredis": "latest",
+    "openai": "latest",
+    "pg": "^8.20.0",
+    "replicate": "latest",
+    "sharp": "latest"
+  },
+  "devDependencies": {
+    "@types/express": "latest",
+    "@types/node": "latest",
+    "@types/pg": "^8.18.0",
+    "dotenv": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

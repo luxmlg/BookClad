@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ──────────────────────────────────────────
+// Auth.js v5 models (Prisma adapter)
+// ──────────────────────────────────────────
+
+model User {
+  id               String    @id @default(cuid())
+  name             String?
+  email            String    @unique
+  emailVerified    DateTime?
+  image            String?
+  passwordHash     String?
+  tier             Tier      @default(FREE)
+  generationsUsed  Int       @default(0)
+  generationsReset DateTime?
+
+  accounts Account[]
+  sessions Session[]
+  projects CoverProject[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ──────────────────────────────────────────
+// Application models
+// ──────────────────────────────────────────
+
+enum Tier {
+  FREE
+  STARTER
+  PRO
+  PAY_PER_COVER
+}
+
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model CoverProject {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  author      String
+  genre       String
+  mood        String[]
+  style       String
+  brief       String?
+  canvasState Json?
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generations Generation[]
+  exports     Export[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Generation {
+  id             String    @id @default(cuid())
+  projectId      String
+  prompt         String    @db.Text
+  status         JobStatus @default(QUEUED)
+  cost           Float?
+  imageCount     Int       @default(4)
+  referenceImage String?
+  jobType        String    @default("generate")
+  model          String    @default("openai")
+
+  project CoverProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  images  GeneratedImage[]
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model GeneratedImage {
+  id           String  @id @default(cuid())
+  generationId String
+  storageKey   String
+  width        Int
+  height       Int
+  selected     Boolean @default(false)
+
+  generation Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([generationId])
+}
+
+model Export {
+  id         String @id @default(cuid())
+  projectId  String
+  format     String
+  storageKey String
+
+  project CoverProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+}

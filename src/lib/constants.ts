@@ -1,0 +1,91 @@
+export const GENRES = [
+  { value: "thriller", label: "Thriller / Mystery" },
+  { value: "romance", label: "Romance" },
+  { value: "epic-fantasy", label: "Epic Fantasy" },
+  { value: "urban-fantasy", label: "Urban Fantasy" },
+  { value: "cozy-fantasy", label: "Cozy Fantasy" },
+  { value: "sci-fi", label: "Sci-Fi" },
+  { value: "horror", label: "Horror" },
+  { value: "cozy-mystery", label: "Cozy Mystery" },
+  { value: "self-help", label: "Self-Help / Non-Fiction" },
+  { value: "business", label: "Business" },
+  { value: "childrens", label: "Children's / YA" },
+  { value: "literary-fiction", label: "Literary Fiction" },
+] as const;
+
+export const MOODS = [
+  "dark",
+  "whimsical",
+  "epic",
+  "intellectual",
+  "romantic",
+  "suspenseful",
+  "hopeful",
+  "eerie",
+  "adventurous",
+  "serene",
+  "gritty",
+  "playful",
+] as const;
+
+export const ART_STYLES = [
+  { value: "photorealistic", label: "Photorealistic" },
+  { value: "illustrated", label: "Illustrated" },
+  { value: "painterly", label: "Painterly" },
+  { value: "minimalist", label: "Minimalist" },
+  { value: "typographic", label: "Typographic" },
+] as const;
+
+export const GENRE_VISUAL_RULES: Record<string, string> = {
+  thriller:
+    "High contrast, desaturated palette, single dominant silhouette or object, dramatic shadow",
+  romance:
+    "Warm/rose tones, soft focus, figures (if any) in close proximity, bokeh background",
+  "epic-fantasy":
+    "Wide establishing shot, sense of scale, glowing magical elements, deep sky",
+  "urban-fantasy":
+    "City skyline with magical elements, neon or twilight palette, single figure in foreground",
+  "cozy-fantasy":
+    "Warm interior or cottage scene, soft lighting, magical whimsy, comfortable palette",
+  "sci-fi":
+    "Futuristic setting, cool blue/teal palette, technology or space elements, dramatic lighting",
+  horror:
+    "Low key lighting, desaturated with single accent color (red/sickly green), isolation/dread",
+  "cozy-mystery":
+    "Illustrated style, warm colors, small-town or domestic setting, cat/teacup motif",
+  "self-help":
+    "Clean geometric layout, bold typography-friendly negative space, professional palette",
+  business:
+    "Sleek modern aesthetic, confident palette, abstract geometric shapes or city imagery",
+  childrens:
+    "Bright vivid colors, playful illustrated style, friendly characters, whimsical elements",
+  "literary-fiction":
+    "Understated, moody, artistic composition with symbolic imagery and muted tones",
+};
+
+export const AI_MODELS = [
+  {
+    value: "openai",
+    label: "OpenAI (gpt-image-1)",
+    capabilities: ["generate", "inpaint"] as const,
+  },
+  {
+    value: "gemini",
+    label: "Gemini 2.0 Flash",
+    capabilities: ["generate", "inpaint"] as const,
+  },
+  {
+    value: "ideogram",
+    label: "Ideogram V3",
+    capabilities: ["generate", "inpaint"] as const,
+  },
+] as const;
+
+export const KDP = {
+  width: 1600,
+  height: 2560,
+  aspectRatio: 1600 / 2560,
+  dpi: 300,
+  maxFileSize: 50 * 1024 * 1024,
+  format: "jpeg" as const,
+} as const;
