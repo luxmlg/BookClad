@@ -835,7 +835,9 @@ export function EditorShell({ project }: { project: Project }) {
 
       {/* Center: canvas + generation history */}
       <div className="flex flex-1 flex-col overflow-hidden bg-muted/20">
-        <div className="flex flex-1 items-center justify-center gap-3 overflow-auto scrollbar-hide p-4">
+        <div className="flex flex-1 items-center justify-center overflow-auto scrollbar-hide p-4">
+          {/* Canvas + preview wrapper */}
+          <div className="relative shrink-0">
           {/* Canvas */}
           <div ref={canvasContainerRef} className="relative shrink-0" style={{ width: 400, height: 640 }}>
             <div
@@ -908,9 +910,9 @@ export function EditorShell({ project }: { project: Project }) {
             </div>
           </div>
 
-          {/* Kindle preview — flex sibling to the right of canvas */}
+          {/* Kindle preview — positioned to the right of canvas */}
           {showKindlePreview ? (
-            <div className="flex w-[75px] shrink-0 flex-col items-center justify-end" style={{ height: 640 }}>
+            <div className="absolute left-full ml-3 bottom-0 flex w-[75px] flex-col items-center justify-end">
               <p className="mb-1 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Kindle ~120px
               </p>
@@ -951,13 +953,13 @@ export function EditorShell({ project }: { project: Project }) {
           ) : (
             <button
               onClick={() => setShowKindlePreview(true)}
-              className="flex shrink-0 flex-col items-center justify-end gap-1 pb-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-              style={{ height: 640 }}
+              className="absolute left-full ml-3 bottom-0 flex flex-col items-center justify-end gap-1 pb-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
               <Tablet className="size-3.5" />
               <span>Preview</span>
             </button>
           )}
+          </div>
         </div>
 
         {/* History panel */}
