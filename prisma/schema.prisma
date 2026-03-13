@@ -27,6 +27,8 @@ model User {
   projects        CoverProject[]
   attributeConfig AttributeConfig?
   stylePresets    StylePreset[]
+  assets          UserAsset[]
+  fonts           UserFont[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -104,6 +106,7 @@ model CoverProject {
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   generations Generation[]
   exports     Export[]
+  assets      UserAsset[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -172,6 +175,43 @@ model AttributeConfig {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model UserAsset {
+  id         String @id @default(cuid())
+  projectId  String
+  userId     String
+  fileName   String
+  storageKey String
+  mimeType   String
+  width      Int?
+  height     Int?
+  fileSize   Int
+
+  project CoverProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([userId])
+}
+
+model UserFont {
+  id         String @id @default(cuid())
+  userId     String
+  family     String
+  fileName   String
+  storageKey String
+  mimeType   String
+  fileSize   Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@unique([userId, family])
 }
 
 model StylePreset {
