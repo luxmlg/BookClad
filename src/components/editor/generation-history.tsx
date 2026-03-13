@@ -295,7 +295,7 @@ function GenerationGroup({
       <CollapsibleContent>
         <div className="flex gap-3 px-2 py-1.5">
           {/* Left: thumbnails */}
-          <div className="flex shrink-0 gap-1.5">
+          <div className="flex shrink-0 self-start gap-1.5">
             {generation.parentImage &&
               imageUrls[generation.parentImage.id] && (
                 <>
