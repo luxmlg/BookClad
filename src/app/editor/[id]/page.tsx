@@ -17,7 +17,10 @@ export default async function EditorPage({
     where: { id, userId: session.user.id },
     include: {
       generations: {
-        include: { images: true },
+        include: {
+          images: true,
+          parentImage: { select: { id: true, storageKey: true } },
+        },
         orderBy: { createdAt: "desc" },
       },
     },

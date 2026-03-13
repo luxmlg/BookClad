@@ -112,18 +112,22 @@ model CoverProject {
 }
 
 model Generation {
-  id             String    @id @default(cuid())
-  projectId      String
-  prompt         String    @db.Text
-  status         JobStatus @default(QUEUED)
-  cost           Float?
-  imageCount     Int       @default(4)
-  referenceImage String?
-  jobType        String    @default("generate")
-  model          String    @default("openai")
+  id                String    @id @default(cuid())
+  projectId         String
+  prompt            String    @db.Text
+  status            JobStatus @default(QUEUED)
+  cost              Float?
+  imageCount        Int       @default(4)
+  referenceImage    String?
+  jobType           String    @default("generate")
+  model             String    @default("openai")
+  parentImageId     String?
+  attributeSnapshot Json?
+  textLayerSnapshot Json?
 
-  project CoverProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  images  GeneratedImage[]
+  project     CoverProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  images      GeneratedImage[]
+  parentImage GeneratedImage?  @relation("DerivedFrom", fields: [parentImageId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -139,7 +143,8 @@ model GeneratedImage {
   height       Int
   selected     Boolean @default(false)
 
-  generation Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  generation         Generation   @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  derivedGenerations Generation[] @relation("DerivedFrom")
 
   @@index([generationId])
 }

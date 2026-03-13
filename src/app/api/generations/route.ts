@@ -30,7 +30,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { projectId, imageCount, referenceImageId, model } = parsed.data;
+    const {
+      projectId,
+      imageCount,
+      referenceImageId,
+      model,
+      attributeSnapshot,
+      textLayerSnapshot,
+    } = parsed.data;
 
     const project = await prisma.coverProject.findFirst({
       where: { id: projectId, userId: session.user.id },
@@ -72,6 +79,9 @@ export async function POST(request: Request) {
         jobType,
         model,
         referenceImage: referenceImageKey ?? null,
+        parentImageId: referenceImageId ?? null,
+        attributeSnapshot: attributeSnapshot ?? undefined,
+        textLayerSnapshot: textLayerSnapshot ?? undefined,
       },
     });
 

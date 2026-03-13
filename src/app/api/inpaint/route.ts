@@ -30,7 +30,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { imageId, maskDataUrl, prompt, model } = parsed.data;
+    const {
+      imageId,
+      maskDataUrl,
+      prompt,
+      model,
+      attributeSnapshot,
+      textLayerSnapshot,
+    } = parsed.data;
 
     const image = await prisma.generatedImage.findFirst({
       where: {
@@ -53,6 +60,9 @@ export async function POST(request: Request) {
         jobType: "inpaint",
         model,
         referenceImage: image.storageKey,
+        parentImageId: imageId,
+        attributeSnapshot: attributeSnapshot ?? undefined,
+        textLayerSnapshot: textLayerSnapshot ?? undefined,
       },
     });
 

@@ -8,7 +8,6 @@ import {
   Loader2,
   ImageIcon,
   RefreshCw,
-  ChevronRight,
   Sparkles,
   Tablet,
   EyeOff,
@@ -16,7 +15,6 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,16 +26,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { GenerationPoller } from "./generation-poller";
 import type { TextNodeConfig, CanvasState } from "./cover-canvas";
 import { getDefaultCanvasState, migrateCanvasState } from "./cover-canvas";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
+import { GenerationHistory } from "./generation-history";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import { buildDefaultConfig } from "@/lib/attributes";
 import type Konva from "konva";
@@ -65,7 +59,13 @@ interface Generation {
   createdAt: string | Date;
   imageCount?: number;
   jobType?: string;
+  model?: string;
+  prompt?: string;
   images: GeneratedImage[];
+  parentImageId?: string | null;
+  parentImage?: { id: string; storageKey: string } | null;
+  attributeSnapshot?: unknown;
+  textLayerSnapshot?: unknown;
 }
 
 interface Project {
@@ -268,7 +268,16 @@ export function EditorShell({ project }: { project: Project }) {
       const res = await fetch("/api/generations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id, imageCount, model }),
+        body: JSON.stringify({
+          projectId: project.id,
+          imageCount,
+          model,
+          attributeSnapshot: attributes,
+          textLayerSnapshot: textNodes.map((n) => ({
+            name: n.name ?? n.id,
+            text: n.text ?? "",
+          })),
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -293,6 +302,11 @@ export function EditorShell({ project }: { project: Project }) {
           imageCount,
           model,
           referenceImageId: selectedImageId,
+          attributeSnapshot: attributes,
+          textLayerSnapshot: textNodes.map((n) => ({
+            name: n.name ?? n.id,
+            text: n.text ?? "",
+          })),
         }),
       });
       if (!res.ok) {
@@ -325,6 +339,11 @@ export function EditorShell({ project }: { project: Project }) {
           maskDataUrl: inpaintMask,
           prompt: inpaintPrompt,
           model,
+          attributeSnapshot: attributes,
+          textLayerSnapshot: textNodes.map((n) => ({
+            name: n.name ?? n.id,
+            text: n.text ?? "",
+          })),
         }),
       });
       if (!res.ok) {
@@ -591,36 +610,14 @@ export function EditorShell({ project }: { project: Project }) {
         </div>
 
         {/* History panel */}
-        <Collapsible open={historyOpen} onOpenChange={setHistoryOpen} className="shrink-0 border-t bg-background/80">
-          <CollapsibleTrigger className="flex w-full items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 transition-colors">
-            <ChevronRight className={`size-3.5 transition-transform duration-200 ${historyOpen ? "rotate-90" : ""}`} />
-            Generation History
-            {completedGenerations.length > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
-                {completedGenerations.length}
-              </Badge>
-            )}
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            {completedGenerations.length > 0 && (
-              <div className="overflow-y-auto px-4 pb-3" style={{ maxHeight: 200 }}>
-                <div className="space-y-1">
-                  {completedGenerations.map((gen, idx) => (
-                    <GenerationGroup
-                      key={gen.id}
-                      generation={gen}
-                      index={completedGenerations.length - idx}
-                      imageUrls={imageUrls}
-                      selectedImageId={selectedImageId}
-                      onSelect={selectImage}
-                      defaultOpen={idx === 0}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </CollapsibleContent>
-        </Collapsible>
+        <GenerationHistory
+          generations={completedGenerations}
+          imageUrls={imageUrls}
+          selectedImageId={selectedImageId}
+          onSelect={selectImage}
+          historyOpen={historyOpen}
+          onHistoryOpenChange={setHistoryOpen}
+        />
       </div>
 
       {/* Right sidebar */}
@@ -719,78 +716,3 @@ export function EditorShell({ project }: { project: Project }) {
   );
 }
 
-function GenerationGroup({
-  generation,
-  index,
-  imageUrls,
-  selectedImageId,
-  onSelect,
-  defaultOpen,
-}: {
-  generation: Generation;
-  index: number;
-  imageUrls: Record<string, string>;
-  selectedImageId: string | null;
-  onSelect: (id: string) => void;
-  defaultOpen: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const date =
-    typeof generation.createdAt === "string"
-      ? new Date(generation.createdAt)
-      : generation.createdAt;
-  const label = `Generation #${index}`;
-  const timeStr = date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 transition-colors">
-        <ChevronRight className={`size-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-        <span className="font-medium">{label}</span>
-        <span className="text-xs text-muted-foreground">
-          {generation.images.length} images
-        </span>
-        <span className="ml-auto text-xs text-muted-foreground">{timeStr}</span>
-        {generation.jobType && generation.jobType !== "generate" && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-            {generation.jobType === "generate-from-reference"
-              ? "ref"
-              : generation.jobType}
-          </Badge>
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="flex gap-2 px-2 py-1.5">
-          {generation.images.map((img) => (
-            <button
-              key={img.id}
-              onClick={() => onSelect(img.id)}
-              className={`overflow-hidden rounded-lg border-2 transition-all ${
-                selectedImageId === img.id
-                  ? "border-primary shadow-md"
-                  : "border-transparent hover:border-muted-foreground/30"
-              }`}
-              style={{ width: 44, aspectRatio: "1600/2560" }}
-            >
-              {imageUrls[img.id] ? (
-                <Image
-                  src={imageUrls[img.id]}
-                  alt={`Option ${img.id.slice(0, 4)}`}
-                  width={44}
-                  height={70}
-                  className="h-full w-full object-cover"
-                  unoptimized
-                />
-              ) : (
-                <Skeleton className="h-full w-full" />
-              )}
-            </button>
-          ))}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
