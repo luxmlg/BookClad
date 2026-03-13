@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
   Download,
   Paintbrush,
@@ -31,6 +31,7 @@ interface LayerItem {
   type: "image" | "text" | "bg";
   visible: boolean;
   locked: boolean;
+  nodeIndex: number; // index in the nodes array (-1 for bg)
 }
 
 interface RightSidebarProps {
@@ -42,6 +43,7 @@ interface RightSidebarProps {
   updateNode: (id: string, attrs: Partial<CanvasNode>) => void;
   addTextNode: () => void;
   removeNode: (id: string) => void;
+  reorderNode: (fromIndex: number, toIndex: number) => void;
   onImageUpload: (file: File) => void;
   onFontUpload: (file: File) => void;
   brushMode: boolean;
@@ -71,6 +73,7 @@ export function RightSidebar({
   updateNode,
   addTextNode,
   removeNode,
+  reorderNode,
   onImageUpload,
   onFontUpload,
   brushMode,
@@ -86,21 +89,72 @@ export function RightSidebar({
   onExportPng,
 }: RightSidebarProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const layerItems: LayerItem[] = [
-    { id: "bg", name: "Background Image", type: "bg", visible: true, locked: true },
-    ...nodes.map((n) => ({
+  // Build layer items: non-bg nodes in reversed order (topmost layer first), then bg at bottom
+  const nodeLayerItems: LayerItem[] = nodes
+    .map((n, i) => ({
       id: n.id,
       name: getNodeLabel(n),
       type: n.type as "image" | "text",
       visible: n.visible,
       locked: !n.draggable,
-    })),
+      nodeIndex: i,
+    }))
+    .reverse();
+
+  const layerItems: LayerItem[] = [
+    ...nodeLayerItems,
+    { id: "bg", name: "Background Image", type: "bg", visible: true, locked: true, nodeIndex: -1 },
   ];
 
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId)
     : undefined;
+
+  function handleDragStart(e: React.DragEvent, visualIndex: number) {
+    const layer = layerItems[visualIndex];
+    if (layer.type === "bg") {
+      e.preventDefault();
+      return;
+    }
+    setDraggedIndex(visualIndex);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleDragOver(e: React.DragEvent, visualIndex: number) {
+    e.preventDefault();
+    const layer = layerItems[visualIndex];
+    if (layer.type === "bg" || draggedIndex === null) return;
+    e.dataTransfer.dropEffect = "move";
+    setDragOverIndex(visualIndex);
+  }
+
+  function handleDrop(e: React.DragEvent, visualIndex: number) {
+    e.preventDefault();
+    const layer = layerItems[visualIndex];
+    if (layer.type === "bg" || draggedIndex === null) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const fromLayer = layerItems[draggedIndex];
+    const toLayer = layerItems[visualIndex];
+
+    if (fromLayer && toLayer && fromLayer.nodeIndex !== -1 && toLayer.nodeIndex !== -1) {
+      reorderNode(fromLayer.nodeIndex, toLayer.nodeIndex);
+    }
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  }
+
+  function handleDragEnd() {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -117,20 +171,38 @@ export function RightSidebar({
             Layers
           </Label>
           <div className="mt-1 divide-y">
-            {layerItems.map((layer) => (
+            {layerItems.map((layer, visualIndex) => (
               <div
                 key={layer.id}
+                draggable={layer.type !== "bg"}
+                onDragStart={(e) => handleDragStart(e, visualIndex)}
+                onDragOver={(e) => handleDragOver(e, visualIndex)}
+                onDragLeave={() => setDragOverIndex(null)}
+                onDrop={(e) => handleDrop(e, visualIndex)}
+                onDragEnd={handleDragEnd}
                 className={`flex items-center gap-1.5 py-1.5 px-1 cursor-pointer transition-colors ${
                   selectedNodeId === layer.id
                     ? "bg-primary/5"
                     : "hover:bg-muted/50"
+                } ${
+                  dragOverIndex === visualIndex && draggedIndex !== visualIndex
+                    ? "border-t-2 border-primary"
+                    : ""
+                } ${
+                  draggedIndex === visualIndex ? "opacity-40" : ""
                 }`}
                 onClick={() => {
                   if (layer.type !== "bg") setSelectedNodeId(layer.id);
                   else setSelectedNodeId(null);
                 }}
               >
-                <GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
+                <GripVertical
+                  className={`size-3 shrink-0 ${
+                    layer.type === "bg"
+                      ? "text-muted-foreground/20"
+                      : "text-muted-foreground/50 cursor-grab active:cursor-grabbing"
+                  }`}
+                />
                 <div className="flex w-4 items-center justify-center text-xs text-muted-foreground shrink-0">
                   {layer.type === "image" || layer.type === "bg" ? (
                     <ImageIcon className="size-3" />

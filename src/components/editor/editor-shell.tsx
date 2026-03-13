@@ -764,6 +764,16 @@ export function EditorShell({ project }: { project: Project }) {
     setSelectedNodeId(id);
   }
 
+  function reorderNode(fromIndex: number, toIndex: number) {
+    setNodes(prev => {
+      if (fromIndex === toIndex) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }
+
   function removeNode(id: string) {
     setNodes(prev => prev.filter(n => n.id !== id));
     if (selectedNodeId === id) setSelectedNodeId(null);
@@ -1045,6 +1055,7 @@ export function EditorShell({ project }: { project: Project }) {
           updateNode={updateNode}
           addTextNode={addTextNode}
           removeNode={removeNode}
+          reorderNode={reorderNode}
           onImageUpload={handleImageUpload}
           onFontUpload={handleFontUpload}
           brushMode={brushMode}
