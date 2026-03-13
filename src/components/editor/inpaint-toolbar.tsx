@@ -3,11 +3,11 @@
 import {
   Paintbrush,
   Eraser,
-  Loader2,
-  Sparkles,
   Undo2,
   RotateCcw,
+  Loader2,
   RefreshCw,
+  Sparkles,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,6 @@ import { Slider } from "@/components/ui/slider";
 interface InpaintToolbarProps {
   brushMode: boolean;
   setBrushMode: (v: boolean) => void;
-  inpaintMask: string | null;
-  setInpaintMask: (v: string | null) => void;
-  inpaintPrompt: string;
-  setInpaintPrompt: (v: string) => void;
-  inpaintSubmitting: boolean;
-  onInpaintSubmit: () => void;
   selectedImageUrl: string | undefined;
   // Brush controls
   brushSize: number;
@@ -42,12 +36,6 @@ interface InpaintToolbarProps {
 export function InpaintToolbar({
   brushMode,
   setBrushMode,
-  inpaintMask,
-  setInpaintMask,
-  inpaintPrompt,
-  setInpaintPrompt,
-  inpaintSubmitting,
-  onInpaintSubmit,
   selectedImageUrl,
   brushSize,
   setBrushSize,
@@ -63,7 +51,7 @@ export function InpaintToolbar({
   selectedImageId,
 }: InpaintToolbarProps) {
   // Painting phase — show brush controls
-  if (brushMode && !inpaintMask) {
+  if (brushMode) {
     return (
       <div className="flex items-center gap-2 rounded-lg border bg-popover px-2 py-1 shadow-md">
         <Button
@@ -120,74 +108,6 @@ export function InpaintToolbar({
           onClick={() => setBrushMode(false)}
           className="p-1 text-muted-foreground hover:text-foreground"
           title="Cancel"
-        >
-          <X className="size-3.5" />
-        </button>
-      </div>
-    );
-  }
-
-  // Mask captured — show prompt input + actions
-  if (brushMode && inpaintMask) {
-    return (
-      <div className="flex items-center gap-1.5 rounded-lg border bg-popover px-1.5 py-1 shadow-md">
-        {/* Mask thumbnail */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={inpaintMask}
-          alt="Mask"
-          className="shrink-0 rounded border object-cover"
-          style={{ width: 24, height: 38 }}
-        />
-
-        {/* Prompt input */}
-        <input
-          type="text"
-          value={inpaintPrompt}
-          onChange={(e) => setInpaintPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !inpaintSubmitting && inpaintPrompt.trim()) {
-              onInpaintSubmit();
-            }
-          }}
-          placeholder="Describe the replacement..."
-          className="h-7 flex-1 min-w-[180px] rounded-md border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-ring"
-          autoFocus
-        />
-
-        {/* Re-paint */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs px-2"
-          onClick={() => setInpaintMask(null)}
-        >
-          Re-paint
-        </Button>
-
-        {/* Apply Edit */}
-        <Button
-          size="sm"
-          className="h-7 text-xs px-2 gap-1"
-          onClick={onInpaintSubmit}
-          disabled={inpaintSubmitting || !inpaintPrompt.trim()}
-        >
-          {inpaintSubmitting ? (
-            <Loader2 className="size-3 animate-spin" />
-          ) : (
-            <Sparkles className="size-3" />
-          )}
-          Apply
-        </Button>
-
-        {/* Cancel */}
-        <button
-          onClick={() => {
-            setBrushMode(false);
-            setInpaintMask(null);
-            setInpaintPrompt("");
-          }}
-          className="p-1 text-muted-foreground hover:text-foreground"
         >
           <X className="size-3.5" />
         </button>

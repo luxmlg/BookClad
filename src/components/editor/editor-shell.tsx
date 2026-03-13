@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import {
   Loader2,
   ImageIcon,
+  Paintbrush,
   RefreshCw,
   Sparkles,
   Tablet,
@@ -93,7 +94,7 @@ export function EditorShell({ project }: { project: Project }) {
 
   const stageRef = useRef<Konva.Stage>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
-  const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number; width: number; minTop: number } | null>(null);
+  const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number; width: number; minTop: number; maxBottom: number } | null>(null);
 
   const initialCanvas = useMemo(() => {
     const migrated = migrateCanvasState(project.canvasState);
@@ -127,6 +128,7 @@ export function EditorShell({ project }: { project: Project }) {
   const [inpaintPrompt, setInpaintPrompt] = useState("");
   const [inpaintMask, setInpaintMask] = useState<string | null>(null);
   const [inpaintSubmitting, setInpaintSubmitting] = useState(false);
+  const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false);
   const [brushSize, setBrushSize] = useState(30);
   const [erasing, setErasing] = useState(false);
   const [hasBrushMask, setHasBrushMask] = useState(false);
@@ -228,6 +230,7 @@ export function EditorShell({ project }: { project: Project }) {
         left: rect.left,
         width: rect.width,
         minTop: scrollRect?.top ?? 0,
+        maxBottom: scrollRect?.bottom ?? window.innerHeight,
       });
     };
     update();
@@ -611,6 +614,7 @@ export function EditorShell({ project }: { project: Project }) {
         throw new Error(data.error || "Inpaint failed");
       }
       toast.success("Inpainting job queued!");
+      setInpaintDialogOpen(false);
       setBrushMode(false);
       setInpaintMask(null);
       setInpaintPrompt("");
@@ -949,7 +953,10 @@ export function EditorShell({ project }: { project: Project }) {
                     <div className="absolute inset-0">
                       <BrushTool
                         ref={brushToolRef}
-                        onExportMask={(dataUrl) => setInpaintMask(dataUrl)}
+                        onExportMask={(dataUrl) => {
+                        setInpaintMask(dataUrl);
+                        setInpaintDialogOpen(true);
+                      }}
                         brushSize={brushSize}
                         erasing={erasing}
                         onHasMaskChange={setHasBrushMask}
@@ -1138,6 +1145,99 @@ export function EditorShell({ project }: { project: Project }) {
         </DialogContent>
       </Dialog>
 
+      {/* Inpaint Dialog */}
+      <Dialog open={inpaintDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setInpaintDialogOpen(false);
+          setBrushMode(false);
+          setInpaintMask(null);
+          setInpaintPrompt("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Region</DialogTitle>
+            <DialogDescription>
+              Describe what should replace the painted region. The AI will
+              regenerate only the selected area.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {selectedImageUrl && (
+              <div className="flex justify-center">
+                <div
+                  className="relative overflow-hidden rounded-lg border"
+                  style={{ width: 120, aspectRatio: "1600/2560" }}
+                >
+                  <Image
+                    src={selectedImageUrl}
+                    alt="Selected cover"
+                    width={120}
+                    height={192}
+                    className="h-full w-full object-cover"
+                    unoptimized
+                  />
+                  {inpaintMask && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={inpaintMask}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover opacity-50"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Describe the replacement</Label>
+              <Textarea
+                value={inpaintPrompt}
+                onChange={(e) => setInpaintPrompt(e.target.value)}
+                placeholder="e.g. Replace with a starry night sky, add a golden border..."
+                rows={3}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setInpaintMask(null);
+                setInpaintDialogOpen(false);
+              }}
+              className="gap-1.5"
+            >
+              <Paintbrush className="size-4" />
+              Re-paint
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setInpaintDialogOpen(false);
+                setBrushMode(false);
+                setInpaintMask(null);
+                setInpaintPrompt("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleInpaintSubmit}
+              disabled={inpaintSubmitting || !inpaintPrompt.trim()}
+              className="gap-2"
+            >
+              {inpaintSubmitting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Fixed-position floating toolbar — rendered outside scroll container so it's never clipped */}
       {selectedTextNode && toolbarPos && (
         <div
@@ -1159,12 +1259,12 @@ export function EditorShell({ project }: { project: Project }) {
         </div>
       )}
 
-      {/* Fixed-position inpaint toolbar — below canvas */}
+      {/* Fixed-position inpaint toolbar — overlays bottom of canvas */}
       {toolbarPos && selectedImageUrl && (
         <div
           className="pointer-events-none fixed z-50"
           style={{
-            top: toolbarPos.top + 640 + 8,
+            top: Math.min(toolbarPos.top + 640 + 8, toolbarPos.maxBottom - 44),
             left: toolbarPos.left,
             width: toolbarPos.width,
           }}
@@ -1173,12 +1273,6 @@ export function EditorShell({ project }: { project: Project }) {
             <InpaintToolbar
               brushMode={brushMode}
               setBrushMode={setBrushMode}
-              inpaintMask={inpaintMask}
-              setInpaintMask={setInpaintMask}
-              inpaintPrompt={inpaintPrompt}
-              setInpaintPrompt={setInpaintPrompt}
-              inpaintSubmitting={inpaintSubmitting}
-              onInpaintSubmit={handleInpaintSubmit}
               selectedImageUrl={selectedImageUrl}
               brushSize={brushSize}
               setBrushSize={setBrushSize}
