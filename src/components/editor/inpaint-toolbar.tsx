@@ -7,6 +7,7 @@ import {
   Sparkles,
   Undo2,
   RotateCcw,
+  RefreshCw,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,11 @@ interface InpaintToolbarProps {
   onBrushClear: () => void;
   onBrushDone: () => void;
   hasBrushMask: boolean;
+  // Generate actions
+  onRegenerate: () => void;
+  pendingGeneration: boolean;
+  onOpenSimilarDialog: () => void;
+  selectedImageId: string | null;
 }
 
 export function InpaintToolbar({
@@ -51,6 +57,10 @@ export function InpaintToolbar({
   onBrushClear,
   onBrushDone,
   hasBrushMask,
+  onRegenerate,
+  pendingGeneration,
+  onOpenSimilarDialog,
+  selectedImageId,
 }: InpaintToolbarProps) {
   // Painting phase — show brush controls
   if (brushMode && !inpaintMask) {
@@ -185,9 +195,33 @@ export function InpaintToolbar({
     );
   }
 
-  // Idle — show Edit Region button
+  // Idle — show Generate + Edit Region buttons
   return (
-    <div className="flex items-center rounded-lg border bg-popover px-1.5 py-1 shadow-md">
+    <div className="flex items-center gap-1 rounded-lg border bg-popover px-1.5 py-1 shadow-md">
+      <Button
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={onRegenerate}
+        disabled={pendingGeneration}
+      >
+        {pendingGeneration ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <RefreshCw className="size-3.5" />
+        )}
+        Generate Covers
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={onOpenSimilarDialog}
+        disabled={!selectedImageId}
+      >
+        <Sparkles className="size-3.5" />
+        Generate Similar
+      </Button>
+      <div className="mx-1 h-5 w-px bg-border" />
       <Button
         variant="ghost"
         size="sm"

@@ -902,10 +902,6 @@ export function EditorShell({ project }: { project: Project }) {
           setModel={setModel}
           saving={saving}
           onSave={saveProject}
-          onRegenerate={handleRegenerate}
-          onOpenSimilarDialog={() => setRefDialogOpen(true)}
-          selectedImageId={selectedImageId}
-          pendingGeneration={!!pendingGeneration}
         />
       </div>
 
@@ -1192,6 +1188,10 @@ export function EditorShell({ project }: { project: Project }) {
               onBrushClear={() => brushToolRef.current?.clear()}
               onBrushDone={() => brushToolRef.current?.export()}
               hasBrushMask={hasBrushMask}
+              onRegenerate={handleRegenerate}
+              pendingGeneration={!!pendingGeneration}
+              onOpenSimilarDialog={() => setRefDialogOpen(true)}
+              selectedImageId={selectedImageId}
             />
           </div>
         </div>

@@ -5,8 +5,6 @@ import { useRef, useState } from "react";
 import {
   Save,
   Loader2,
-  RefreshCw,
-  Sparkles,
   PlusIcon,
   XIcon,
   BookmarkIcon,
@@ -65,10 +63,6 @@ interface LeftSidebarProps {
   setModel: (v: string) => void;
   saving: boolean;
   onSave: () => void;
-  onRegenerate: () => void;
-  onOpenSimilarDialog: () => void;
-  selectedImageId: string | null;
-  pendingGeneration: boolean;
 }
 
 export function LeftSidebar({
@@ -89,10 +83,6 @@ export function LeftSidebar({
   setModel,
   saving,
   onSave,
-  onRegenerate,
-  onOpenSimilarDialog,
-  selectedImageId,
-  pendingGeneration,
 }: LeftSidebarProps) {
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -420,31 +410,6 @@ export function LeftSidebar({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Footer — sticky bottom */}
-      <div className="space-y-2 border-t p-4">
-        <Button
-          className="w-full gap-2"
-          onClick={onRegenerate}
-          disabled={pendingGeneration}
-        >
-          {pendingGeneration ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <RefreshCw className="size-4" />
-          )}
-          Generate Covers
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full gap-2"
-          onClick={onOpenSimilarDialog}
-          disabled={!selectedImageId}
-        >
-          <Sparkles className="size-4" />
-          Generate Similar
-        </Button>
       </div>
 
       {/* Save Preset Dialog */}
