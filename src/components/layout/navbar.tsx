@@ -34,12 +34,6 @@ export async function Navbar() {
               >
                 My Covers
               </Link>
-              <Link
-                href="/create"
-                className={buttonVariants({ size: "sm" })}
-              >
-                New Cover
-              </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger className="relative h-8 w-8 rounded-full cursor-pointer">
                   <Avatar className="h-8 w-8">

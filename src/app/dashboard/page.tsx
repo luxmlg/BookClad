@@ -3,15 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, BookOpen, MoreHorizontal, Trash2, Pencil } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button-variants";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Plus, BookOpen, MoreHorizontal, Pencil } from "lucide-react";
+import { GENRES } from "@/lib/constants";
+import { Card } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,43 +40,24 @@ export default async function DashboardPage() {
             {projects.length} project{projects.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Link href="/create" className={buttonVariants({ className: "gap-2" })}>
-          <Plus className="size-4" />
-          New Cover
-        </Link>
       </div>
 
-      {projects.length === 0 ? (
-        <Card className="border-dashed">
-          <CardHeader className="py-16 text-center">
-            <div className="mx-auto mb-4 rounded-full bg-primary/10 p-4">
-              <BookOpen className="size-8 text-primary" />
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <Link href="/create">
+          <Card className="group border-dashed p-0 hover:border-primary/50 hover:shadow-lg transition-all">
+            <div className="relative aspect-5/8 flex flex-col items-center justify-center gap-3 text-muted-foreground group-hover:text-primary transition-colors">
+              <Plus className="size-10" />
+              <span className="text-sm font-medium">New Cover</span>
             </div>
-            <CardTitle>No covers yet</CardTitle>
-            <CardDescription className="mx-auto max-w-sm">
-              Create your first AI-generated book cover in minutes. Describe
-              your book, pick a style, and let our AI do the rest.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center pb-8">
-            <Link
-              href="/create"
-              className={buttonVariants({ className: "gap-2" })}
-            >
-              <Plus className="size-4" />
-              Create your first cover
-            </Link>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => {
+          </Card>
+        </Link>
+        {projects.map((project) => {
             const thumbnail =
               project.generations[0]?.images[0]?.storageKey;
             return (
               <Card
                 key={project.id}
-                className="group relative overflow-hidden transition-shadow hover:shadow-lg"
+                className="group relative overflow-hidden p-0 transition-shadow hover:shadow-lg"
               >
                 <Link href={`/editor/${project.id}`}>
                   <div className="relative aspect-5/8 bg-linear-to-br from-muted to-muted/50 flex items-center justify-center overflow-hidden">
@@ -98,40 +73,36 @@ export default async function DashboardPage() {
                     ) : (
                       <BookOpen className="size-10 text-muted-foreground/40" />
                     )}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-10">
+                      <h3 className="truncate text-sm font-medium text-white">
+                        {project.title}
+                      </h3>
+                      <p className="truncate text-xs text-white/70">
+                        {project.author} &middot; {GENRES.find((g) => g.value === (project.attributes as Record<string, unknown>)?.genre)?.label ?? ""}
+                      </p>
+                    </div>
                   </div>
                 </Link>
-                <CardHeader className="flex-row items-start justify-between p-4">
-                  <Link href={`/editor/${project.id}`} className="min-w-0 flex-1">
-                    <CardTitle className="truncate text-base">
-                      {project.title}
-                    </CardTitle>
-                    <CardDescription className="truncate">
-                      {project.author} &middot; {(project.attributes as Record<string, unknown>)?.genre as string ?? ""}
-                    </CardDescription>
-                  </Link>
+                <div className="absolute top-2 right-2 z-10">
                   <DropdownMenu>
-                    <DropdownMenuTrigger className="shrink-0 rounded-md p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100">
+                    <DropdownMenuTrigger className="rounded-md bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/70 group-hover:opacity-100">
                       <MoreHorizontal className="size-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Link
-                          href={`/editor/${project.id}`}
-                          className="flex items-center gap-2"
-                        >
+                      <Link href={`/editor/${project.id}`}>
+                        <DropdownMenuItem>
                           <Pencil className="size-3.5" />
                           Edit
-                        </Link>
-                      </DropdownMenuItem>
+                        </DropdownMenuItem>
+                      </Link>
                       <DeleteProjectButton projectId={project.id} />
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </CardHeader>
+                </div>
               </Card>
             );
-          })}
-        </div>
-      )}
+        })}
+      </div>
     </div>
   );
 }

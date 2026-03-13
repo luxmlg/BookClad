@@ -47,7 +47,7 @@ export function DeleteProjectButton({ projectId }: { projectId: string }) {
           setOpen(true);
         }}
       >
-        <Trash2 className="mr-2 size-3.5" />
+        <Trash2 className="size-3.5" />
         Delete
       </DropdownMenuItem>
       <AlertDialog open={open} onOpenChange={setOpen}>
