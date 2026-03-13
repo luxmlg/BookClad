@@ -17,7 +17,9 @@ import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -27,19 +29,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { TextNodeConfig } from "./cover-canvas";
-
-const FONT_OPTIONS = [
-  "Georgia, serif",
-  "Times New Roman, serif",
-  "Garamond, serif",
-  "Palatino, serif",
-  "Helvetica, sans-serif",
-  "Arial, sans-serif",
-  "Futura, sans-serif",
-  "Verdana, sans-serif",
-  "Courier New, monospace",
-  "Impact, sans-serif",
-];
+import { FONTS_BY_CATEGORY } from "@/lib/fonts";
 
 interface TextLayerControlsProps {
   node: TextNodeConfig;
@@ -88,10 +78,15 @@ export function TextLayerControls({ node, onUpdate, onRemove }: TextLayerControl
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {FONT_OPTIONS.map((f) => (
-                <SelectItem key={f} value={f}>
-                  <span style={{ fontFamily: f }}>{f.split(",")[0]}</span>
-                </SelectItem>
+              {FONTS_BY_CATEGORY.map((group) => (
+                <SelectGroup key={group.category}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.fonts.map((f) => (
+                    <SelectItem key={f.family} value={f.family}>
+                      <span style={{ fontFamily: f.family }}>{f.family}</span>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>

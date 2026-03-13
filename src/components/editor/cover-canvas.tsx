@@ -10,6 +10,7 @@ import {
   Line,
 } from "react-konva";
 import type Konva from "konva";
+import { migrateFont } from "@/lib/fonts";
 
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 640;
@@ -53,12 +54,23 @@ interface LegacyCanvasState {
 export function migrateCanvasState(raw: unknown): CanvasState | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
-  if (Array.isArray(obj.textNodes)) return obj as unknown as CanvasState;
+  if (Array.isArray(obj.textNodes)) {
+    const state = obj as unknown as CanvasState;
+    state.textNodes = state.textNodes.map((n) => ({
+      ...n,
+      fontFamily: migrateFont(n.fontFamily),
+    }));
+    return state;
+  }
   // Legacy shape
   if (obj.titleNode && obj.authorNode) {
     const legacy = obj as unknown as LegacyCanvasState;
     const idToName: Record<string, string> = { title: "Title", subtitle: "Subtitle", author: "Author" };
-    const withName = (n: TextNodeConfig) => ({ ...n, name: n.name ?? idToName[n.id] ?? n.id });
+    const withName = (n: TextNodeConfig) => ({
+      ...n,
+      name: n.name ?? idToName[n.id] ?? n.id,
+      fontFamily: migrateFont(n.fontFamily),
+    });
     const nodes = [withName(legacy.titleNode), withName(legacy.authorNode)];
     if (legacy.subtitleNode) nodes.splice(1, 0, withName(legacy.subtitleNode));
     return { textNodes: nodes };
@@ -286,7 +298,7 @@ export function getDefaultCanvasState(
         x: 160,
         y: 200,
         fontSize: 96,
-        fontFamily: "Georgia, serif",
+        fontFamily: "Playfair Display",
         fill: "#ffffff",
         align: "center",
         fontStyle: "bold",
@@ -301,7 +313,7 @@ export function getDefaultCanvasState(
         x: 160,
         y: 2200,
         fontSize: 56,
-        fontFamily: "Helvetica, sans-serif",
+        fontFamily: "Montserrat",
         fill: "rgba(255,255,255,0.9)",
         align: "center",
         fontStyle: "normal",

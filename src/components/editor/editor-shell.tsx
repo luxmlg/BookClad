@@ -29,6 +29,7 @@ import {
 import { GenerationPoller } from "./generation-poller";
 import type { TextNodeConfig, CanvasState } from "./cover-canvas";
 import { getDefaultCanvasState, migrateCanvasState } from "./cover-canvas";
+import { ensureFontLoaded } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
 import { GenerationHistory } from "./generation-history";
@@ -208,8 +209,12 @@ export function EditorShell({ project }: { project: Project }) {
     const sel = allImages.find((img) => img.selected);
     const initialId = sel?.id ?? allImages[0]?.id ?? null;
     if (initialId) {
+      const layers = getLayersForImage(initialId);
+      // Pre-load fonts used in initial layers for Konva canvas
+      const uniqueFonts = [...new Set(layers.map((n) => n.fontFamily))];
+      Promise.all(uniqueFonts.map(ensureFontLoaded));
       setSelectedImageId(initialId);
-      setTextNodesRaw(getLayersForImage(initialId));
+      setTextNodesRaw(layers);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -354,6 +359,10 @@ export function EditorShell({ project }: { project: Project }) {
     if (currentKindleSrc) setKindleCrossfadeSnapshot(currentKindleSrc);
     setKindlePreview(null);
 
+    // Ensure fonts used in the new layers are loaded for Konva
+    const uniqueFonts = [...new Set(newLayers.map((n) => n.fontFamily))];
+    await Promise.all(uniqueFonts.map(ensureFontLoaded));
+
     setTextNodesRaw(newLayers);
     setSelectedNodeId(null);
     setSelectedImageId(imageId);
@@ -475,6 +484,8 @@ export function EditorShell({ project }: { project: Project }) {
       setSelectedNodeId(null);
       // Wait one frame for React re-render
       await new Promise((r) => setTimeout(r, 50));
+      // Ensure all fonts are fully loaded before canvas export
+      await document.fonts.ready;
 
       const dataUrl = stageRef.current.toDataURL({
         pixelRatio: 1600 / 400, // exports at full 1600x2560
@@ -545,7 +556,7 @@ export function EditorShell({ project }: { project: Project }) {
       x: 160,
       y: 1200,
       fontSize: 48,
-      fontFamily: "Georgia, serif",
+      fontFamily: "Playfair Display",
       fill: "#ffffff",
       align: "center",
       fontStyle: "normal",
