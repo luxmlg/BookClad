@@ -1,3 +1,5 @@
+import { Plus } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardLoading() {
@@ -5,10 +7,17 @@ export default function DashboardLoading() {
     <div className="container mx-auto max-w-6xl px-4 py-10">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <Skeleton className="h-9 w-40" />
+          <h1 className="text-3xl font-bold">My Covers</h1>
           <Skeleton className="mt-2 h-4 w-24" />
         </div>
-        <Skeleton className="h-8 w-28" />
+        <span
+          className={buttonVariants({
+            className: "pointer-events-none gap-2 opacity-50",
+          })}
+        >
+          <Plus className="size-4" />
+          New Cover
+        </span>
       </div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
