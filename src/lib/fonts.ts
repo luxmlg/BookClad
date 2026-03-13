@@ -56,11 +56,47 @@ export function migrateFont(fontFamily: string): string {
   return FONT_MIGRATION_MAP[fontFamily] ?? fontFamily;
 }
 
+// Custom font registry: family → URL (for fonts loaded via FontFace API)
+const customFontUrls = new Map<string, string>();
+
+export function registerCustomFont(family: string, url: string) {
+  customFontUrls.set(family, url);
+}
+
+export async function loadCustomFont(family: string, url: string): Promise<boolean> {
+  if (typeof document === "undefined") return false;
+  // Don't use document.fonts.check() — it returns true vacuously for unknown font families
+  for (const face of document.fonts) {
+    if (face.family === family && face.status === "loaded") return true;
+  }
+  try {
+    const fontFace = new FontFace(family, `url(${url})`);
+    const loaded = await fontFace.load();
+    document.fonts.add(loaded);
+    registerCustomFont(family, url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function ensureFontLoaded(family: string): Promise<boolean> {
   if (typeof document === "undefined") return false;
   try {
+    // Check if already loaded via FontFace entries
+    for (const face of document.fonts) {
+      if (face.family === family && face.status === "loaded") return true;
+    }
+    // Try loading via CSS (Google Fonts — has @font-face rules from <link> tag)
     await document.fonts.load(`1px "${family}"`);
-    return document.fonts.check(`1px "${family}"`);
+    // After load(), check entries again (not check() which is vacuously true)
+    for (const face of document.fonts) {
+      if (face.family === family && face.status === "loaded") return true;
+    }
+    // Fall back to custom font registry
+    const url = customFontUrls.get(family);
+    if (url) return loadCustomFont(family, url);
+    return false;
   } catch {
     return false;
   }
