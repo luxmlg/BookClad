@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ChevronRight, Sparkles, Copy, Wand2 } from "lucide-react";
+import { ChevronRight, Sparkles, Copy, Wand2, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -25,6 +25,7 @@ type TextLayerSnapshot = Array<{ name: string; text: string }>;
 
 interface Generation {
   id: string;
+  name?: string | null;
   status: string;
   createdAt: string | Date;
   imageCount?: number;
@@ -205,6 +206,21 @@ function computeAttributeDiff(
   return diffs.length > 0 ? diffs : null;
 }
 
+function formatRelativeTime(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return "just now";
+  if (minutes === 1) return "1 minute ago";
+  if (minutes < 60) return `${minutes} minutes ago`;
+  if (hours === 1) return "1 hour ago";
+  if (hours < 24) return `${hours} hours ago`;
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
+
 function GenerationGroup({
   generation,
   index,
@@ -227,15 +243,38 @@ function GenerationGroup({
   const [open, setOpen] = useState(defaultOpen);
   const [showDiff, setShowDiff] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [displayName, setDisplayName] = useState(generation.name ?? "");
+  const [editValue, setEditValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  async function saveName(value: string) {
+    const trimmed = value.trim();
+    setDisplayName(trimmed);
+    setEditing(false);
+    try {
+      await fetch(`/api/generations/${generation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+    } catch {
+      setDisplayName(generation.name ?? "");
+    }
+  }
 
   const date =
     typeof generation.createdAt === "string"
       ? new Date(generation.createdAt)
       : generation.createdAt;
-  const timeStr = date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const timeStr = formatRelativeTime(date);
 
   const jobType = generation.jobType ?? "generate";
   const Icon = JOB_TYPE_ICON[jobType] ?? Sparkles;
@@ -270,12 +309,46 @@ function GenerationGroup({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 transition-colors">
+      <CollapsibleTrigger className="group/gen flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 transition-colors">
         <ChevronRight
           className={`size-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`}
         />
-        <Icon className="size-3.5 text-muted-foreground" />
-        <span className="font-medium">#{index}</span>
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") saveName(editValue);
+              if (e.key === "Escape") {
+                setEditing(false);
+                setEditValue("");
+              }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={() => saveName(editValue)}
+            className="h-5 w-28 rounded border bg-background px-1.5 text-sm font-medium outline-none focus:ring-1 focus:ring-ring"
+            placeholder={`#${index}`}
+          />
+        ) : (
+          <>
+            <span className="font-medium">
+              {displayName ? `${displayName} · #${index}` : `#${index}`}
+            </span>
+            <span
+              role="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditValue(displayName);
+                setEditing(true);
+              }}
+              className="opacity-0 group-hover/gen:opacity-100 transition-opacity cursor-pointer"
+            >
+              <Pencil className="size-3 text-muted-foreground hover:text-foreground" />
+            </span>
+          </>
+        )}
         {parentGenIndex && (
           <span className="text-xs text-muted-foreground">
             {jobType === "inpaint" ? "edit on" : "from"} #{parentGenIndex}
@@ -285,12 +358,13 @@ function GenerationGroup({
           {generation.images.length}{" "}
           {generation.images.length === 1 ? "image" : "images"}
         </span>
-        <span className="ml-auto text-xs text-muted-foreground">{timeStr}</span>
+        <span className="ml-auto text-xs text-muted-foreground" title={date.toLocaleString()}>{timeStr}</span>
         {modelLabel && (
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {modelLabel}
           </Badge>
         )}
+        <Icon className="size-3.5 text-muted-foreground" />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="flex gap-3 px-2 py-1.5">
