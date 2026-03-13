@@ -100,6 +100,7 @@ export function EditorShell({ project }: { project: Project }) {
   const [presets, setPresets] = useState<
     Array<{ id: string; name: string; attributes: AttributeSelection }>
   >([]);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [brief, setBrief] = useState(project.brief ?? "");
   const [saving, setSaving] = useState(false);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
@@ -391,6 +392,7 @@ export function EditorShell({ project }: { project: Project }) {
       if (res.ok) {
         const preset = await res.json();
         setPresets((prev) => [preset, ...prev]);
+        setActivePresetId(preset.id);
         toast.success(`Preset "${name}" saved`);
       }
     } catch {
@@ -404,6 +406,7 @@ export function EditorShell({ project }: { project: Project }) {
     attributes: AttributeSelection;
   }) {
     setAttributes(preset.attributes as AttributeSelection);
+    setActivePresetId(preset.id);
     toast.success(`Applied preset "${preset.name}"`);
   }
 
@@ -464,6 +467,8 @@ export function EditorShell({ project }: { project: Project }) {
           presets={presets}
           onSavePreset={handleSavePreset}
           onApplyPreset={handleApplyPreset}
+          activePresetId={activePresetId}
+          onClearActivePreset={() => setActivePresetId(null)}
           brief={brief}
           setBrief={setBrief}
           imageCount={imageCount}

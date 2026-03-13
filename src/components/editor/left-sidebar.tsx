@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import type React from "react";
+import { useRef, useState } from "react";
 import {
   Save,
   Loader2,
@@ -30,6 +31,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { AI_MODELS } from "@/lib/constants";
 import type {
   AttributeConfigJson,
@@ -52,6 +54,8 @@ interface LeftSidebarProps {
   presets: StylePreset[];
   onSavePreset: (name: string) => void;
   onApplyPreset: (preset: StylePreset) => void;
+  activePresetId: string | null;
+  onClearActivePreset: () => void;
   brief: string;
   setBrief: (v: string) => void;
   imageCount: number;
@@ -74,6 +78,8 @@ export function LeftSidebar({
   presets,
   onSavePreset,
   onApplyPreset,
+  activePresetId,
+  onClearActivePreset,
   brief,
   setBrief,
   imageCount,
@@ -94,6 +100,8 @@ export function LeftSidebar({
   );
   const [presetDialogOpen, setPresetDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState("");
+  const [previewPreset, setPreviewPreset] = useState<StylePreset | null>(null);
+  const presetAnchorRef = useRef<HTMLDivElement>(null);
 
   const enabledCategories = attributeConfig.categories.filter(
     (c) => c.enabled
@@ -101,6 +109,7 @@ export function LeftSidebar({
 
   function updateAttribute(categoryId: string, value: string | string[]) {
     setAttributes({ ...attributes, [categoryId]: value });
+    onClearActivePreset();
   }
 
   function addCustomValue(categoryId: string, value: string, label: string) {
@@ -200,18 +209,24 @@ export function LeftSidebar({
       <div className="flex-1 overflow-y-auto">
         <div className="space-y-4 p-4">
           {/* Presets */}
-          {presets.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Style Preset</Label>
+          <div className="space-y-2">
+            <Label>Style Preset</Label>
+            <div ref={presetAnchorRef} className="flex gap-1.5">
               <Select
+                value={previewPreset?.id ?? activePresetId ?? null}
                 onValueChange={(v) => {
                   if (!v) return;
                   const preset = presets.find((p) => p.id === v);
-                  if (preset) onApplyPreset(preset);
+                  if (preset) setPreviewPreset(preset);
                 }}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Apply a preset..." />
+                  <SelectValue placeholder="Apply a preset...">
+                    {(value: string | null) => {
+                      if (!value) return "Apply a preset...";
+                      return presets.find((p) => p.id === value)?.name ?? value;
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {presets.map((p) => (
@@ -221,8 +236,49 @@ export function LeftSidebar({
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                onClick={() => setPresetDialogOpen(true)}
+                title="Save current attributes as preset"
+              >
+                <BookmarkIcon className="size-3.5" />
+              </Button>
             </div>
-          )}
+          </div>
+
+          {/* Floating preview popover */}
+          <PopoverPrimitive.Root
+            open={!!previewPreset}
+            onOpenChange={(open) => {
+              if (!open) setPreviewPreset(null);
+            }}
+          >
+            <PopoverPrimitive.Portal>
+              <PopoverPrimitive.Positioner
+                anchor={presetAnchorRef}
+                side="right"
+                sideOffset={8}
+                align="start"
+              >
+                <PopoverPrimitive.Popup className="z-50 w-64 rounded-lg border bg-popover p-3 shadow-md">
+                  {previewPreset && (
+                    <PresetPreview
+                      current={attributes}
+                      preset={previewPreset}
+                      categories={attributeConfig.categories}
+                      onApply={() => {
+                        onApplyPreset(previewPreset);
+                        setPreviewPreset(null);
+                      }}
+                      onCancel={() => setPreviewPreset(null)}
+                    />
+                  )}
+                </PopoverPrimitive.Popup>
+              </PopoverPrimitive.Positioner>
+            </PopoverPrimitive.Portal>
+          </PopoverPrimitive.Root>
 
           {/* Dynamic attribute categories */}
           {enabledCategories.map((category) => (
@@ -391,15 +447,6 @@ export function LeftSidebar({
           <Sparkles className="size-4" />
           Generate Similar
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full gap-1.5 text-xs"
-          onClick={() => setPresetDialogOpen(true)}
-        >
-          <BookmarkIcon className="size-3.5" />
-          Save as Preset
-        </Button>
       </div>
 
       {/* Save Preset Dialog */}
@@ -443,6 +490,101 @@ export function LeftSidebar({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function PresetPreview({
+  current,
+  preset,
+  categories,
+  onApply,
+  onCancel,
+}: {
+  current: AttributeSelection;
+  preset: StylePreset;
+  categories: AttributeCategory[];
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  // Collect all category ids from both current and preset
+  const allKeys = new Set([
+    ...Object.keys(current),
+    ...Object.keys(preset.attributes),
+  ]);
+
+  const diffs: Array<{
+    label: string;
+    removed: string[];
+    added: string[];
+    kept: string[];
+  }> = [];
+
+  for (const key of allKeys) {
+    const cat = categories.find((c) => c.id === key);
+    if (!cat) continue;
+
+    const resolve = (v: string) =>
+      cat.values.find((cv) => cv.value === v)?.label ?? v;
+    const toArr = (val: string | string[] | undefined): string[] => {
+      if (val === undefined || val === "") return [];
+      return Array.isArray(val) ? val : [val];
+    };
+
+    const currentArr = toArr(current[key]);
+    const presetArr = toArr(preset.attributes[key]);
+    const currentSet = new Set(currentArr);
+    const presetSet = new Set(presetArr);
+
+    const removed = currentArr.filter((v) => !presetSet.has(v)).map(resolve);
+    const added = presetArr.filter((v) => !currentSet.has(v)).map(resolve);
+    const kept = currentArr.filter((v) => presetSet.has(v)).map(resolve);
+
+    if (removed.length > 0 || added.length > 0) {
+      diffs.push({ label: cat.name, removed, added, kept });
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {diffs.length > 0 ? (
+        <div className="space-y-1.5">
+          {diffs.map((d) => (
+            <div key={d.label} className="text-xs">
+              <span className="font-medium text-muted-foreground">
+                {d.label}:
+              </span>{" "}
+              {[
+                ...d.added.map((v) => (
+                  <span key={`a-${v}`} className="font-semibold text-primary">{v}</span>
+                )),
+                ...d.kept.map((v) => (
+                  <span key={`k-${v}`} className="text-foreground">{v}</span>
+                )),
+                ...d.removed.map((v) => (
+                  <span key={`r-${v}`} className="text-muted-foreground line-through">{v}</span>
+                )),
+              ].reduce<React.ReactNode[]>((acc, el, i) => {
+                if (i > 0) acc.push(<span key={`sep-${i}`}>, </span>);
+                acc.push(el);
+                return acc;
+              }, [])}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          No changes — attributes already match
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" className="h-7 text-xs" onClick={onApply} disabled={diffs.length === 0}>
+          Apply Preset
+        </Button>
+      </div>
     </div>
   );
 }
