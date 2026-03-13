@@ -163,7 +163,7 @@ function CategoriesTab({
 }) {
   const [addingCategory, setAddingCategory] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<"single" | "multi">("single");
+  const [newType, setNewType] = useState<"single" | "multi" | "text">("single");
 
   function toggleCategory(categoryId: string, enabled: boolean) {
     onSave({
@@ -253,7 +253,7 @@ function CategoriesTab({
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Category name (e.g. Color Palette, Era)"
+              placeholder="Attribute name (e.g. Color Palette, Era)"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") addCategory();
@@ -275,10 +275,17 @@ function CategoriesTab({
               >
                 Multi select
               </Button>
+              <Button
+                variant={newType === "text" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setNewType("text")}
+              >
+                Text
+              </Button>
             </div>
             <div className="flex gap-2">
               <Button size="sm" onClick={addCategory}>
-                Add Category
+                Add Attribute
               </Button>
               <Button
                 variant="ghost"
@@ -297,7 +304,7 @@ function CategoriesTab({
           onClick={() => setAddingCategory(true)}
         >
           <PlusIcon className="size-4" />
-          Add Category
+          Add Attribute
         </Button>
       )}
     </div>
@@ -344,7 +351,7 @@ function CategoryCard({
               />
               <CardTitle className="text-base">{category.name}</CardTitle>
               <Badge variant="secondary" className="text-xs">
-                {category.type === "single" ? "Single" : "Multi"}
+                {category.type === "single" ? "Single" : category.type === "multi" ? "Multi" : "Text"}
               </Badge>
               <span className="text-xs text-muted-foreground">
                 {category.values.length} values

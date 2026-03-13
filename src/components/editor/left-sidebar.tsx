@@ -12,9 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -31,7 +29,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
-import { AI_MODELS } from "@/lib/constants";
 import type {
   AttributeConfigJson,
   AttributeSelection,
@@ -57,10 +54,6 @@ interface LeftSidebarProps {
   onClearActivePreset: () => void;
   brief: string;
   setBrief: (v: string) => void;
-  imageCount: number;
-  setImageCount: (v: number) => void;
-  model: string;
-  setModel: (v: string) => void;
   saving: boolean;
   onSave: () => void;
 }
@@ -77,26 +70,46 @@ export function LeftSidebar({
   onClearActivePreset,
   brief,
   setBrief,
-  imageCount,
-  setImageCount,
-  model,
-  setModel,
   saving,
   onSave,
 }: LeftSidebarProps) {
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryType, setNewCategoryType] = useState<"single" | "multi">(
-    "single"
-  );
+  const [newCategoryType, setNewCategoryType] = useState<
+    "single" | "multi" | "text"
+  >("single");
+  const [duplicateError, setDuplicateError] = useState("");
   const [presetDialogOpen, setPresetDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState("");
   const [previewPreset, setPreviewPreset] = useState<StylePreset | null>(null);
   const presetAnchorRef = useRef<HTMLDivElement>(null);
 
+  // Drag-and-drop state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Build flat ordered list: enabled categories + brief
+  type SidebarItem =
+    | { kind: "category"; category: AttributeCategory }
+    | { kind: "brief" };
+
   const enabledCategories = attributeConfig.categories.filter(
     (c) => c.enabled
   );
+  const briefPos = Math.min(
+    attributeConfig.briefPosition ??
+      enabledCategories.filter((c) => c.builtIn).length,
+    enabledCategories.length
+  );
+  const sidebarItems: SidebarItem[] = [
+    ...enabledCategories
+      .slice(0, briefPos)
+      .map((c) => ({ kind: "category" as const, category: c })),
+    { kind: "brief" as const },
+    ...enabledCategories
+      .slice(briefPos)
+      .map((c) => ({ kind: "category" as const, category: c })),
+  ];
 
   function updateAttribute(categoryId: string, value: string | string[]) {
     setAttributes({ ...attributes, [categoryId]: value });
@@ -144,6 +157,11 @@ export function LeftSidebar({
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
+    if (attributeConfig.categories.some((c) => c.id === id)) {
+      setDuplicateError(`A category named "${name}" already exists`);
+      return;
+    }
+
     const newCat: AttributeCategory = {
       id,
       name,
@@ -161,8 +179,67 @@ export function LeftSidebar({
       ...attributes,
       [id]: newCategoryType === "multi" ? [] : "",
     });
+    setNewCategoryType("single");
     setNewCategoryName("");
+    setDuplicateError("");
     setAddingCategory(false);
+  }
+
+  function handleItemDragStart(e: React.DragEvent, index: number) {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleItemDragOver(e: React.DragEvent, index: number) {
+    e.preventDefault();
+    if (draggedIndex === null) return;
+    e.dataTransfer.dropEffect = "move";
+    setDragOverIndex(index);
+  }
+
+  function handleItemDrop(e: React.DragEvent, toIndex: number) {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === toIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const newItems = [...sidebarItems];
+    const [moved] = newItems.splice(draggedIndex, 1);
+    newItems.splice(toIndex, 0, moved);
+
+    // Extract new category order and brief position
+    const orderedCatIds: string[] = [];
+    let newBriefPos = 0;
+    for (const item of newItems) {
+      if (item.kind === "brief") {
+        newBriefPos = orderedCatIds.length;
+      } else {
+        orderedCatIds.push(item.category.id);
+      }
+    }
+
+    const reorderedCategories = [
+      ...orderedCatIds.map(
+        (id) => attributeConfig.categories.find((c) => c.id === id)!
+      ),
+      ...attributeConfig.categories.filter((c) => !c.enabled),
+    ];
+
+    onConfigChange({
+      ...attributeConfig,
+      categories: reorderedCategories,
+      briefPosition: newBriefPos,
+    });
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  }
+
+  function handleItemDragEnd() {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   }
 
   function removeCategory(categoryId: string) {
@@ -268,42 +345,86 @@ export function LeftSidebar({
             </PopoverPrimitive.Portal>
           </PopoverPrimitive.Root>
 
-          {/* Dynamic attribute categories */}
-          {enabledCategories.map((category) => (
-            <div key={category.id} className="relative">
-              <AttributeCategoryInput
-                category={category}
-                value={
-                  attributes[category.id] ??
-                  (category.type === "multi" ? [] : "")
-                }
-                onChange={(v) => updateAttribute(category.id, v)}
-                onAddCustomValue={(value, label) =>
-                  addCustomValue(category.id, value, label)
-                }
-                onRemoveCustomValue={(value) =>
-                  removeCustomValue(category.id, value)
-                }
-              />
-              {!category.builtIn && (
-                <button
-                  type="button"
-                  className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
-                  onClick={() => removeCategory(category.id)}
-                >
-                  <XIcon className="size-3" />
-                </button>
-              )}
-            </div>
-          ))}
+          {/* Draggable items: categories + brief */}
+          {sidebarItems.map((item, index) => {
+            const key =
+              item.kind === "brief" ? "__brief__" : item.category.id;
+            const isDragged = draggedIndex === index;
+            const isDragOver =
+              dragOverIndex === index && draggedIndex !== index;
+
+            return (
+              <div
+                key={key}
+                draggable
+                onDragStart={(e) => handleItemDragStart(e, index)}
+                onDragOver={(e) => handleItemDragOver(e, index)}
+                onDragLeave={() => setDragOverIndex(null)}
+                onDrop={(e) => handleItemDrop(e, index)}
+                onDragEnd={handleItemDragEnd}
+                className={`relative cursor-grab active:cursor-grabbing ${
+                  isDragOver ? "border-t-2 border-primary" : ""
+                } ${isDragged ? "opacity-40" : ""}`}
+              >
+                {item.kind === "brief" ? (
+                  <div className="space-y-2">
+                    <Label>Brief / AI Prompt</Label>
+                    <Textarea
+                      value={brief}
+                      onChange={(e) => setBrief(e.target.value)}
+                      rows={4}
+                      placeholder="Describe visual elements, themes..."
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <AttributeCategoryInput
+                      category={item.category}
+                      value={
+                        attributes[item.category.id] ??
+                        (item.category.type === "text"
+                          ? ""
+                          : item.category.type === "multi"
+                            ? []
+                            : "")
+                      }
+                      onChange={(v) =>
+                        updateAttribute(item.category.id, v)
+                      }
+                      onAddCustomValue={(value, label) =>
+                        addCustomValue(item.category.id, value, label)
+                      }
+                      onRemoveCustomValue={(value) =>
+                        removeCustomValue(item.category.id, value)
+                      }
+                    />
+                    {!item.category.builtIn && (
+                      <button
+                        type="button"
+                        className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                        onClick={() =>
+                          removeCategory(item.category.id)
+                        }
+                      >
+                        <XIcon className="size-3" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
 
           {/* Add category */}
           {addingCategory ? (
             <div className="space-y-2 rounded-lg border border-dashed p-3">
               <Input
                 value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder="Category name..."
+                onChange={(e) => {
+                  setNewCategoryName(e.target.value);
+                  setDuplicateError("");
+                }}
+                placeholder="Attribute name..."
                 className="h-7 text-sm"
                 autoFocus
                 onKeyDown={(e) => {
@@ -311,6 +432,9 @@ export function LeftSidebar({
                   if (e.key === "Escape") setAddingCategory(false);
                 }}
               />
+              {duplicateError && (
+                <p className="text-xs text-destructive">{duplicateError}</p>
+              )}
               <div className="flex gap-2">
                 <Button
                   variant={
@@ -331,6 +455,16 @@ export function LeftSidebar({
                   onClick={() => setNewCategoryType("multi")}
                 >
                   Multi
+                </Button>
+                <Button
+                  variant={
+                    newCategoryType === "text" ? "default" : "outline"
+                  }
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => setNewCategoryType("text")}
+                >
+                  Text
                 </Button>
               </div>
               <div className="flex gap-2">
@@ -359,56 +493,6 @@ export function LeftSidebar({
             </Button>
           )}
 
-          <div className="space-y-2">
-            <Label>Brief / AI Prompt</Label>
-            <Textarea
-              value={brief}
-              onChange={(e) => setBrief(e.target.value)}
-              rows={4}
-              placeholder="Describe visual elements, themes..."
-            />
-          </div>
-
-          <Separator />
-
-          <div className="space-y-2">
-            <Label>AI Model</Label>
-            <Select value={model} onValueChange={(v) => v && setModel(v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select model">
-                  {AI_MODELS.find((m) => m.value === model)?.label ??
-                    "Select model"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {AI_MODELS.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">
-              Used for generation, reference generation, and inpainting
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Images per generation: {imageCount}</Label>
-            <Slider
-              value={[imageCount]}
-              onValueChange={(v) =>
-                setImageCount(Array.isArray(v) ? v[0] : v)
-              }
-              min={1}
-              max={8}
-              step={1}
-            />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>1</span>
-              <span>8</span>
-            </div>
-          </div>
         </div>
       </div>
 
