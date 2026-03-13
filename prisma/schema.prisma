@@ -21,6 +21,7 @@ model User {
   tier             Tier      @default(FREE)
   generationsUsed  Int       @default(0)
   generationsReset DateTime?
+  defaultFont      String    @default("Playfair Display")
 
   accounts        Account[]
   sessions        Session[]
@@ -205,6 +206,7 @@ model UserFont {
   storageKey String
   mimeType   String
   fileSize   Int
+  disabled   Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

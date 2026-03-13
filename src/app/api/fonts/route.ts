@@ -49,6 +49,11 @@ export async function GET() {
         return {
           id: font.id,
           family: font.family,
+          fileName: font.fileName,
+          fileSize: font.fileSize,
+          mimeType: font.mimeType,
+          disabled: font.disabled,
+          createdAt: font.createdAt.toISOString(),
           url,
         };
       })

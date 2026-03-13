@@ -100,6 +100,7 @@ export function EditorShell({ project }: { project: Project }) {
     return getDefaultCanvasState(project.title, project.author);
   }, [project.canvasState, project.title, project.author]);
 
+  const replacedFontWarningShown = useRef(false);
   const [nodes, setNodesRaw] = useState<CanvasNode[]>(initialCanvas.nodes);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [attributes, setAttributes] = useState<AttributeSelection>(
@@ -142,6 +143,7 @@ export function EditorShell({ project }: { project: Project }) {
   // Asset and font state
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [defaultFont, setDefaultFont] = useState("Playfair Display");
 
   // Prevent page-level scroll while editor is mounted
   useEffect(() => {
@@ -178,6 +180,14 @@ export function EditorShell({ project }: { project: Project }) {
       .then(async (fonts: CustomFont[]) => {
         setCustomFonts(fonts);
         await Promise.all(fonts.map((f) => loadCustomFont(f.family, f.url)));
+      })
+      .catch(() => {});
+
+    // Fetch user's default font preference
+    fetch("/api/user/preferences")
+      .then((r) => r.json())
+      .then((prefs: { defaultFont: string }) => {
+        if (prefs.defaultFont) setDefaultFont(prefs.defaultFont);
       })
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -277,6 +287,48 @@ export function EditorShell({ project }: { project: Project }) {
       }
     }
 
+    // Strip replacedFont flags from all layers and persist cleaned state
+    const replacedFonts = new Set<string>();
+    const collectReplacedFonts = (nodes: CanvasNode[]) => {
+      for (const n of nodes) {
+        if (n.type === "text" && (n as TextNodeConfig).replacedFont) {
+          replacedFonts.add((n as TextNodeConfig).replacedFont!);
+        }
+      }
+    };
+    const stripReplacedFont = (nodes: CanvasNode[]): CanvasNode[] =>
+      nodes.map(n => {
+        if (n.type === "text" && (n as TextNodeConfig).replacedFont) {
+          const { replacedFont: _, ...rest } = n as TextNodeConfig;
+          return rest as TextNodeConfig;
+        }
+        return n;
+      });
+
+    // Collect from all sources
+    collectReplacedFonts(initialCanvas.nodes);
+    for (const layers of layersCacheRef.current.values()) {
+      collectReplacedFonts(layers);
+    }
+
+    // Clean and persist if any replaced fonts were found
+    if (replacedFonts.size > 0) {
+      for (const [imageId, layers] of layersCacheRef.current.entries()) {
+        const cleaned = stripReplacedFont(layers);
+        layersCacheRef.current.set(imageId, cleaned);
+        fetch(`/api/images/${imageId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ canvasState: { nodes: cleaned } }),
+        }).catch(() => {});
+      }
+      fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canvasState: { nodes: stripReplacedFont(initialCanvas.nodes) } }),
+      }).catch(() => {});
+    }
+
     const sel = allImages.find((img) => img.selected);
     const initialId = sel?.id ?? allImages[0]?.id ?? null;
     if (initialId) {
@@ -288,6 +340,15 @@ export function EditorShell({ project }: { project: Project }) {
       Promise.all(uniqueFonts.map(ensureFontLoaded));
       setSelectedImageId(initialId);
       setNodesRaw(layers);
+    }
+
+    // Show warning once after cleanup (ref guards against StrictMode double-invoke)
+    if (replacedFonts.size > 0 && !replacedFontWarningShown.current) {
+      replacedFontWarningShown.current = true;
+      const fontNames = [...replacedFonts].join(", ");
+      toast.warning(
+        `Some text layers used fonts that are no longer available (${fontNames}). They have been set to the default font.`
+      );
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -668,7 +729,7 @@ export function EditorShell({ project }: { project: Project }) {
       x: 800,
       y: 1200,
       fontSize: 48,
-      fontFamily: "Playfair Display",
+      fontFamily: defaultFont,
       fill: "#ffffff",
       align: "center",
       fontStyle: "normal",

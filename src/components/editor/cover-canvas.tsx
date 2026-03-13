@@ -48,6 +48,7 @@ export interface TextNodeConfig {
   lineHeight?: number;
   textDecoration?: string;
   textTransform?: "none" | "uppercase" | "lowercase";
+  replacedFont?: string;
 }
 
 export interface ImageNodeConfig {
