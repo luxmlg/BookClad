@@ -9,6 +9,7 @@ import {
   AlignRight,
   ChevronRight,
   Trash2,
+  RotateCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,30 +68,30 @@ export function TextLayerControls({ node, onUpdate, onRemove }: TextLayerControl
         onChange={(e) => onUpdate({ text: e.target.value })}
         placeholder="Text content"
       />
+      <div className="space-y-1">
+        <Label className="text-sm">Font</Label>
+        <Select
+          value={node.fontFamily}
+          onValueChange={(v) => v && onUpdate({ fontFamily: v })}
+        >
+          <SelectTrigger className="w-full text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FONTS_BY_CATEGORY.map((group) => (
+              <SelectGroup key={group.category}>
+                <SelectLabel>{group.label}</SelectLabel>
+                {group.fonts.map((f) => (
+                  <SelectItem key={f.family} value={f.family}>
+                    <span style={{ fontFamily: f.family }}>{f.family}</span>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-sm">Font</Label>
-          <Select
-            value={node.fontFamily}
-            onValueChange={(v) => v && onUpdate({ fontFamily: v })}
-          >
-            <SelectTrigger className="w-full text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FONTS_BY_CATEGORY.map((group) => (
-                <SelectGroup key={group.category}>
-                  <SelectLabel>{group.label}</SelectLabel>
-                  {group.fonts.map((f) => (
-                    <SelectItem key={f.family} value={f.family}>
-                      <span style={{ fontFamily: f.family }}>{f.family}</span>
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
         <div className="space-y-1">
           <Label className="text-sm">Size</Label>
           <Input
@@ -101,6 +102,20 @@ export function TextLayerControls({ node, onUpdate, onRemove }: TextLayerControl
             }
             min={12}
             max={300}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-sm flex items-center gap-1">
+            <RotateCw className="size-3" /> Rotation
+          </Label>
+          <Input
+            type="number"
+            value={Math.round(node.rotation ?? 0)}
+            onChange={(e) =>
+              onUpdate({ rotation: Number(e.target.value) || 0 })
+            }
+            min={-360}
+            max={360}
           />
         </div>
       </div>

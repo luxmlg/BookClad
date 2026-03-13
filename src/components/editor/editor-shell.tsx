@@ -585,6 +585,7 @@ export function EditorShell({ project }: { project: Project }) {
     if (attrs.y !== undefined) mapped.y = attrs.y / SCALE;
     if (attrs.width !== undefined) mapped.width = attrs.width / SCALE;
     if (attrs.fontSize !== undefined) mapped.fontSize = attrs.fontSize / SCALE;
+    if (attrs.rotation !== undefined) mapped.rotation = attrs.rotation;
     updateNode(id, mapped);
   }
 

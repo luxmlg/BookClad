@@ -39,6 +39,7 @@ export interface TextNodeConfig {
   shadowOpacity?: number;
   stroke?: string;
   strokeWidth?: number;
+  rotation?: number;
 }
 
 export interface CanvasState {
@@ -192,6 +193,7 @@ export function CoverCanvas({
       y: node.y(),
       width: Math.max(20, node.width() * scaleX),
       fontSize: Math.round(node.fontSize() * scaleX),
+      rotation: node.rotation(),
     });
   }
 
@@ -214,6 +216,7 @@ export function CoverCanvas({
         fontStyle={config.fontStyle}
         width={config.width * SCALE}
         draggable={config.draggable}
+        rotation={config.rotation ?? 0}
         shadowColor={config.shadowColor}
         shadowBlur={(config.shadowBlur ?? 0) * SCALE}
         shadowOffsetX={(config.shadowOffsetX ?? 2) * SCALE}
