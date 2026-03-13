@@ -282,11 +282,17 @@ export function EditorShell({ project }: { project: Project }) {
     kindleTimerRef.current = setTimeout(() => {
       if (!stageRef.current) return;
       try {
+        // Hide transformer so selection box doesn't appear in preview
+        const tr = stageRef.current.findOne("Transformer");
+        if (tr) tr.visible(false);
+        stageRef.current.draw();
         const dataUrl = stageRef.current.toDataURL({
           pixelRatio: 0.3,
           mimeType: "image/jpeg",
           quality: 0.6,
         });
+        if (tr) tr.visible(true);
+        stageRef.current.draw();
         setKindlePreview(dataUrl);
       } catch {
         // canvas not ready
