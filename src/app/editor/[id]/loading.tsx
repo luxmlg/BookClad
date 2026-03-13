@@ -99,14 +99,10 @@ export default function EditorLoading() {
         {/* Canvas area */}
         <div className="relative flex flex-1 items-center justify-center gap-3 p-4">
           {/* Main canvas */}
-          <div
-            className="flex shrink-0 flex-col items-center justify-center gap-3 overflow-hidden rounded-xl border bg-background shadow-xl"
+          <Skeleton
+            className="shrink-0 rounded-xl"
             style={{ width: 400, height: 640 }}
-          >
-            <Skeleton className="h-[60%] w-[80%] rounded-lg" />
-            <Skeleton className="h-4 w-[50%]" />
-            <Skeleton className="h-3 w-[30%]" />
-          </div>
+          />
 
           {/* Kindle preview */}
           <div

@@ -100,16 +100,25 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    if (parsed.data.selected) {
-      await prisma.generatedImage.updateMany({
-        where: { generationId: image.generationId },
-        data: { selected: false },
-      });
+    const data: Record<string, unknown> = {};
+
+    if (parsed.data.selected !== undefined) {
+      if (parsed.data.selected) {
+        await prisma.generatedImage.updateMany({
+          where: { generationId: image.generationId },
+          data: { selected: false },
+        });
+      }
+      data.selected = parsed.data.selected;
+    }
+
+    if (parsed.data.canvasState !== undefined) {
+      data.canvasState = parsed.data.canvasState;
     }
 
     const updated = await prisma.generatedImage.update({
       where: { id },
-      data: { selected: parsed.data.selected },
+      data,
     });
 
     return NextResponse.json(updated);

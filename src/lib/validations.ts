@@ -39,7 +39,8 @@ export const updateProjectSchema = z.object({
 });
 
 export const updateImageSchema = z.object({
-  selected: z.boolean(),
+  selected: z.boolean().optional(),
+  canvasState: z.any().optional(),
 });
 
 export const createInpaintSchema = z.object({

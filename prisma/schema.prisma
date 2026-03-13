@@ -142,6 +142,7 @@ model GeneratedImage {
   width        Int
   height       Int
   selected     Boolean @default(false)
+  canvasState  Json?
 
   generation         Generation   @relation(fields: [generationId], references: [id], onDelete: Cascade)
   derivedGenerations Generation[] @relation("DerivedFrom")

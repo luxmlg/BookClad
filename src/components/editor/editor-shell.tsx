@@ -51,6 +51,7 @@ interface GeneratedImage {
   width: number;
   height: number;
   selected: boolean;
+  canvasState: unknown;
 }
 
 interface Generation {
@@ -89,7 +90,7 @@ export function EditorShell({ project }: { project: Project }) {
     return getDefaultCanvasState(project.title, project.author);
   }, [project.canvasState, project.title, project.author]);
 
-  const [textNodes, setTextNodes] = useState<TextNodeConfig[]>(initialCanvas.textNodes);
+  const [textNodes, setTextNodesRaw] = useState<TextNodeConfig[]>(initialCanvas.textNodes);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [attributes, setAttributes] = useState<AttributeSelection>(
     (project.attributes as AttributeSelection | null) ?? {}
@@ -116,10 +117,17 @@ export function EditorShell({ project }: { project: Project }) {
   const [inpaintSubmitting, setInpaintSubmitting] = useState(false);
   const [model, setModel] = useState("openai");
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [bgLoaded, setBgLoaded] = useState(false);
+  const [crossfadeSnapshot, setCrossfadeSnapshot] = useState<string | null>(null);
+  const [kindleCrossfadeSnapshot, setKindleCrossfadeSnapshot] = useState<string | null>(null);
+  const handleBgLoaded = useCallback(() => {
+    setBgLoaded(true);
+  }, []);
   const [kindlePreview, setKindlePreview] = useState<string | null>(null);
   const [showKindlePreview, setShowKindlePreview] = useState(true);
   const fetchedRef = useRef(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const layersCacheRef = useRef<Map<string, TextNodeConfig[]>>(new Map());
 
   // Prevent page-level scroll while editor is mounted
   useEffect(() => {
@@ -153,11 +161,56 @@ export function EditorShell({ project }: { project: Project }) {
     ? imageUrls[selectedImageId]
     : undefined;
 
+  // Resolve layers for an image: cache → DB persisted → project template
+  const getLayersForImage = useCallback((imageId: string): TextNodeConfig[] => {
+    const cached = layersCacheRef.current.get(imageId);
+    if (cached) return cached;
 
+    const img = allImages.find(i => i.id === imageId);
+    if (img?.canvasState) {
+      const migrated = migrateCanvasState(img.canvasState);
+      if (migrated?.textNodes?.length) {
+        layersCacheRef.current.set(imageId, migrated.textNodes);
+        return migrated.textNodes;
+      }
+    }
+
+    const template = structuredClone(initialCanvas.textNodes);
+    layersCacheRef.current.set(imageId, template);
+    return template;
+  }, [allImages, initialCanvas.textNodes]);
+
+  // Wrap setTextNodes to also update the per-image cache
+  const selectedImageIdRef = useRef(selectedImageId);
+  selectedImageIdRef.current = selectedImageId;
+
+  const setTextNodes = useCallback((updater: TextNodeConfig[] | ((prev: TextNodeConfig[]) => TextNodeConfig[])) => {
+    setTextNodesRaw(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (selectedImageIdRef.current) {
+        layersCacheRef.current.set(selectedImageIdRef.current, next);
+      }
+      return next;
+    });
+  }, []);
+
+  // Initialize per-image layers cache and set initial textNodes
   useEffect(() => {
+    for (const img of allImages) {
+      if (img.canvasState && !layersCacheRef.current.has(img.id)) {
+        const migrated = migrateCanvasState(img.canvasState);
+        if (migrated?.textNodes?.length) {
+          layersCacheRef.current.set(img.id, migrated.textNodes);
+        }
+      }
+    }
+
     const sel = allImages.find((img) => img.selected);
-    if (sel) setSelectedImageId(sel.id);
-    else if (allImages.length > 0) setSelectedImageId(allImages[0].id);
+    const initialId = sel?.id ?? allImages[0]?.id ?? null;
+    if (initialId) {
+      setSelectedImageId(initialId);
+      setTextNodesRaw(getLayersForImage(initialId));
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -186,11 +239,25 @@ export function EditorShell({ project }: { project: Project }) {
     fetchUrls();
   }, [allImages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-save canvas state (debounced 3s)
+
+  // Auto-save canvas state (debounced 3s) — save to current image + project template
   useEffect(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+    const imageIdToSave = selectedImageId;
     autoSaveTimerRef.current = setTimeout(() => {
       const canvasState: CanvasState = { textNodes };
+
+      // Save to current image
+      if (imageIdToSave) {
+        fetch(`/api/images/${imageIdToSave}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ canvasState }),
+        }).catch(() => {});
+      }
+
+      // Also update project-level template (default for new images)
       fetch(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -200,12 +267,13 @@ export function EditorShell({ project }: { project: Project }) {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [textNodes, project.id]);
+  }, [textNodes, selectedImageId, project.id]);
 
-  // Capture Kindle preview from canvas (debounced 500ms)
+  // Capture Kindle preview from canvas (debounced 500ms, only when image is loaded)
   const kindleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (kindleTimerRef.current) clearTimeout(kindleTimerRef.current);
+    if (!bgLoaded) return;
     kindleTimerRef.current = setTimeout(() => {
       if (!stageRef.current) return;
       try {
@@ -222,7 +290,7 @@ export function EditorShell({ project }: { project: Project }) {
     return () => {
       if (kindleTimerRef.current) clearTimeout(kindleTimerRef.current);
     };
-  }, [textNodes, selectedImageUrl]);
+  }, [textNodes, selectedImageUrl, bgLoaded]);
 
   const saveProject = useCallback(async () => {
     setSaving(true);
@@ -251,16 +319,51 @@ export function EditorShell({ project }: { project: Project }) {
   }, [project.id, project.title, project.author, textNodes, attributes, brief]);
 
   async function selectImage(imageId: string) {
-    setSelectedImageId(imageId);
-    try {
-      await fetch(`/api/images/${imageId}`, {
+    if (imageId === selectedImageId) return;
+
+    // Save current image's layers to cache and persist to server
+    if (selectedImageId) {
+      layersCacheRef.current.set(selectedImageId, textNodes);
+      const canvasState: CanvasState = { textNodes };
+      fetch(`/api/images/${selectedImageId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selected: true }),
-      });
-    } catch {
-      // silent
+        body: JSON.stringify({ canvasState }),
+      }).catch(() => {});
     }
+
+    // Load layers for the new image
+    const newLayers = getLayersForImage(imageId);
+
+    // Capture current canvas as snapshot for crossfade
+    if (stageRef.current) {
+      try {
+        const snapshot = stageRef.current.toDataURL({
+          pixelRatio: 1,
+          mimeType: "image/jpeg",
+          quality: 0.8,
+        });
+        setCrossfadeSnapshot(snapshot);
+      } catch {
+        // canvas not ready
+      }
+    }
+    setBgLoaded(false);
+    // Capture current kindle src for crossfade before clearing
+    const currentKindleSrc = kindlePreview ?? selectedImageUrl ?? null;
+    if (currentKindleSrc) setKindleCrossfadeSnapshot(currentKindleSrc);
+    setKindlePreview(null);
+
+    setTextNodesRaw(newLayers);
+    setSelectedNodeId(null);
+    setSelectedImageId(imageId);
+
+    // Persist selection
+    fetch(`/api/images/${imageId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selected: true }),
+    }).catch(() => {});
   }
 
   async function handleRegenerate() {
@@ -516,13 +619,23 @@ export function EditorShell({ project }: { project: Project }) {
           >
             {allImages.length > 0 ? (
               loadingUrls || Object.keys(imageUrls).length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
-                  <Skeleton className="h-[60%] w-[80%] rounded-lg" />
-                  <Skeleton className="h-4 w-[50%]" />
-                  <Skeleton className="h-3 w-[30%]" />
-                </div>
+                <Skeleton className="h-full w-full rounded-none" />
               ) : selectedImageUrl ? (
                 <>
+                  {/* Crossfade overlay: shows snapshot of previous canvas, fades out when new image loads */}
+                  {crossfadeSnapshot && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={crossfadeSnapshot}
+                      alt=""
+                      className={`absolute inset-0 z-10 h-full w-full object-cover transition-opacity duration-300 ease-in-out ${
+                        bgLoaded ? "opacity-0" : "opacity-100"
+                      }`}
+                      onTransitionEnd={() => {
+                        if (bgLoaded) setCrossfadeSnapshot(null);
+                      }}
+                    />
+                  )}
                   <CoverCanvas
                     imageUrl={selectedImageUrl}
                     textNodes={textNodes}
@@ -531,6 +644,7 @@ export function EditorShell({ project }: { project: Project }) {
                     onNodeDragEnd={handleNodeDragEnd}
                     onNodeTransformEnd={handleNodeTransformEnd}
                     stageRef={stageRef}
+                    onImageLoad={handleBgLoaded}
                   />
                   {brushMode && !inpaintMask && (
                     <div className="absolute inset-0">
@@ -580,17 +694,28 @@ export function EditorShell({ project }: { project: Project }) {
                 style={{ width: 75, aspectRatio: "1600/2560" }}
                 title="Hide preview"
               >
-                {kindlePreview ? (
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={kindlePreview ?? selectedImageUrl ?? undefined}
+                  alt="Kindle preview"
+                  className="h-full w-full object-cover transition-[filter] group-hover:blur-sm"
+                />
+                {kindleCrossfadeSnapshot && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={kindlePreview}
-                    alt="Kindle preview"
-                    className="h-full w-full object-cover transition-[filter] group-hover:blur-sm"
+                    src={kindleCrossfadeSnapshot}
+                    alt=""
+                    className={`absolute inset-0 z-10 h-full w-full object-cover transition-opacity duration-300 ease-in-out ${
+                      kindlePreview || (bgLoaded && selectedImageUrl)
+                        ? "opacity-0"
+                        : "opacity-100"
+                    }`}
+                    onTransitionEnd={() => {
+                      if (kindlePreview || (bgLoaded && selectedImageUrl)) {
+                        setKindleCrossfadeSnapshot(null);
+                      }
+                    }}
                   />
-                ) : (
-                  <div className="flex h-full items-center justify-center transition-[filter] group-hover:blur-sm">
-                    <Tablet className="size-4 text-muted-foreground/50" />
-                  </div>
                 )}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
                   <EyeOff className="size-5 text-white drop-shadow-md" />

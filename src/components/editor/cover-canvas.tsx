@@ -79,6 +79,7 @@ interface CoverCanvasProps {
   onNodeDragEnd: (id: string, x: number, y: number) => void;
   onNodeTransformEnd: (id: string, attrs: Partial<TextNodeConfig>) => void;
   stageRef?: React.RefObject<Konva.Stage | null>;
+  onImageLoad?: () => void;
 }
 
 const SNAP_THRESHOLD = 5;
@@ -93,6 +94,7 @@ export function CoverCanvas({
   onNodeDragEnd,
   onNodeTransformEnd,
   stageRef: externalStageRef,
+  onImageLoad,
 }: CoverCanvasProps) {
   const internalStageRef = useRef<Konva.Stage>(null);
   const stageRef = externalStageRef || internalStageRef;
@@ -100,16 +102,24 @@ export function CoverCanvas({
   const transformerRef = useRef<Konva.Transformer>(null);
   const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
+  const onImageLoadRef = useRef(onImageLoad);
+  onImageLoadRef.current = onImageLoad;
 
   useEffect(() => {
     if (!imageUrl) {
       setBgImage(null);
       return;
     }
+    let cancelled = false;
     const img = new window.Image();
     img.crossOrigin = "anonymous";
     img.src = imageUrl;
-    img.onload = () => setBgImage(img);
+    img.onload = () => {
+      if (cancelled) return;
+      setBgImage(img);
+      onImageLoadRef.current?.();
+    };
+    return () => { cancelled = true; };
   }, [imageUrl]);
 
   useEffect(() => {
