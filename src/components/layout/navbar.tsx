@@ -34,6 +34,7 @@ export async function Navbar() {
               >
                 My Covers
               </Link>
+              <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger className="relative h-8 w-8 rounded-full cursor-pointer">
                   <Avatar className="h-8 w-8">
@@ -92,9 +93,9 @@ export async function Navbar() {
               >
                 Get Started
               </Link>
+              <ThemeToggle />
             </>
           )}
-          <ThemeToggle />
         </nav>
 
         {/* Mobile nav */}
