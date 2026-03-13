@@ -835,7 +835,7 @@ export function EditorShell({ project }: { project: Project }) {
 
       {/* Center: canvas + generation history */}
       <div className="flex flex-1 flex-col overflow-hidden bg-muted/20">
-        <div className="flex flex-1 items-center justify-center gap-3 overflow-auto p-4">
+        <div className="flex flex-1 items-center justify-center gap-3 overflow-auto scrollbar-hide p-4">
           {/* Canvas */}
           <div ref={canvasContainerRef} className="relative shrink-0" style={{ width: 400, height: 640 }}>
             <div
