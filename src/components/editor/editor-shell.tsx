@@ -33,6 +33,7 @@ import { ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
 import { TextFloatingToolbar } from "./text-floating-toolbar";
+import { InpaintToolbar } from "./inpaint-toolbar";
 import { GenerationHistory } from "./generation-history";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import { buildDefaultConfig } from "@/lib/attributes";
@@ -126,6 +127,10 @@ export function EditorShell({ project }: { project: Project }) {
   const [inpaintPrompt, setInpaintPrompt] = useState("");
   const [inpaintMask, setInpaintMask] = useState<string | null>(null);
   const [inpaintSubmitting, setInpaintSubmitting] = useState(false);
+  const [brushSize, setBrushSize] = useState(30);
+  const [erasing, setErasing] = useState(false);
+  const [hasBrushMask, setHasBrushMask] = useState(false);
+  const brushToolRef = useRef<import("./brush-tool").BrushToolHandle>(null);
   const [model, setModel] = useState("openai");
   const [historyOpen, setHistoryOpen] = useState(true);
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -208,9 +213,9 @@ export function EditorShell({ project }: { project: Project }) {
     ? nodes.find((n): n is TextNodeConfig => n.id === selectedNodeId && n.type === "text")
     : undefined;
 
-  // Track canvas position for fixed-positioned toolbar
+  // Track canvas position for fixed-positioned toolbars (text above, inpaint below)
   useEffect(() => {
-    if (!selectedTextNode || !canvasContainerRef.current) {
+    if (!canvasContainerRef.current) {
       setToolbarPos(null);
       return;
     }
@@ -238,7 +243,7 @@ export function EditorShell({ project }: { project: Project }) {
       window.removeEventListener("resize", update);
       ro?.disconnect();
     };
-  }, [selectedTextNode]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Helper: extract text nodes from a CanvasNode array
   const textNodes = nodes.filter((n): n is TextNodeConfig => n.type === "text");
@@ -947,8 +952,11 @@ export function EditorShell({ project }: { project: Project }) {
                   {brushMode && !inpaintMask && (
                     <div className="absolute inset-0">
                       <BrushTool
+                        ref={brushToolRef}
                         onExportMask={(dataUrl) => setInpaintMask(dataUrl)}
-                        onCancel={() => setBrushMode(false)}
+                        brushSize={brushSize}
+                        erasing={erasing}
+                        onHasMaskChange={setHasBrushMask}
                       />
                     </div>
                   )}
@@ -1058,15 +1066,7 @@ export function EditorShell({ project }: { project: Project }) {
           reorderNode={reorderNode}
           onImageUpload={handleImageUpload}
           onFontUpload={handleFontUpload}
-          brushMode={brushMode}
-          setBrushMode={setBrushMode}
-          inpaintMask={inpaintMask}
-          setInpaintMask={setInpaintMask}
-          inpaintPrompt={inpaintPrompt}
-          setInpaintPrompt={setInpaintPrompt}
-          inpaintSubmitting={inpaintSubmitting}
-          onInpaintSubmit={handleInpaintSubmit}
-          selectedImageUrl={selectedImageUrl}
+          hasSelectedImage={!!selectedImageUrl}
           onExportJpeg={() => handleExport("jpeg")}
           onExportPng={() => handleExport("png")}
         />
@@ -1158,6 +1158,40 @@ export function EditorShell({ project }: { project: Project }) {
               onUpdate={(attrs) => updateNode(selectedTextNode.id, attrs)}
               customFonts={customFonts}
               onFontUpload={handleFontUpload}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Fixed-position inpaint toolbar — below canvas */}
+      {toolbarPos && selectedImageUrl && (
+        <div
+          className="pointer-events-none fixed z-50"
+          style={{
+            top: toolbarPos.top + 640 + 8,
+            left: toolbarPos.left,
+            width: toolbarPos.width,
+          }}
+        >
+          <div className="pointer-events-auto flex justify-center">
+            <InpaintToolbar
+              brushMode={brushMode}
+              setBrushMode={setBrushMode}
+              inpaintMask={inpaintMask}
+              setInpaintMask={setInpaintMask}
+              inpaintPrompt={inpaintPrompt}
+              setInpaintPrompt={setInpaintPrompt}
+              inpaintSubmitting={inpaintSubmitting}
+              onInpaintSubmit={handleInpaintSubmit}
+              selectedImageUrl={selectedImageUrl}
+              brushSize={brushSize}
+              setBrushSize={setBrushSize}
+              erasing={erasing}
+              setErasing={setErasing}
+              onBrushUndo={() => brushToolRef.current?.undo()}
+              onBrushClear={() => brushToolRef.current?.clear()}
+              onBrushDone={() => brushToolRef.current?.export()}
+              hasBrushMask={hasBrushMask}
             />
           </div>
         </div>

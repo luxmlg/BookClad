@@ -3,9 +3,6 @@
 import { useRef, useState } from "react";
 import {
   Download,
-  Paintbrush,
-  Loader2,
-  Sparkles,
   Eye,
   EyeOff,
   Lock,
@@ -18,7 +15,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import type { CanvasNode, TextNodeConfig, ImageNodeConfig } from "./cover-canvas";
 import { TextLayerControls } from "./text-layer-controls";
@@ -46,15 +42,7 @@ interface RightSidebarProps {
   reorderNode: (fromIndex: number, toIndex: number) => void;
   onImageUpload: (file: File) => void;
   onFontUpload: (file: File) => void;
-  brushMode: boolean;
-  setBrushMode: (v: boolean) => void;
-  inpaintMask: string | null;
-  setInpaintMask: (v: string | null) => void;
-  inpaintPrompt: string;
-  setInpaintPrompt: (v: string) => void;
-  inpaintSubmitting: boolean;
-  onInpaintSubmit: () => void;
-  selectedImageUrl: string | undefined;
+  hasSelectedImage: boolean;
   onExportJpeg: () => void;
   onExportPng: () => void;
 }
@@ -76,15 +64,7 @@ export function RightSidebar({
   reorderNode,
   onImageUpload,
   onFontUpload,
-  brushMode,
-  setBrushMode,
-  inpaintMask,
-  setInpaintMask,
-  inpaintPrompt,
-  setInpaintPrompt,
-  inpaintSubmitting,
-  onInpaintSubmit,
-  selectedImageUrl,
+  hasSelectedImage,
   onExportJpeg,
   onExportPng,
 }: RightSidebarProps) {
@@ -317,110 +297,6 @@ export function RightSidebar({
           </div>
         </div>
 
-        <Separator />
-
-        {/* Magic Edit / Inpaint section */}
-        <div className="p-4">
-          <Label className="text-sm text-muted-foreground uppercase tracking-wider">
-            Magic Edit
-          </Label>
-          <div className="mt-2 space-y-3">
-            {!brushMode ? (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Paint over an area of the selected image you want to change,
-                  then describe the replacement.
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={() => setBrushMode(true)}
-                  disabled={!selectedImageUrl}
-                >
-                  <Paintbrush className="size-4" />
-                  Edit Region
-                </Button>
-              </>
-            ) : (
-              <>
-                {inpaintMask ? (
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div
-                        className="shrink-0 overflow-hidden rounded border"
-                        style={{ width: 48, aspectRatio: "1600/2560" }}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={inpaintMask}
-                          alt="Mask preview"
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Mask captured</p>
-                        <p className="text-sm text-muted-foreground">
-                          White regions will be edited.
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Describe what should replace the painted region.
-                    </p>
-                    <Textarea
-                      value={inpaintPrompt}
-                      onChange={(e) => setInpaintPrompt(e.target.value)}
-                      placeholder="e.g. Replace with a sunset sky, add a castle in the background..."
-                      rows={3}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => setInpaintMask(null)}
-                      >
-                        Re-paint
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="flex-1 gap-1.5"
-                        onClick={onInpaintSubmit}
-                        disabled={inpaintSubmitting || !inpaintPrompt.trim()}
-                      >
-                        {inpaintSubmitting ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <Sparkles className="size-3.5" />
-                        )}
-                        Apply Edit
-                      </Button>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        setBrushMode(false);
-                        setInpaintMask(null);
-                        setInpaintPrompt("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Paint over the area you want to change, then click
-                      &quot;Done&quot; on the canvas toolbar.
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Footer — sticky bottom */}
@@ -428,7 +304,7 @@ export function RightSidebar({
         <Button
           className="w-full gap-2"
           onClick={onExportJpeg}
-          disabled={!selectedImageUrl}
+          disabled={!hasSelectedImage}
         >
           <Download className="size-4" />
           Export JPEG (KDP-Ready)
@@ -437,7 +313,7 @@ export function RightSidebar({
           variant="outline"
           className="w-full gap-2"
           onClick={onExportPng}
-          disabled={!selectedImageUrl}
+          disabled={!hasSelectedImage}
         >
           <Download className="size-4" />
           Export PNG
