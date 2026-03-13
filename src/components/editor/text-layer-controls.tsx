@@ -2,11 +2,6 @@
 
 import { useState } from "react";
 import {
-  Bold,
-  Italic,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
   ChevronRight,
   Trash2,
   RotateCw,
@@ -16,21 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { TextNodeConfig } from "./cover-canvas";
-import { FONTS_BY_CATEGORY } from "@/lib/fonts";
 
 interface TextLayerControlsProps {
   node: TextNodeConfig;
@@ -68,29 +53,6 @@ export function TextLayerControls({ node, onUpdate, onRemove }: TextLayerControl
         onChange={(e) => onUpdate({ text: e.target.value })}
         placeholder="Text content"
       />
-      <div className="space-y-1">
-        <Label className="text-sm">Font</Label>
-        <Select
-          value={node.fontFamily}
-          onValueChange={(v) => v && onUpdate({ fontFamily: v })}
-        >
-          <SelectTrigger className="w-full text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FONTS_BY_CATEGORY.map((group) => (
-              <SelectGroup key={group.category}>
-                <SelectLabel>{group.label}</SelectLabel>
-                {group.fonts.map((f) => (
-                  <SelectItem key={f.family} value={f.family}>
-                    <span style={{ fontFamily: f.family }}>{f.family}</span>
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-sm">Size</Label>
@@ -117,66 +79,6 @@ export function TextLayerControls({ node, onUpdate, onRemove }: TextLayerControl
             min={-360}
             max={360}
           />
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="space-y-1">
-          <Label className="text-sm">Color</Label>
-          <Input
-            type="color"
-            value={node.fill.startsWith("rgba") ? "#ffffff" : node.fill}
-            onChange={(e) => onUpdate({ fill: e.target.value })}
-            className="h-8 w-12 p-0.5"
-          />
-        </div>
-        <div className="flex gap-1 pt-4">
-          <Button
-            variant={node.fontStyle.includes("bold") ? "default" : "outline"}
-            size="icon-sm"
-            onClick={() =>
-              onUpdate({
-                fontStyle: node.fontStyle.includes("bold")
-                  ? node.fontStyle.replace("bold", "").trim() || "normal"
-                  : (node.fontStyle + " bold").trim(),
-              })
-            }
-          >
-            <Bold className="size-3" />
-          </Button>
-          <Button
-            variant={node.fontStyle.includes("italic") ? "default" : "outline"}
-            size="icon-sm"
-            onClick={() =>
-              onUpdate({
-                fontStyle: node.fontStyle.includes("italic")
-                  ? node.fontStyle.replace("italic", "").trim() || "normal"
-                  : (node.fontStyle + " italic").trim(),
-              })
-            }
-          >
-            <Italic className="size-3" />
-          </Button>
-          <Button
-            variant={node.align === "left" ? "default" : "outline"}
-            size="icon-sm"
-            onClick={() => onUpdate({ align: "left" })}
-          >
-            <AlignLeft className="size-3" />
-          </Button>
-          <Button
-            variant={node.align === "center" ? "default" : "outline"}
-            size="icon-sm"
-            onClick={() => onUpdate({ align: "center" })}
-          >
-            <AlignCenter className="size-3" />
-          </Button>
-          <Button
-            variant={node.align === "right" ? "default" : "outline"}
-            size="icon-sm"
-            onClick={() => onUpdate({ align: "right" })}
-          >
-            <AlignRight className="size-3" />
-          </Button>
         </div>
       </div>
 

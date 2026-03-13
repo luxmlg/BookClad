@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import {
   Download,
   Paintbrush,
@@ -12,29 +13,37 @@ import {
   GripVertical,
   Plus,
   Trash2,
+  ImageIcon,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import type { TextNodeConfig } from "./cover-canvas";
+import type { CanvasNode, TextNodeConfig, ImageNodeConfig } from "./cover-canvas";
 import { TextLayerControls } from "./text-layer-controls";
+import { ImageLayerControls } from "./image-layer-controls";
+import type { CustomFont } from "./editor-shell";
 
 interface LayerItem {
   id: string;
   name: string;
-  type: "image" | "text";
+  type: "image" | "text" | "bg";
   visible: boolean;
   locked: boolean;
 }
 
 interface RightSidebarProps {
-  textNodes: TextNodeConfig[];
+  nodes: CanvasNode[];
+  assetUrls: Record<string, string>;
+  customFonts: CustomFont[];
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
-  updateNode: (id: string, attrs: Partial<TextNodeConfig>) => void;
+  updateNode: (id: string, attrs: Partial<CanvasNode>) => void;
   addTextNode: () => void;
-  removeTextNode: (id: string) => void;
+  removeNode: (id: string) => void;
+  onImageUpload: (file: File) => void;
+  onFontUpload: (file: File) => void;
   brushMode: boolean;
   setBrushMode: (v: boolean) => void;
   inpaintMask: string | null;
@@ -48,17 +57,22 @@ interface RightSidebarProps {
   onExportPng: () => void;
 }
 
-function getNodeLabel(node: TextNodeConfig) {
-  return node.name || node.text || "Text Layer";
+function getNodeLabel(node: CanvasNode) {
+  if (node.type === "text") return node.name || node.text || "Text Layer";
+  return node.name || "Image Layer";
 }
 
 export function RightSidebar({
-  textNodes,
+  nodes,
+  assetUrls,
+  customFonts,
   selectedNodeId,
   setSelectedNodeId,
   updateNode,
   addTextNode,
-  removeTextNode,
+  removeNode,
+  onImageUpload,
+  onFontUpload,
   brushMode,
   setBrushMode,
   inpaintMask,
@@ -71,19 +85,21 @@ export function RightSidebar({
   onExportJpeg,
   onExportPng,
 }: RightSidebarProps) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
   const layerItems: LayerItem[] = [
-    { id: "bg", name: "Background Image", type: "image", visible: true, locked: true },
-    ...textNodes.map((n) => ({
+    { id: "bg", name: "Background Image", type: "bg", visible: true, locked: true },
+    ...nodes.map((n) => ({
       id: n.id,
       name: getNodeLabel(n),
-      type: "text" as const,
+      type: n.type as "image" | "text",
       visible: n.visible,
       locked: !n.draggable,
     })),
   ];
 
   const selectedNode = selectedNodeId
-    ? textNodes.find((n) => n.id === selectedNodeId)
+    ? nodes.find((n) => n.id === selectedNodeId)
     : undefined;
 
   return (
@@ -110,16 +126,20 @@ export function RightSidebar({
                     : "hover:bg-muted/50"
                 }`}
                 onClick={() => {
-                  if (layer.type === "text") setSelectedNodeId(layer.id);
+                  if (layer.type !== "bg") setSelectedNodeId(layer.id);
                   else setSelectedNodeId(null);
                 }}
               >
                 <GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
                 <div className="flex w-4 items-center justify-center text-xs text-muted-foreground shrink-0">
-                  {layer.type === "image" ? "img" : "T"}
+                  {layer.type === "image" || layer.type === "bg" ? (
+                    <ImageIcon className="size-3" />
+                  ) : (
+                    "T"
+                  )}
                 </div>
                 <span className="flex-1 text-sm truncate">{layer.name}</span>
-                {layer.type === "text" && (
+                {layer.type !== "bg" && (
                   <>
                     <button
                       onClick={(e) => {
@@ -150,7 +170,7 @@ export function RightSidebar({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeTextNode(layer.id);
+                        removeNode(layer.id);
                       }}
                       className="p-0.5 text-muted-foreground hover:text-destructive"
                     >
@@ -161,33 +181,62 @@ export function RightSidebar({
               </div>
             ))}
           </div>
-          <div className="px-1 py-2">
+          <div className="px-1 py-2 flex gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="w-full gap-1.5"
+              className="flex-1 gap-1.5"
               onClick={addTextNode}
             >
               <Plus className="size-3.5" />
               Add Text
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5"
+              onClick={() => imageInputRef.current?.click()}
+            >
+              <Upload className="size-3.5" />
+              Add Image
+            </Button>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onImageUpload(file);
+                e.target.value = "";
+              }}
+            />
           </div>
         </div>
 
         <Separator />
 
-        {/* Typography section */}
+        {/* Properties section — conditional on selected node type */}
         <div className="p-4">
           <Label className="text-sm text-muted-foreground uppercase tracking-wider">
-            Typography
+            {selectedNode?.type === "image" ? "Image Properties" : "Text Properties"}
           </Label>
           <div className="mt-2">
             {selectedNode ? (
-              <TextLayerControls
-                node={selectedNode}
-                onUpdate={(attrs) => updateNode(selectedNode.id, attrs)}
-                onRemove={() => removeTextNode(selectedNode.id)}
-              />
+              selectedNode.type === "text" ? (
+                <TextLayerControls
+                  node={selectedNode}
+                  onUpdate={(attrs) => updateNode(selectedNode.id, attrs)}
+                  onRemove={() => removeNode(selectedNode.id)}
+                />
+              ) : (
+                <ImageLayerControls
+                  node={selectedNode as ImageNodeConfig}
+                  onUpdate={(attrs) => updateNode(selectedNode.id, attrs)}
+                  onRemove={() => removeNode(selectedNode.id)}
+                  assetUrl={assetUrls[(selectedNode as ImageNodeConfig).assetId]}
+                />
+              )
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">
                 Select a layer to edit

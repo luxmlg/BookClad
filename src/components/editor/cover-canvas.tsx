@@ -18,7 +18,10 @@ const EXPORT_WIDTH = 1600;
 const EXPORT_HEIGHT = 2560;
 const SCALE = CANVAS_WIDTH / EXPORT_WIDTH;
 
+// ── Node Types ──────────────────────────────────────────
+
 export interface TextNodeConfig {
+  type: "text";
   id: string;
   name?: string;
   text: string;
@@ -40,11 +43,35 @@ export interface TextNodeConfig {
   stroke?: string;
   strokeWidth?: number;
   rotation?: number;
+  autoWidth?: boolean;
+  letterSpacing?: number;
+  lineHeight?: number;
+  textDecoration?: string;
+  textTransform?: "none" | "uppercase" | "lowercase";
 }
 
-export interface CanvasState {
-  textNodes: TextNodeConfig[];
+export interface ImageNodeConfig {
+  type: "image";
+  id: string;
+  name?: string;
+  assetId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
+  visible: boolean;
+  draggable: boolean;
+  opacity?: number;
 }
+
+export type CanvasNode = TextNodeConfig | ImageNodeConfig;
+
+export interface CanvasState {
+  nodes: CanvasNode[];
+}
+
+// ── Legacy types for migration ──────────────────────────
 
 interface LegacyCanvasState {
   titleNode: TextNodeConfig;
@@ -52,56 +79,114 @@ interface LegacyCanvasState {
   subtitleNode?: TextNodeConfig;
 }
 
+function migrateTextNode(n: Omit<TextNodeConfig, "type"> & { type?: string }): TextNodeConfig {
+  const migrated = {
+    ...n,
+    type: "text" as const,
+    fontFamily: migrateFont(n.fontFamily),
+  };
+  if (migrated.autoWidth === undefined) {
+    migrated.autoWidth = true;
+    if (migrated.align === "center") migrated.x = migrated.x + migrated.width / 2;
+    else if (migrated.align === "right") migrated.x = migrated.x + migrated.width;
+  }
+  return migrated;
+}
+
 export function migrateCanvasState(raw: unknown): CanvasState | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
-  if (Array.isArray(obj.textNodes)) {
-    const state = obj as unknown as CanvasState;
-    state.textNodes = state.textNodes.map((n) => ({
-      ...n,
-      fontFamily: migrateFont(n.fontFamily),
-    }));
-    return state;
+
+  // New format: { nodes: [...] }
+  if (Array.isArray(obj.nodes)) {
+    const nodes = (obj.nodes as CanvasNode[]).map((n) => {
+      if (n.type === "image") return n;
+      return migrateTextNode(n as TextNodeConfig);
+    });
+    return { nodes };
   }
-  // Legacy shape
+
+  // Old format: { textNodes: [...] }
+  if (Array.isArray(obj.textNodes)) {
+    const nodes = (obj.textNodes as TextNodeConfig[]).map((n) => migrateTextNode(n));
+    return { nodes };
+  }
+
+  // Legacy shape: { titleNode, authorNode }
   if (obj.titleNode && obj.authorNode) {
     const legacy = obj as unknown as LegacyCanvasState;
     const idToName: Record<string, string> = { title: "Title", subtitle: "Subtitle", author: "Author" };
-    const withName = (n: TextNodeConfig) => ({
-      ...n,
-      name: n.name ?? idToName[n.id] ?? n.id,
-      fontFamily: migrateFont(n.fontFamily),
-    });
-    const nodes = [withName(legacy.titleNode), withName(legacy.authorNode)];
+    const withName = (n: TextNodeConfig) => {
+      const migrated = migrateTextNode({
+        ...n,
+        name: n.name ?? idToName[n.id] ?? n.id,
+      });
+      return migrated;
+    };
+    const nodes: CanvasNode[] = [withName(legacy.titleNode), withName(legacy.authorNode)];
     if (legacy.subtitleNode) nodes.splice(1, 0, withName(legacy.subtitleNode));
-    return { textNodes: nodes };
+    return { nodes };
   }
+
   return null;
 }
+
+// ── Snap Guide ──────────────────────────────────────────
 
 interface Guide {
   x?: number;
   y?: number;
+  type?: "grid" | "element";
 }
+
+// ── Hook: load asset images ─────────────────────────────
+
+function useAssetImages(assetUrls: Record<string, string>) {
+  const [loaded, setLoaded] = useState<Record<string, HTMLImageElement>>({});
+  const loadingRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    for (const [assetId, url] of Object.entries(assetUrls)) {
+      if (loaded[assetId] || loadingRef.current.has(assetId)) continue;
+      loadingRef.current.add(assetId);
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      img.src = url;
+      img.onload = () => {
+        setLoaded((prev) => ({ ...prev, [assetId]: img }));
+        loadingRef.current.delete(assetId);
+      };
+      img.onerror = () => {
+        loadingRef.current.delete(assetId);
+      };
+    }
+  }, [assetUrls, loaded]);
+
+  return loaded;
+}
+
+// ── Canvas Props ────────────────────────────────────────
 
 interface CoverCanvasProps {
   imageUrl: string | undefined;
-  textNodes: TextNodeConfig[];
+  nodes: CanvasNode[];
+  assetUrls: Record<string, string>;
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onNodeDragEnd: (id: string, x: number, y: number) => void;
-  onNodeTransformEnd: (id: string, attrs: Partial<TextNodeConfig>) => void;
+  onNodeTransformEnd: (id: string, attrs: Partial<CanvasNode>) => void;
   stageRef?: React.RefObject<Konva.Stage | null>;
   onImageLoad?: () => void;
 }
 
 const SNAP_THRESHOLD = 5;
-const CENTER_X = CANVAS_WIDTH / 2;
-const CENTER_Y = CANVAS_HEIGHT / 2;
+const GRID_LINES_X = [0, 0.25, 0.5, 0.75, 1].map((p) => p * CANVAS_WIDTH);
+const GRID_LINES_Y = [0, 0.25, 0.5, 0.75, 1].map((p) => p * CANVAS_HEIGHT);
 
 export function CoverCanvas({
   imageUrl,
-  textNodes,
+  nodes,
+  assetUrls,
   selectedNodeId,
   onSelectNode,
   onNodeDragEnd,
@@ -111,12 +196,19 @@ export function CoverCanvas({
 }: CoverCanvasProps) {
   const internalStageRef = useRef<Konva.Stage>(null);
   const stageRef = externalStageRef || internalStageRef;
-  const nodeRefs = useRef<Record<string, Konva.Text | null>>({});
+  const nodeRefs = useRef<Record<string, Konva.Node | null>>({});
   const transformerRef = useRef<Konva.Transformer>(null);
   const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
+  const [measuredWidths, setMeasuredWidths] = useState<Record<string, number>>({});
   const onImageLoadRef = useRef(onImageLoad);
   onImageLoadRef.current = onImageLoad;
+
+  const assetImages = useAssetImages(assetUrls);
+
+  // Determine selected node type for transformer config
+  const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
+  const isImageSelected = selectedNode?.type === "image";
 
   useEffect(() => {
     if (!imageUrl) {
@@ -134,6 +226,23 @@ export function CoverCanvas({
     };
     return () => { cancelled = true; };
   }, [imageUrl]);
+
+  // Measure auto-width text nodes after render for offsetX calculation
+  useEffect(() => {
+    const updates: Record<string, number> = {};
+    let changed = false;
+    for (const config of nodes) {
+      if (config.type !== "text" || config.autoWidth === false) continue;
+      const node = nodeRefs.current[config.id];
+      if (!node) continue;
+      const w = node.width();
+      if (measuredWidths[config.id] !== w) {
+        updates[config.id] = w;
+        changed = true;
+      }
+    }
+    if (changed) setMeasuredWidths((prev) => ({ ...prev, ...updates }));
+  });
 
   useEffect(() => {
     const tr = transformerRef.current;
@@ -159,17 +268,83 @@ export function CoverCanvas({
 
   function handleDragMove(e: Konva.KonvaEventObject<DragEvent>) {
     const node = e.target;
-    const nodeCenterX = node.x() + node.width() / 2;
-    const nodeCenterY = node.y() + node.height() / 2;
     const newGuides: Guide[] = [];
 
-    if (Math.abs(nodeCenterX - CENTER_X) < SNAP_THRESHOLD) {
-      node.x(CENTER_X - node.width() / 2);
-      newGuides.push({ x: CENTER_X });
+    // Dragged node edges and center (account for offsetX/Y on auto-width text nodes)
+    const ox = node.offsetX();
+    const oy = node.offsetY();
+    const nodeLeft = node.x() - ox;
+    const nodeRight = node.x() - ox + node.width();
+    const nodeCenterX = node.x() - ox + node.width() / 2;
+    const nodeTop = node.y() - oy;
+    const nodeBottom = node.y() - oy + node.height();
+    const nodeCenterY = node.y() - oy + node.height() / 2;
+
+    // Collect snap targets per axis
+    const xTargets: { pos: number; type: "grid" | "element" }[] =
+      GRID_LINES_X.map((pos) => ({ pos, type: "grid" }));
+    const yTargets: { pos: number; type: "grid" | "element" }[] =
+      GRID_LINES_Y.map((pos) => ({ pos, type: "grid" }));
+
+    // Add other visible elements' edges and centers
+    for (const config of nodes) {
+      if (config.id === node.id() || !config.visible) continue;
+      const ref = nodeRefs.current[config.id];
+      if (!ref) continue;
+      const rox = ref.offsetX();
+      const roy = ref.offsetY();
+      xTargets.push(
+        { pos: ref.x() - rox, type: "element" },
+        { pos: ref.x() - rox + ref.width() / 2, type: "element" },
+        { pos: ref.x() - rox + ref.width(), type: "element" },
+      );
+      yTargets.push(
+        { pos: ref.y() - roy, type: "element" },
+        { pos: ref.y() - roy + ref.height() / 2, type: "element" },
+        { pos: ref.y() - roy + ref.height(), type: "element" },
+      );
     }
-    if (Math.abs(nodeCenterY - CENTER_Y) < SNAP_THRESHOLD) {
-      node.y(CENTER_Y - node.height() / 2);
-      newGuides.push({ y: CENTER_Y });
+
+    // Find best X snap
+    let bestDx: number | null = null;
+    let bestSnapX: number | null = null;
+    let bestAbsDx = SNAP_THRESHOLD;
+    let bestTypeX: "grid" | "element" = "grid";
+    for (const target of xTargets) {
+      for (const edge of [nodeLeft, nodeCenterX, nodeRight]) {
+        const dx = target.pos - edge;
+        if (Math.abs(dx) < bestAbsDx) {
+          bestAbsDx = Math.abs(dx);
+          bestDx = dx;
+          bestSnapX = target.pos;
+          bestTypeX = target.type;
+        }
+      }
+    }
+    if (bestDx !== null && bestSnapX !== null) {
+      node.x(node.x() + bestDx);
+      newGuides.push({ x: bestSnapX, type: bestTypeX });
+    }
+
+    // Find best Y snap
+    let bestDy: number | null = null;
+    let bestSnapY: number | null = null;
+    let bestAbsDy = SNAP_THRESHOLD;
+    let bestTypeY: "grid" | "element" = "grid";
+    for (const target of yTargets) {
+      for (const edge of [nodeTop, nodeCenterY, nodeBottom]) {
+        const dy = target.pos - edge;
+        if (Math.abs(dy) < bestAbsDy) {
+          bestAbsDy = Math.abs(dy);
+          bestDy = dy;
+          bestSnapY = target.pos;
+          bestTypeY = target.type;
+        }
+      }
+    }
+    if (bestDy !== null && bestSnapY !== null) {
+      node.y(node.y() + bestDy);
+      newGuides.push({ y: bestSnapY, type: bestTypeY });
     }
 
     setGuides(newGuides);
@@ -180,7 +355,7 @@ export function CoverCanvas({
     onNodeDragEnd(id, e.target.x(), e.target.y());
   }
 
-  function handleTransformEnd(id: string) {
+  function handleTextTransformEnd(id: string) {
     const node = nodeRefs.current[id];
     if (!node) return;
 
@@ -188,17 +363,55 @@ export function CoverCanvas({
     node.scaleX(1);
     node.scaleY(1);
 
+    // Convert from offset-origin to left-origin when switching to fixed width
+    const offsetX = node.offsetX();
+    const adjustedX = node.x() - offsetX;
+    node.offsetX(0);
+
+    onNodeTransformEnd(id, {
+      x: adjustedX,
+      y: node.y(),
+      width: Math.max(20, node.width() * scaleX),
+      rotation: node.rotation(),
+      autoWidth: false,
+    } as Partial<TextNodeConfig>);
+  }
+
+  function handleImageTransformEnd(id: string) {
+    const node = nodeRefs.current[id];
+    if (!node) return;
+
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    node.scaleX(1);
+    node.scaleY(1);
+
     onNodeTransformEnd(id, {
       x: node.x(),
       y: node.y(),
-      width: Math.max(20, node.width() * scaleX),
-      fontSize: Math.round(node.fontSize() * scaleX),
+      width: node.width() * scaleX,
+      height: node.height() * scaleY,
       rotation: node.rotation(),
-    });
+    } as Partial<ImageNodeConfig>);
+  }
+
+  function applyTextTransform(text: string, transform?: string): string {
+    if (transform === "uppercase") return text.toUpperCase();
+    if (transform === "lowercase") return text.toLowerCase();
+    return text;
   }
 
   function renderTextNode(config: TextNodeConfig) {
     if (!config.visible) return null;
+    const isAutoWidth = config.autoWidth !== false;
+    const mw = measuredWidths[config.id] ?? 0;
+    const offsetX = isAutoWidth
+      ? config.align === "center"
+        ? mw / 2
+        : config.align === "right"
+          ? mw
+          : 0
+      : 0;
     return (
       <Text
         key={config.id}
@@ -206,7 +419,7 @@ export function CoverCanvas({
           nodeRefs.current[config.id] = ref;
         }}
         id={config.id}
-        text={config.text}
+        text={applyTextTransform(config.text, config.textTransform)}
         x={config.x * SCALE}
         y={config.y * SCALE}
         fontSize={config.fontSize * SCALE}
@@ -214,7 +427,11 @@ export function CoverCanvas({
         fill={config.fill}
         align={config.align}
         fontStyle={config.fontStyle}
-        width={config.width * SCALE}
+        letterSpacing={(config.letterSpacing ?? 0) * SCALE}
+        lineHeight={config.lineHeight ?? 1}
+        textDecoration={config.textDecoration ?? ""}
+        width={isAutoWidth ? undefined : config.width * SCALE}
+        offsetX={offsetX}
         draggable={config.draggable}
         rotation={config.rotation ?? 0}
         shadowColor={config.shadowColor}
@@ -228,9 +445,41 @@ export function CoverCanvas({
         onTap={() => onSelectNode(config.id)}
         onDragMove={handleDragMove}
         onDragEnd={(e) => handleDragEnd(config.id, e)}
-        onTransformEnd={() => handleTransformEnd(config.id)}
+        onTransformEnd={() => handleTextTransformEnd(config.id)}
       />
     );
+  }
+
+  function renderImageNode(config: ImageNodeConfig) {
+    if (!config.visible) return null;
+    const img = assetImages[config.assetId];
+    if (!img) return null;
+    return (
+      <KonvaImage
+        key={config.id}
+        ref={(ref) => {
+          nodeRefs.current[config.id] = ref;
+        }}
+        id={config.id}
+        image={img}
+        x={config.x * SCALE}
+        y={config.y * SCALE}
+        width={config.width * SCALE}
+        height={config.height * SCALE}
+        rotation={config.rotation ?? 0}
+        opacity={config.opacity ?? 1}
+        draggable={config.draggable}
+        onClick={() => onSelectNode(config.id)}
+        onTap={() => onSelectNode(config.id)}
+        onDragMove={handleDragMove}
+        onDragEnd={(e) => handleDragEnd(config.id, e)}
+        onTransformEnd={() => handleImageTransformEnd(config.id)}
+      />
+    );
+  }
+
+  function renderNode(node: CanvasNode) {
+    return node.type === "image" ? renderImageNode(node) : renderTextNode(node);
   }
 
   return (
@@ -252,24 +501,33 @@ export function CoverCanvas({
         )}
       </Layer>
       <Layer>
-        {textNodes.map(renderTextNode)}
+        {nodes.map(renderNode)}
         <Transformer
           ref={transformerRef}
-          enabledAnchors={["middle-left", "middle-right"]}
+          enabledAnchors={
+            isImageSelected
+              ? ["top-left", "top-right", "bottom-left", "bottom-right", "middle-left", "middle-right", "top-center", "bottom-center"]
+              : ["middle-left", "middle-right"]
+          }
+          keepRatio={isImageSelected}
+          rotateEnabled={true}
+          rotateAnchorOffset={20}
+          rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
           boundBoxFunc={(oldBox, newBox) => {
-            if (Math.abs(newBox.width) < 20) return oldBox;
+            if (Math.abs(newBox.width) < 20 || Math.abs(newBox.height) < 20) return oldBox;
             return newBox;
           }}
         />
       </Layer>
       {/* Snap guide layer */}
       <Layer listening={false}>
-        {guides.map((g, i) =>
-          g.x !== undefined ? (
+        {guides.map((g, i) => {
+          const color = g.type === "element" ? "#ff00ff" : "#00bfff";
+          return g.x !== undefined ? (
             <Line
               key={`gx-${i}`}
               points={[g.x, 0, g.x, CANVAS_HEIGHT]}
-              stroke="#00bfff"
+              stroke={color}
               strokeWidth={1}
               dash={[4, 4]}
             />
@@ -277,12 +535,12 @@ export function CoverCanvas({
             <Line
               key={`gy-${i}`}
               points={[0, g.y, CANVAS_WIDTH, g.y]}
-              stroke="#00bfff"
+              stroke={color}
               strokeWidth={1}
               dash={[4, 4]}
             />
-          ) : null
-        )}
+          ) : null;
+        })}
       </Layer>
     </Stage>
   );
@@ -293,12 +551,13 @@ export function getDefaultCanvasState(
   author: string,
 ): CanvasState {
   return {
-    textNodes: [
+    nodes: [
       {
+        type: "text",
         id: "title",
         name: "Title",
         text: title,
-        x: 160,
+        x: 800,
         y: 200,
         fontSize: 96,
         fontFamily: "Playfair Display",
@@ -308,12 +567,14 @@ export function getDefaultCanvasState(
         width: 1280,
         visible: true,
         draggable: true,
+        autoWidth: true,
       },
       {
+        type: "text",
         id: "author",
         name: "Author",
         text: author,
-        x: 160,
+        x: 800,
         y: 2200,
         fontSize: 56,
         fontFamily: "Montserrat",
@@ -323,6 +584,7 @@ export function getDefaultCanvasState(
         width: 1280,
         visible: true,
         draggable: true,
+        autoWidth: true,
       },
     ],
   };

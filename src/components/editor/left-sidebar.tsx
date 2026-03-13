@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SelectWithAction } from "@/components/ui/select-with-action";
 import {
   Dialog,
   DialogContent,
@@ -211,40 +212,37 @@ export function LeftSidebar({
           {/* Presets */}
           <div className="space-y-2">
             <Label>Style Preset</Label>
-            <div ref={presetAnchorRef} className="flex gap-1.5">
-              <Select
-                value={previewPreset?.id ?? activePresetId ?? null}
-                onValueChange={(v) => {
-                  if (!v) return;
-                  const preset = presets.find((p) => p.id === v);
-                  if (preset) setPreviewPreset(preset);
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Apply a preset...">
-                    {(value: string | null) => {
-                      if (!value) return "Apply a preset...";
-                      return presets.find((p) => p.id === value)?.name ?? value;
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {presets.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0"
+            <div ref={presetAnchorRef}>
+              <SelectWithAction
+                icon={<BookmarkIcon className="size-3.5" />}
                 onClick={() => setPresetDialogOpen(true)}
                 title="Save current attributes as preset"
               >
-                <BookmarkIcon className="size-3.5" />
-              </Button>
+                <Select
+                  value={previewPreset?.id ?? activePresetId ?? null}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    const preset = presets.find((p) => p.id === v);
+                    if (preset) setPreviewPreset(preset);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Apply a preset...">
+                      {(value: string | null) => {
+                        if (!value) return "Apply a preset...";
+                        return presets.find((p) => p.id === value)?.name ?? value;
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {presets.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </SelectWithAction>
             </div>
           </div>
 
