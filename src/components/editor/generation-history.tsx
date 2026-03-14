@@ -68,6 +68,16 @@ export function GenerationHistory({
   historyOpen,
   onHistoryOpenChange,
 }: GenerationHistoryProps) {
+  const expandSeqRef = useRef(0);
+  const [expandRequest, setExpandRequest] = useState<{
+    imageId: string;
+    seq: number;
+  } | null>(null);
+
+  const handleExpandImage = (imageId: string) => {
+    setExpandRequest({ imageId, seq: ++expandSeqRef.current });
+  };
+
   return (
     <Collapsible
       open={historyOpen}
@@ -100,6 +110,8 @@ export function GenerationHistory({
                   imageUrls={imageUrls}
                   selectedImageId={selectedImageId}
                   onSelect={onSelect}
+                  onExpandImage={handleExpandImage}
+                  expandRequest={expandRequest}
                   defaultOpen={idx === 0}
                   allGenerations={generations}
                   previousGeneration={
@@ -227,6 +239,8 @@ function GenerationGroup({
   imageUrls,
   selectedImageId,
   onSelect,
+  onExpandImage,
+  expandRequest,
   defaultOpen,
   allGenerations,
   previousGeneration,
@@ -236,6 +250,8 @@ function GenerationGroup({
   imageUrls: Record<string, string>;
   selectedImageId: string | null;
   onSelect: (id: string) => void;
+  onExpandImage: (imageId: string) => void;
+  expandRequest: { imageId: string; seq: number } | null;
   defaultOpen: boolean;
   allGenerations: Generation[];
   previousGeneration?: Generation;
@@ -254,6 +270,24 @@ function GenerationGroup({
       inputRef.current.select();
     }
   }, [editing]);
+
+  useEffect(() => {
+    if (
+      selectedImageId &&
+      generation.images.some((img) => img.id === selectedImageId)
+    ) {
+      setOpen(true);
+    }
+  }, [selectedImageId, generation.images]);
+
+  useEffect(() => {
+    if (
+      expandRequest &&
+      generation.images.some((img) => img.id === expandRequest.imageId)
+    ) {
+      setOpen(true);
+    }
+  }, [expandRequest, generation.images]);
 
   async function saveName(value: string) {
     const trimmed = value.trim();
@@ -373,8 +407,12 @@ function GenerationGroup({
             {generation.parentImage &&
               imageUrls[generation.parentImage.id] && (
                 <>
-                  <div
-                    className="overflow-hidden rounded-lg border-2 border-dashed border-muted-foreground/30 opacity-60"
+                  <button
+                    onClick={() => {
+                      onSelect(generation.parentImage!.id);
+                      onExpandImage(generation.parentImage!.id);
+                    }}
+                    className="overflow-hidden rounded-lg border-2 border-dashed border-muted-foreground/30 opacity-60 hover:opacity-100 cursor-pointer transition-opacity"
                     style={{ width: 36, aspectRatio: "1600/2560" }}
                   >
                     <Image
@@ -385,7 +423,7 @@ function GenerationGroup({
                       className="h-full w-full object-cover"
                       unoptimized
                     />
-                  </div>
+                  </button>
                   <div className="flex items-center text-muted-foreground">
                     <ChevronRight className="size-3" />
                   </div>
@@ -395,9 +433,9 @@ function GenerationGroup({
               <button
                 key={img.id}
                 onClick={() => onSelect(img.id)}
-                className={`overflow-hidden rounded-lg border-2 transition-all ${
+                className={`origin-center overflow-hidden rounded-lg border-2 transition-all ${
                   selectedImageId === img.id
-                    ? "border-primary shadow-md"
+                    ? "border-primary shadow-md ring-2 ring-primary/20 scale-105"
                     : "border-transparent hover:border-muted-foreground/30"
                 }`}
                 style={{ width: 44, aspectRatio: "1600/2560" }}

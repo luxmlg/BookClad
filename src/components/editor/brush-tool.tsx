@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect, useImperativeHandle, forwardRef } from "react";
-import { Stage, Layer, Line, Rect } from "react-konva";
+import { Stage, Layer, Line, Rect, Circle } from "react-konva";
 import type Konva from "konva";
 
 const CANVAS_WIDTH = 400;
@@ -31,8 +31,10 @@ export const BrushTool = forwardRef<BrushToolHandle, BrushToolProps>(
   function BrushTool({ onExportMask, brushSize, erasing, onHasMaskChange }, ref) {
     const stageRef = useRef<Konva.Stage>(null);
     const maskLayerRef = useRef<Konva.Layer>(null);
+    const cursorRef = useRef<Konva.Circle>(null);
     const [lines, setLines] = useState<BrushLine[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
+    const [cursorVisible, setCursorVisible] = useState(false);
 
     const hasMask = lines.some((l) => !l.erasing);
 
@@ -91,8 +93,11 @@ export const BrushTool = forwardRef<BrushToolHandle, BrushToolProps>(
 
     const handleMouseMove = useCallback(
       (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-        if (!isDrawing) return;
         const pos = e.target.getStage()?.getPointerPosition();
+        if (pos && cursorRef.current) {
+          cursorRef.current.position(pos);
+        }
+        if (!isDrawing) return;
         if (!pos) return;
         setLines((prev) => {
           const updated = [...prev];
@@ -109,12 +114,11 @@ export const BrushTool = forwardRef<BrushToolHandle, BrushToolProps>(
       setIsDrawing(false);
     }, []);
 
-    const brushCursor = erasing
-      ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${brushSize}' height='${brushSize}'%3E%3Ccircle cx='${brushSize / 2}' cy='${brushSize / 2}' r='${brushSize / 2 - 1}' fill='none' stroke='%23aaa' stroke-width='2' stroke-dasharray='4'/%3E%3C/svg%3E") ${brushSize / 2} ${brushSize / 2}, crosshair`
-      : `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${brushSize}' height='${brushSize}'%3E%3Ccircle cx='${brushSize / 2}' cy='${brushSize / 2}' r='${brushSize / 2 - 1}' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E") ${brushSize / 2} ${brushSize / 2}, crosshair`;
+    const handleMouseEnter = useCallback(() => setCursorVisible(true), []);
+    const handleMouseLeave = useCallback(() => setCursorVisible(false), []);
 
     return (
-      <div className="relative" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
+      <div className="relative" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, cursor: "none" }}>
         <Stage
           ref={stageRef}
           width={CANVAS_WIDTH}
@@ -122,10 +126,11 @@ export const BrushTool = forwardRef<BrushToolHandle, BrushToolProps>(
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
           onTouchStart={handleMouseDown}
           onTouchMove={handleMouseMove}
           onTouchEnd={handleMouseUp}
-          style={{ cursor: brushCursor }}
         >
           {/*
             Overlay layer (visible): dims the image, brush strokes cut holes to
@@ -187,6 +192,18 @@ export const BrushTool = forwardRef<BrushToolHandle, BrushToolProps>(
                 globalCompositeOperation="source-over"
               />
             ))}
+          </Layer>
+
+          {/* Cursor circle — rendered as Konva shape to avoid CSS cursor issues */}
+          <Layer listening={false}>
+            <Circle
+              ref={cursorRef}
+              radius={brushSize / 2 - 1}
+              stroke={erasing ? "#aaa" : "white"}
+              strokeWidth={2}
+              dash={erasing ? [4, 4] : undefined}
+              visible={cursorVisible}
+            />
           </Layer>
         </Stage>
       </div>

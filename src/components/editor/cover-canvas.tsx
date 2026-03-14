@@ -178,6 +178,7 @@ interface CoverCanvasProps {
   onNodeTransformEnd: (id: string, attrs: Partial<CanvasNode>) => void;
   stageRef?: React.RefObject<Konva.Stage | null>;
   onImageLoad?: () => void;
+  hideCursor?: boolean;
 }
 
 const SNAP_THRESHOLD = 5;
@@ -194,6 +195,7 @@ export function CoverCanvas({
   onNodeTransformEnd,
   stageRef: externalStageRef,
   onImageLoad,
+  hideCursor,
 }: CoverCanvasProps) {
   const internalStageRef = useRef<Konva.Stage>(null);
   const stageRef = externalStageRef || internalStageRef;
@@ -204,6 +206,17 @@ export function CoverCanvas({
   const [measuredWidths, setMeasuredWidths] = useState<Record<string, number>>({});
   const onImageLoadRef = useRef(onImageLoad);
   onImageLoadRef.current = onImageLoad;
+
+  // When hideCursor is true, set pointer-events:none on Konva's inner <canvas>
+  // elements so Chrome's compositor can't source a cursor from them.
+  useEffect(() => {
+    const container = stageRef.current?.container();
+    if (!container) return;
+    const canvases = container.querySelectorAll("canvas");
+    canvases.forEach((c) => {
+      c.style.pointerEvents = hideCursor ? "none" : "";
+    });
+  }, [hideCursor, stageRef]);
 
   const assetImages = useAssetImages(assetUrls);
 
@@ -490,7 +503,7 @@ export function CoverCanvas({
       height={CANVAS_HEIGHT}
       onClick={handleStageClick}
       onTap={handleStageClick}
-      style={{ cursor: "default" }}
+      style={{ cursor: hideCursor ? "none" : "default" }}
     >
       <Layer>
         {bgImage && (

@@ -900,10 +900,6 @@ export function EditorShell({ project }: { project: Project }) {
           onClearActivePreset={() => setActivePresetId(null)}
           brief={brief}
           setBrief={setBrief}
-          imageCount={imageCount}
-          setImageCount={setImageCount}
-          model={model}
-          setModel={setModel}
           saving={saving}
           onSave={saveProject}
         />
@@ -918,6 +914,7 @@ export function EditorShell({ project }: { project: Project }) {
           <div ref={canvasContainerRef} className="relative shrink-0" style={{ width: 400, height: 640 }}>
             <div
               className="relative h-full w-full overflow-hidden rounded-xl border bg-background shadow-xl"
+              style={brushMode && !inpaintMask ? { cursor: 'none' } : undefined}
             >
             {allImages.length > 0 ? (
               loadingUrls || Object.keys(imageUrls).length === 0 ? (
@@ -948,9 +945,10 @@ export function EditorShell({ project }: { project: Project }) {
                     onNodeTransformEnd={handleNodeTransformEnd}
                     stageRef={stageRef}
                     onImageLoad={handleBgLoaded}
+                    hideCursor={brushMode && !inpaintMask}
                   />
                   {brushMode && !inpaintMask && (
-                    <div className="absolute inset-0">
+                    <div className="absolute inset-0 z-20" style={{ cursor: "none", isolation: "isolate" }}>
                       <BrushTool
                         ref={brushToolRef}
                         onExportMask={(dataUrl) => {
@@ -1286,6 +1284,10 @@ export function EditorShell({ project }: { project: Project }) {
               pendingGeneration={!!pendingGeneration}
               onOpenSimilarDialog={() => setRefDialogOpen(true)}
               selectedImageId={selectedImageId}
+              model={model}
+              setModel={setModel}
+              imageCount={imageCount}
+              setImageCount={setImageCount}
             />
           </div>
         </div>
