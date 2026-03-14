@@ -553,12 +553,10 @@ function GenerationGroup({
                           Prompt:{" "}
                         </span>
                         <div className="mt-0.5 space-y-0.5">
-                          <div className="text-muted-foreground line-through">
+                          <div className="text-muted-foreground">
                             {previousGeneration?.prompt}
                           </div>
-                          <div className="font-semibold text-primary">
-                            {generation.prompt}
-                          </div>
+                          <div>→ {generation.prompt}</div>
                         </div>
                       </div>
                     )}
@@ -567,11 +565,11 @@ function GenerationGroup({
                         <span className="font-medium text-muted-foreground">
                           Model:{" "}
                         </span>
-                        <span className="text-muted-foreground line-through mr-1">
+                        <span className="text-muted-foreground mr-1">
                           {getModelLabel(previousGeneration?.model)}
                         </span>
                         →{" "}
-                        <span className="font-semibold text-primary">
+                        <span>
                           {getModelLabel(generation.model)}
                         </span>
                       </div>
@@ -585,11 +583,11 @@ function GenerationGroup({
                           <span className="font-medium text-muted-foreground">
                             Image count:{" "}
                           </span>
-                          <span className="text-muted-foreground line-through mr-1">
+                          <span className="text-muted-foreground mr-1">
                             {previousGeneration.imageCount}
                           </span>
                           →{" "}
-                          <span className="font-semibold text-primary">
+                          <span>
                             {generation.imageCount}
                           </span>
                         </div>
@@ -602,11 +600,11 @@ function GenerationGroup({
                           <span className="font-medium text-muted-foreground">
                             Type:{" "}
                           </span>
-                          <span className="text-muted-foreground line-through mr-1">
+                          <span className="text-muted-foreground mr-1">
                             {previousGeneration.jobType}
                           </span>
                           →{" "}
-                          <span className="font-semibold text-primary">
+                          <span>
                             {generation.jobType}
                           </span>
                         </div>
@@ -618,27 +616,19 @@ function GenerationGroup({
                             <span className="font-medium text-muted-foreground">
                               {d.label}:{" "}
                             </span>
-                            {d.added.map((v) => (
-                              <span
-                                key={`+${v}`}
-                                className="mr-1 font-semibold text-primary"
-                              >
-                                +{v}
-                              </span>
-                            ))}
-                            {d.kept.map((v) => (
-                              <span key={`=${v}`} className="mr-1">
-                                {v}
-                              </span>
-                            ))}
-                            {d.removed.map((v) => (
-                              <span
-                                key={`-${v}`}
-                                className="mr-1 text-muted-foreground line-through"
-                              >
-                                {v}
-                              </span>
-                            ))}
+                            <span className="text-muted-foreground mr-1">
+                              {[
+                                ...d.kept,
+                                ...d.removed,
+                              ].join(", ")}
+                            </span>
+                            →{" "}
+                            <span>
+                              {[
+                                ...d.kept,
+                                ...d.added,
+                              ].join(", ")}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -665,7 +655,7 @@ function GenerationGroup({
                             Text layers:{" "}
                           </span>
                           {prevTexts.length > 0 && (
-                            <span className="text-muted-foreground line-through mr-1">
+                            <span className="text-muted-foreground mr-1">
                               {prevTexts
                                 .map((t) => `"${t}"`)
                                 .join(", ")}
@@ -674,7 +664,7 @@ function GenerationGroup({
                           {curTexts.length > 0 && (
                             <>
                               {prevTexts.length > 0 && "→ "}
-                              <span className="font-semibold text-primary">
+                              <span>
                                 {curTexts
                                   .map((t) => `"${t}"`)
                                   .join(", ")}
