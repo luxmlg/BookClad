@@ -3,7 +3,33 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Apple from "next-auth/providers/apple";
+import type { OAuthConfig } from "next-auth/providers";
 import { prisma } from "@/lib/prisma";
+
+const Amazon: OAuthConfig<{
+  user_id: string;
+  name: string;
+  email: string;
+}> = {
+  id: "amazon",
+  name: "Amazon",
+  type: "oauth",
+  authorization: {
+    url: "https://www.amazon.com/ap/oa",
+    params: { scope: "profile" },
+  },
+  token: "https://api.amazon.com/auth/o2/token",
+  userinfo: "https://api.amazon.com/user/profile",
+  profile(profile) {
+    return {
+      id: profile.user_id,
+      name: profile.name,
+      email: profile.email,
+    };
+  },
+  clientId: process.env.AUTH_AMAZON_ID,
+  clientSecret: process.env.AUTH_AMAZON_SECRET,
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -11,6 +37,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     GitHub,
     Google,
     Apple,
+    Amazon,
   ],
   pages: {
     signIn: "/sign-in",
