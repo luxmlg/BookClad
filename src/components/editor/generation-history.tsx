@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/collapsible";
 import { AI_MODELS } from "@/lib/constants";
 
+
 interface GeneratedImage {
   id: string;
   storageKey: string;
@@ -56,8 +57,6 @@ interface GenerationHistoryProps {
   imageUrls: Record<string, string>;
   selectedImageId: string | null;
   onSelect: (id: string) => void;
-  historyOpen: boolean;
-  onHistoryOpenChange: (open: boolean) => void;
 }
 
 export function GenerationHistory({
@@ -65,8 +64,6 @@ export function GenerationHistory({
   imageUrls,
   selectedImageId,
   onSelect,
-  historyOpen,
-  onHistoryOpenChange,
 }: GenerationHistoryProps) {
   const expandSeqRef = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -91,53 +88,40 @@ export function GenerationHistory({
     return gen.name ?? "";
   };
 
+  if (generations.length === 0) {
+    return (
+      <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+        No completed generations yet
+      </div>
+    );
+  }
+
   return (
-    <Collapsible
-      open={historyOpen}
-      onOpenChange={onHistoryOpenChange}
-      className="shrink-0 border-t bg-background/80"
+    <div
+      ref={scrollContainerRef}
+      className="overflow-y-auto px-4 pb-3"
+      style={{ maxHeight: 320 }}
     >
-      <CollapsibleTrigger className="flex w-full items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 transition-colors">
-        <ChevronRight
-          className={`size-3.5 transition-transform duration-200 ${historyOpen ? "rotate-90" : ""}`}
-        />
-        Generation History
-        {generations.length > 0 && (
-          <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
-            {generations.length}
-          </Badge>
-        )}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        {generations.length > 0 && (
-          <div
-            ref={scrollContainerRef}
-            className="overflow-y-auto px-4 pb-3"
-            style={{ maxHeight: 320 }}
-          >
-            <div className="space-y-1">
-              {generations.map((gen, idx) => (
-                <GenerationGroup
-                  key={gen.id}
-                  generation={gen}
-                  index={generations.length - idx}
-                  imageUrls={imageUrls}
-                  selectedImageId={selectedImageId}
-                  onSelect={onSelect}
-                  onExpandImage={handleExpandImage}
-                  expandRequest={expandRequest}
-                  defaultOpen={idx === 0}
-                  allGenerations={generations}
-                  onNameChange={handleNameChange}
-                  getDisplayName={getDisplayName}
-                  scrollContainerRef={scrollContainerRef}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
+      <div className="space-y-1">
+        {generations.map((gen, idx) => (
+          <GenerationGroup
+            key={gen.id}
+            generation={gen}
+            index={generations.length - idx}
+            imageUrls={imageUrls}
+            selectedImageId={selectedImageId}
+            onSelect={onSelect}
+            onExpandImage={handleExpandImage}
+            expandRequest={expandRequest}
+            defaultOpen={idx === 0}
+            allGenerations={generations}
+            onNameChange={handleNameChange}
+            getDisplayName={getDisplayName}
+            scrollContainerRef={scrollContainerRef}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 

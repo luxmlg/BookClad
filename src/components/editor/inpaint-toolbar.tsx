@@ -5,7 +5,6 @@ import {
   Eraser,
   Undo2,
   RotateCcw,
-  Loader2,
   RefreshCw,
   Sparkles,
   Images,
@@ -37,7 +36,7 @@ interface InpaintToolbarProps {
   hasBrushMask: boolean;
   // Generate actions
   onRegenerate: () => void;
-  pendingGeneration: boolean;
+  activeGenerationCount: number;
   onOpenSimilarDialog: () => void;
   selectedImageId: string | null;
   // Generation settings
@@ -60,7 +59,7 @@ export function InpaintToolbar({
   onBrushDone,
   hasBrushMask,
   onRegenerate,
-  pendingGeneration,
+  activeGenerationCount,
   onOpenSimilarDialog,
   selectedImageId,
   model,
@@ -140,14 +139,14 @@ export function InpaintToolbar({
         size="sm"
         className="h-7 gap-1.5 text-xs"
         onClick={onRegenerate}
-        disabled={pendingGeneration}
       >
-        {pendingGeneration ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <RefreshCw className="size-3.5" />
-        )}
+        <RefreshCw className="size-3.5" />
         Generate Covers
+        {activeGenerationCount > 0 && (
+          <span className="ml-0.5 inline-flex size-4 items-center justify-center rounded-full bg-primary-foreground/20 text-[10px] font-bold">
+            {activeGenerationCount}
+          </span>
+        )}
       </Button>
       <Button
         variant="outline"

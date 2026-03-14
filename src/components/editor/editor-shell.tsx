@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import {
   Loader2,
   ImageIcon,
+  ChevronRight,
   Paintbrush,
   RefreshCw,
   Sparkles,
@@ -28,7 +29,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { GenerationPoller } from "./generation-poller";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode, CanvasState } from "./cover-canvas";
 import { getDefaultCanvasState, migrateCanvasState } from "./cover-canvas";
 import { ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
@@ -37,6 +37,14 @@ import { RightSidebar } from "./right-sidebar";
 import { TextFloatingToolbar } from "./text-floating-toolbar";
 import { InpaintToolbar } from "./inpaint-toolbar";
 import { GenerationHistory } from "./generation-history";
+import { GenerationQueue } from "./generation-queue";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import { buildDefaultConfig } from "@/lib/attributes";
 import type Konva from "konva";
@@ -132,13 +140,14 @@ export function EditorShell({ project }: { project: Project }) {
   const [includeLayers, setIncludeLayers] = useState(false);
   const [layerPreviewUrl, setLayerPreviewUrl] = useState<string | null>(null);
   const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false);
-  const [pollingGenerationId, setPollingGenerationId] = useState<string | null>(null);
+  const [activeGenerationIds, setActiveGenerationIds] = useState<string[]>([]);
   const [brushSize, setBrushSize] = useState(30);
   const [erasing, setErasing] = useState(false);
   const [hasBrushMask, setHasBrushMask] = useState(false);
   const brushToolRef = useRef<import("./brush-tool").BrushToolHandle>(null);
   const [model, setModel] = useState("openai");
-  const [historyOpen, setHistoryOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState(0); // 0=history, 1=queue
   const [keepLayersOnGenerate, setKeepLayersOnGenerate] = useState(true);
   const keepLayersRef = useRef(true);
   useEffect(() => { keepLayersRef.current = keepLayersOnGenerate; }, [keepLayersOnGenerate]);
@@ -211,24 +220,33 @@ export function EditorShell({ project }: { project: Project }) {
     (g) => g.status === "COMPLETED"
   );
   const allImages = completedGenerations.flatMap((g) => g.images);
-  const pendingGeneration = project.generations.find(
+  const pendingGenerations = project.generations.filter(
     (g) => g.status === "QUEUED" || g.status === "PROCESSING"
   );
-  const activePollingId = pendingGeneration?.id ?? pollingGenerationId;
+  const allActiveIds = useMemo(
+    () => [
+      ...new Set([
+        ...pendingGenerations.map((g) => g.id),
+        ...activeGenerationIds,
+      ]),
+    ],
+    [pendingGenerations, activeGenerationIds]
+  );
+  const hasActiveGeneration = allActiveIds.length > 0;
 
-  // Clear polling state once project data confirms generation is done
+  // Clear local tracking once project data confirms generation is done
   useEffect(() => {
-    if (
-      pollingGenerationId &&
-      project.generations.some(
-        (g) =>
-          g.id === pollingGenerationId &&
-          (g.status === "COMPLETED" || g.status === "FAILED")
+    setActiveGenerationIds((prev) =>
+      prev.filter(
+        (id) =>
+          !project.generations.some(
+            (g) =>
+              g.id === id &&
+              (g.status === "COMPLETED" || g.status === "FAILED")
+          )
       )
-    ) {
-      setPollingGenerationId(null);
-    }
-  }, [pollingGenerationId, project.generations]);
+    );
+  }, [project.generations]);
 
   const selectedImageUrl = selectedImageId
     ? imageUrls[selectedImageId]
@@ -603,7 +621,9 @@ export function EditorShell({ project }: { project: Project }) {
       if (!res.ok) {
         throw new Error(data.error || "Failed to regenerate");
       }
-      setPollingGenerationId(data.generationId);
+      setActiveGenerationIds((prev) => [...prev, data.generationId]);
+      setActiveTab(1);
+      setPanelOpen(true);
       toast.success("Regeneration queued!");
       router.refresh();
     } catch (err) {
@@ -672,7 +692,9 @@ export function EditorShell({ project }: { project: Project }) {
       if (!res.ok) {
         throw new Error(data.error || "Failed to generate");
       }
-      setPollingGenerationId(data.generationId);
+      setActiveGenerationIds((prev) => [...prev, data.generationId]);
+      setActiveTab(1);
+      setPanelOpen(true);
       toast.success("Reference generation queued!");
       setRefDialogOpen(false);
       setRefPrompt("");
@@ -712,7 +734,9 @@ export function EditorShell({ project }: { project: Project }) {
       if (!res.ok) {
         throw new Error(data.error || "Inpaint failed");
       }
-      setPollingGenerationId(data.generationId);
+      setActiveGenerationIds((prev) => [...prev, data.generationId]);
+      setActiveTab(1);
+      setPanelOpen(true);
       toast.success("Inpainting job queued!");
       setInpaintDialogOpen(false);
       setBrushMode(false);
@@ -725,6 +749,17 @@ export function EditorShell({ project }: { project: Project }) {
       setInpaintSubmitting(false);
     }
   }
+
+  const handleGenerationComplete = useCallback(
+    (generationId: string) => {
+      setActiveGenerationIds((prev) => {
+        const next = prev.filter((id) => id !== generationId);
+        if (next.length === 0) setActiveTab(0);
+        return next;
+      });
+    },
+    []
+  );
 
   async function handleExport(format: "jpeg" | "png") {
     if (!stageRef.current) {
@@ -1070,8 +1105,16 @@ export function EditorShell({ project }: { project: Project }) {
                   </div>
                 </div>
               )
-            ) : activePollingId ? (
-              <GenerationPoller generationId={activePollingId} />
+            ) : hasActiveGeneration ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+                <Loader2 className="size-8 animate-spin text-muted-foreground/50" />
+                <p className="font-medium text-muted-foreground">
+                  Generation in progress
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Check the Queue tab below
+                </p>
+              </div>
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
                 <ImageIcon className="size-12 text-muted-foreground/30" />
@@ -1082,12 +1125,6 @@ export function EditorShell({ project }: { project: Project }) {
                   <RefreshCw className="mr-2 size-3.5" />
                   Generate Now
                 </Button>
-              </div>
-            )}
-            {/* Generation progress overlay — shown when generating with existing images */}
-            {activePollingId && allImages.length > 0 && (
-              <div className="absolute inset-0 z-30 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm">
-                <GenerationPoller generationId={activePollingId} />
               </div>
             )}
             </div>
@@ -1145,15 +1182,61 @@ export function EditorShell({ project }: { project: Project }) {
           </div>
         </div>
 
-        {/* History panel */}
-        <GenerationHistory
-          generations={completedGenerations}
-          imageUrls={imageUrls}
-          selectedImageId={selectedImageId}
-          onSelect={selectImage}
-          historyOpen={historyOpen}
-          onHistoryOpenChange={setHistoryOpen}
-        />
+        {/* Bottom panel — Queue + History tabs */}
+        <Collapsible
+          open={panelOpen}
+          onOpenChange={setPanelOpen}
+          className="shrink-0 border-t bg-background/80"
+        >
+          <div className="flex items-center">
+            <CollapsibleTrigger className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 transition-colors">
+              <ChevronRight
+                className={`size-3.5 transition-transform duration-200 ${panelOpen ? "rotate-90" : ""}`}
+              />
+            </CollapsibleTrigger>
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => {
+                setActiveTab(v as number);
+                setPanelOpen(true);
+              }}
+            >
+              <TabsList variant="line">
+                <TabsTrigger value={0}>
+                  History
+                  {completedGenerations.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
+                      {completedGenerations.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value={1}>
+                  Queue
+                  {allActiveIds.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
+                      {allActiveIds.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          <CollapsibleContent>
+            {activeTab === 0 ? (
+              <GenerationHistory
+                generations={completedGenerations}
+                imageUrls={imageUrls}
+                selectedImageId={selectedImageId}
+                onSelect={selectImage}
+              />
+            ) : (
+              <GenerationQueue
+                activeGenerationIds={allActiveIds}
+                onComplete={handleGenerationComplete}
+              />
+            )}
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* Right sidebar */}
@@ -1412,7 +1495,7 @@ export function EditorShell({ project }: { project: Project }) {
               onBrushDone={() => brushToolRef.current?.export()}
               hasBrushMask={hasBrushMask}
               onRegenerate={handleRegenerate}
-              pendingGeneration={!!activePollingId}
+              activeGenerationCount={allActiveIds.length}
               onOpenSimilarDialog={() => setRefDialogOpen(true)}
               selectedImageId={selectedImageId}
               model={model}

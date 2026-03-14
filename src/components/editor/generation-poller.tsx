@@ -1,98 +1,107 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import { useGenerationProgress } from "@/lib/use-generation-ws";
 
 interface GenerationPollerProps {
   generationId: string;
+  onComplete?: (generationId: string, status: "COMPLETED" | "FAILED") => void;
+  compact?: boolean;
 }
 
-type Status = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
-
-export function GenerationPoller({ generationId }: GenerationPollerProps) {
+export function GenerationPoller({ generationId, onComplete, compact }: GenerationPollerProps) {
   const router = useRouter();
-  const [status, setStatus] = useState<Status>("QUEUED");
-  const [progressMessage, setProgressMessage] = useState<string | null>(null);
-  const [step, setStep] = useState(0);
-  const [totalSteps, setTotalSteps] = useState(0);
+  const { status, progressMessage, step, totalSteps } = useGenerationProgress(generationId);
   const completedRef = useRef(false);
 
+  // Polling fallback: check DB every 5s in case WebSocket is broken
   useEffect(() => {
-    if (completedRef.current) return;
-
-    const es = new EventSource(`/api/generations/${generationId}/events`);
-
-    function handleComplete(failed?: string) {
-      if (completedRef.current) return;
-      completedRef.current = true;
-      es.close();
-      clearInterval(pollTimer);
-      if (failed) {
-        setStatus("FAILED");
-        toast.error(failed);
-      } else {
-        setStatus("COMPLETED");
-        toast.success("Cover generation complete!");
-      }
-      router.refresh();
-    }
-
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        switch (data.type) {
-          case "status":
-            setStatus(data.status);
-            break;
-          case "progress":
-            setStatus("PROCESSING");
-            setProgressMessage(data.message);
-            setStep(data.step);
-            setTotalSteps(data.totalSteps);
-            break;
-          case "completed":
-            handleComplete();
-            break;
-          case "failed":
-            handleComplete(
-              data.error || "Generation failed. Please try again."
-            );
-            break;
-        }
-      } catch {
-        // Ignore malformed messages
-      }
-    };
-
-    es.onerror = () => {
-      // EventSource auto-reconnects; we rely on the polling fallback for robustness
-    };
-
-    // Polling fallback: check DB every 5s in case SSE is broken
     const pollTimer = setInterval(async () => {
+      if (completedRef.current) return;
       try {
         const res = await fetch(`/api/generations/${generationId}`);
         if (!res.ok) return;
         const data = await res.json();
-        if (data.status === "COMPLETED") handleComplete();
-        else if (data.status === "FAILED")
+        if (data.status === "COMPLETED") {
+          handleComplete();
+        } else if (data.status === "FAILED") {
           handleComplete("Generation failed. Please try again.");
-        else if (data.status === "PROCESSING") setStatus("PROCESSING");
+        }
       } catch {
         // Ignore fetch errors
       }
     }, 5000);
 
-    return () => {
-      es.close();
-      clearInterval(pollTimer);
-    };
-  }, [generationId, router]);
+    return () => clearInterval(pollTimer);
+  }, [generationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Show loading state after completion (parent will unmount us)
+  // React to WebSocket status changes
+  useEffect(() => {
+    if (completedRef.current) return;
+    if (status === "COMPLETED") {
+      handleComplete();
+    } else if (status === "FAILED") {
+      handleComplete("Generation failed. Please try again.");
+    }
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleComplete(failed?: string) {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    if (failed) {
+      toast.error(failed);
+      onComplete?.(generationId, "FAILED");
+    } else {
+      toast.success("Cover generation complete!");
+      onComplete?.(generationId, "COMPLETED");
+    }
+    router.refresh();
+  }
+
+  const progressPercent =
+    totalSteps > 0 ? Math.round((step / totalSteps) * 100) : 0;
+
+  if (compact) {
+    if (status === "COMPLETED") {
+      return (
+        <div className="flex items-center gap-3 p-3">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-sm font-medium">Loading results...</p>
+        </div>
+      );
+    }
+    if (status === "FAILED") return null;
+
+    return (
+      <div className="flex items-center gap-3 p-3">
+        {status === "QUEUED" ? (
+          <>
+            <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm font-medium">Waiting in queue...</p>
+          </>
+        ) : (
+          <>
+            <div className="w-full max-w-[200px]">
+              <Progress value={progressPercent} className="h-2" />
+            </div>
+            <p className="shrink-0 text-sm font-medium">
+              {progressMessage || "Starting..."}
+            </p>
+            {totalSteps > 0 && (
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {step}/{totalSteps}
+              </span>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // Full-size layout
   if (status === "COMPLETED") {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
@@ -103,9 +112,6 @@ export function GenerationPoller({ generationId }: GenerationPollerProps) {
   }
 
   if (status === "FAILED") return null;
-
-  const progressPercent =
-    totalSteps > 0 ? Math.round((step / totalSteps) * 100) : 0;
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">

@@ -1,0 +1,184 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+
+type Status = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+
+interface GenerationProgress {
+  status: Status;
+  progressMessage: string | null;
+  step: number;
+  totalSteps: number;
+}
+
+type Listener = (event: GenerationProgress & { generationId: string }) => void;
+
+// Singleton WebSocket manager shared across all hook instances
+let ws: WebSocket | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectDelay = 1000;
+const listeners = new Map<string, Set<Listener>>();
+const subscriptions = new Set<string>();
+
+const WS_URL =
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:4000/ws/progress")
+    : "";
+
+function getSocket(): WebSocket | null {
+  if (typeof window === "undefined") return null;
+  if (ws && ws.readyState === WebSocket.OPEN) return ws;
+  if (ws && ws.readyState === WebSocket.CONNECTING) return ws;
+
+  // Clean up dead socket
+  if (ws) {
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.onmessage = null;
+    ws = null;
+  }
+
+  try {
+    const socket = new WebSocket(WS_URL);
+    ws = socket;
+
+    socket.onopen = () => {
+      reconnectDelay = 1000;
+      // Re-subscribe all active subscriptions
+      for (const generationId of subscriptions) {
+        socket.send(JSON.stringify({ type: "subscribe", generationId }));
+      }
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const { generationId, ...rest } = data;
+        if (!generationId) return;
+
+        const genListeners = listeners.get(generationId);
+        if (!genListeners) return;
+
+        let status: Status = "QUEUED";
+        let progressMessage: string | null = null;
+        let step = 0;
+        let totalSteps = 0;
+
+        switch (rest.type) {
+          case "status":
+            status = rest.status;
+            break;
+          case "progress":
+            status = "PROCESSING";
+            progressMessage = rest.message;
+            step = rest.step;
+            totalSteps = rest.totalSteps;
+            break;
+          case "completed":
+            status = "COMPLETED";
+            break;
+          case "failed":
+            status = "FAILED";
+            break;
+          default:
+            return;
+        }
+
+        for (const listener of genListeners) {
+          listener({ generationId, status, progressMessage, step, totalSteps });
+        }
+      } catch {
+        // Ignore malformed messages
+      }
+    };
+
+    socket.onclose = () => {
+      if (ws === socket) ws = null;
+      if (subscriptions.size > 0) {
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          getSocket();
+        }, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+      }
+    };
+
+    socket.onerror = () => {
+      // Close event will handle reconnection
+    };
+  } catch {
+    ws = null;
+  }
+
+  return ws;
+}
+
+function subscribe(generationId: string, listener: Listener) {
+  if (!listeners.has(generationId)) {
+    listeners.set(generationId, new Set());
+  }
+  listeners.get(generationId)!.add(listener);
+
+  const isNew = !subscriptions.has(generationId);
+  subscriptions.add(generationId);
+
+  if (isNew) {
+    const socket = getSocket();
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "subscribe", generationId }));
+    }
+  }
+
+  return () => {
+    const genListeners = listeners.get(generationId);
+    if (genListeners) {
+      genListeners.delete(listener);
+      if (genListeners.size === 0) {
+        listeners.delete(generationId);
+        subscriptions.delete(generationId);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "unsubscribe", generationId }));
+        }
+        // If no subscriptions left, clean up connection
+        if (subscriptions.size === 0 && ws) {
+          ws.close();
+          ws = null;
+          if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+          }
+        }
+      }
+    }
+  };
+}
+
+export function useGenerationProgress(generationId: string) {
+  const [status, setStatus] = useState<Status>("QUEUED");
+  const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const [step, setStep] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(0);
+  const completedRef = useRef(false);
+
+  const handleEvent = useCallback(
+    (event: GenerationProgress & { generationId: string }) => {
+      if (completedRef.current) return;
+      setStatus(event.status);
+      if (event.progressMessage !== null) setProgressMessage(event.progressMessage);
+      if (event.step) setStep(event.step);
+      if (event.totalSteps) setTotalSteps(event.totalSteps);
+      if (event.status === "COMPLETED" || event.status === "FAILED") {
+        completedRef.current = true;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    completedRef.current = false;
+    const unsubscribe = subscribe(generationId, handleEvent);
+    return unsubscribe;
+  }, [generationId, handleEvent]);
+
+  return { status, progressMessage, step, totalSteps };
+}

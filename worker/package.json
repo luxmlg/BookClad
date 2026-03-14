@@ -17,12 +17,14 @@
     "openai": "latest",
     "pg": "^8.20.0",
     "replicate": "latest",
-    "sharp": "latest"
+    "sharp": "latest",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/express": "latest",
     "@types/node": "latest",
     "@types/pg": "^8.18.0",
+    "@types/ws": "^8.18.1",
     "dotenv": "latest",
     "tsx": "latest",
     "typescript": "latest"
