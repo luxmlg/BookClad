@@ -69,6 +69,7 @@ export function GenerationHistory({
   onHistoryOpenChange,
 }: GenerationHistoryProps) {
   const expandSeqRef = useRef(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [expandRequest, setExpandRequest] = useState<{
     imageId: string;
     seq: number;
@@ -110,6 +111,7 @@ export function GenerationHistory({
       <CollapsibleContent>
         {generations.length > 0 && (
           <div
+            ref={scrollContainerRef}
             className="overflow-y-auto px-4 pb-3"
             style={{ maxHeight: 320 }}
           >
@@ -126,13 +128,9 @@ export function GenerationHistory({
                   expandRequest={expandRequest}
                   defaultOpen={idx === 0}
                   allGenerations={generations}
-                  previousGeneration={
-                    idx < generations.length - 1
-                      ? generations[idx + 1]
-                      : undefined
-                  }
                   onNameChange={handleNameChange}
                   getDisplayName={getDisplayName}
+                  scrollContainerRef={scrollContainerRef}
                 />
               ))}
             </div>
@@ -247,6 +245,132 @@ function formatRelativeTime(date: Date): string {
   return `${days} days ago`;
 }
 
+function DiffDisplay({
+  current,
+  target,
+}: {
+  current: Generation;
+  target: Generation;
+}) {
+  const curAttrs = asAttributeSnapshot(current.attributeSnapshot);
+  const targetAttrs = asAttributeSnapshot(target.attributeSnapshot);
+  const curTextLayers = asTextLayerSnapshot(current.textLayerSnapshot);
+
+  const attrDiff = computeAttributeDiff(curAttrs, targetAttrs);
+
+  const promptChanged =
+    target.prompt != null &&
+    current.prompt != null &&
+    current.prompt !== target.prompt;
+
+  const modelChanged =
+    target.model != null &&
+    current.model != null &&
+    current.model !== target.model;
+
+  const imageCountChanged =
+    target.imageCount != null &&
+    current.imageCount != null &&
+    current.imageCount !== target.imageCount;
+
+  const jobTypeChanged =
+    target.jobType != null &&
+    current.jobType != null &&
+    current.jobType !== target.jobType;
+
+  const prevLayers = asTextLayerSnapshot(target.textLayerSnapshot);
+  const prevTexts = (prevLayers ?? []).map((l) => l.text || l.name);
+  const curTexts = (curTextLayers ?? []).map((l) => l.text || l.name);
+  const prevStr = prevTexts.join(", ");
+  const curStr = curTexts.join(", ");
+  const textLayersChanged =
+    (prevLayers || curTextLayers) && prevStr !== curStr;
+
+  return (
+    <div className="mt-1 space-y-1.5 rounded border border-dashed bg-muted/20 px-2 py-1.5">
+      {promptChanged && (
+        <div>
+          <span className="font-medium text-muted-foreground">Prompt: </span>
+          <div className="mt-0.5 space-y-0.5">
+            <div className="text-muted-foreground">{target.prompt}</div>
+            <div>→ {current.prompt}</div>
+          </div>
+        </div>
+      )}
+      {modelChanged && (
+        <div>
+          <span className="font-medium text-muted-foreground">Model: </span>
+          <span className="text-muted-foreground mr-1">
+            {getModelLabel(target.model)}
+          </span>
+          → <span>{getModelLabel(current.model)}</span>
+        </div>
+      )}
+      {imageCountChanged && (
+        <div>
+          <span className="font-medium text-muted-foreground">
+            Image count:{" "}
+          </span>
+          <span className="text-muted-foreground mr-1">
+            {target.imageCount}
+          </span>
+          → <span>{current.imageCount}</span>
+        </div>
+      )}
+      {jobTypeChanged && (
+        <div>
+          <span className="font-medium text-muted-foreground">Type: </span>
+          <span className="text-muted-foreground mr-1">
+            {target.jobType}
+          </span>
+          → <span>{current.jobType}</span>
+        </div>
+      )}
+      {attrDiff && (
+        <div className="space-y-0.5">
+          {attrDiff.map((d) => (
+            <div key={d.key}>
+              <span className="font-medium text-muted-foreground">
+                {d.label}:{" "}
+              </span>
+              <span className="text-muted-foreground mr-1">
+                {[...d.kept, ...d.removed].join(", ")}
+              </span>
+              → <span>{[...d.kept, ...d.added].join(", ")}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {textLayersChanged && (
+        <div>
+          <span className="font-medium text-muted-foreground">
+            Text layers:{" "}
+          </span>
+          {prevTexts.length > 0 && (
+            <span className="text-muted-foreground mr-1">
+              {prevTexts.map((t) => `"${t}"`).join(", ")}
+            </span>
+          )}
+          {curTexts.length > 0 && (
+            <>
+              {prevTexts.length > 0 && "→ "}
+              <span>{curTexts.map((t) => `"${t}"`).join(", ")}</span>
+            </>
+          )}
+        </div>
+      )}
+      {!promptChanged &&
+        !modelChanged &&
+        !attrDiff &&
+        !imageCountChanged &&
+        !jobTypeChanged &&
+        !textLayersChanged && (
+          <div className="text-muted-foreground/60 italic">No changes</div>
+        )}
+    </div>
+  );
+}
+
 function GenerationGroup({
   generation,
   index,
@@ -257,9 +381,9 @@ function GenerationGroup({
   expandRequest,
   defaultOpen,
   allGenerations,
-  previousGeneration,
   onNameChange,
   getDisplayName,
+  scrollContainerRef,
 }: {
   generation: Generation;
   index: number;
@@ -270,17 +394,29 @@ function GenerationGroup({
   expandRequest: { imageId: string; seq: number } | null;
   defaultOpen: boolean;
   allGenerations: Generation[];
-  previousGeneration?: Generation;
   onNameChange: (genId: string, name: string) => void;
   getDisplayName: (gen: Generation) => string;
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [showDiff, setShowDiff] = useState(false);
+  const [compareTargetId, setCompareTargetId] = useState<string | null>(null);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const displayName = getDisplayName(generation);
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const groupRef = useRef<HTMLDivElement>(null);
+
+  const parentGeneration = generation.parentImageId
+    ? allGenerations.find((g) =>
+        g.images.some((img) => img.id === generation.parentImageId)
+      )
+    : undefined;
+
+  const compareTarget = compareTargetId
+    ? allGenerations.find((g) => g.id === compareTargetId)
+    : undefined;
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -304,6 +440,16 @@ function GenerationGroup({
       generation.images.some((img) => img.id === expandRequest.imageId)
     ) {
       setOpen(true);
+      // Wait for collapsible animation (200ms) to fully complete, then scroll
+      setTimeout(() => {
+        const container = scrollContainerRef.current;
+        const el = groupRef.current;
+        if (!container || !el) return;
+        const elTop = el.getBoundingClientRect().top;
+        const containerTop = container.getBoundingClientRect().top;
+        const scrollTarget = container.scrollTop + (elTop - containerTop);
+        container.scrollTo({ top: scrollTarget, behavior: "smooth" });
+      }, 250);
     }
   }, [expandRequest, generation.images]);
 
@@ -340,27 +486,8 @@ function GenerationGroup({
   const attrs = asAttributeSnapshot(generation.attributeSnapshot);
   const textLayers = asTextLayerSnapshot(generation.textLayerSnapshot);
 
-  const attrDiff = showDiff
-    ? computeAttributeDiff(
-        attrs,
-        asAttributeSnapshot(previousGeneration?.attributeSnapshot)
-      )
-    : null;
-
-  const promptChanged =
-    showDiff &&
-    previousGeneration?.prompt != null &&
-    generation.prompt != null &&
-    generation.prompt !== previousGeneration.prompt;
-
-  const modelChanged =
-    showDiff &&
-    previousGeneration?.model != null &&
-    generation.model != null &&
-    generation.model !== previousGeneration.model;
-
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible open={open} onOpenChange={setOpen} ref={groupRef}>
       <CollapsibleTrigger className="group/gen flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 transition-colors">
         <ChevronRight
           className={`size-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`}
@@ -402,7 +529,17 @@ function GenerationGroup({
           </>
         )}
         {parentGenIndex && (
-          <span className="text-xs text-muted-foreground">
+          <span
+            role="button"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (generation.parentImageId) {
+                onSelect(generation.parentImageId);
+                onExpandImage(generation.parentImageId);
+              }
+            }}
+          >
             {jobType === "inpaint" ? "edit on" : "from"}{" "}
             {(() => {
               const parentGen = allGenerations.find((g) =>
@@ -534,168 +671,87 @@ function GenerationGroup({
               </div>
             )}
 
-            {/* Diff toggle */}
-            {previousGeneration && (
+            {/* Auto-diff with parent */}
+            {parentGeneration && (
               <div>
                 <button
                   onClick={() => setShowDiff((d) => !d)}
                   className="text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
                 >
                   {showDiff
-                    ? `Hide changes`
-                    : `Changes from ${previousGeneration ? (() => { const name = getDisplayName(previousGeneration); return name ? `${name} #${index - 1}` : `#${index - 1}`; })() : `#${index - 1}`}`}
+                    ? "Hide changes"
+                    : `Changes from ${(() => {
+                        const name = getDisplayName(parentGeneration);
+                        const pIdx = findParentGenerationIndex(
+                          generation.parentImageId,
+                          allGenerations
+                        );
+                        return name
+                          ? `${name} #${pIdx}`
+                          : `#${pIdx}`;
+                      })()}`}
                 </button>
                 {showDiff && (
-                  <div className="mt-1 space-y-1.5 rounded border border-dashed bg-muted/20 px-2 py-1.5">
-                    {promptChanged && (
-                      <div>
-                        <span className="font-medium text-muted-foreground">
-                          Prompt:{" "}
-                        </span>
-                        <div className="mt-0.5 space-y-0.5">
-                          <div className="text-muted-foreground">
-                            {previousGeneration?.prompt}
-                          </div>
-                          <div>→ {generation.prompt}</div>
-                        </div>
-                      </div>
-                    )}
-                    {modelChanged && (
-                      <div>
-                        <span className="font-medium text-muted-foreground">
-                          Model:{" "}
-                        </span>
-                        <span className="text-muted-foreground mr-1">
-                          {getModelLabel(previousGeneration?.model)}
-                        </span>
-                        →{" "}
-                        <span>
-                          {getModelLabel(generation.model)}
-                        </span>
-                      </div>
-                    )}
-                    {showDiff &&
-                      previousGeneration?.imageCount != null &&
-                      generation.imageCount != null &&
-                      generation.imageCount !==
-                        previousGeneration.imageCount && (
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Image count:{" "}
-                          </span>
-                          <span className="text-muted-foreground mr-1">
-                            {previousGeneration.imageCount}
-                          </span>
-                          →{" "}
-                          <span>
-                            {generation.imageCount}
-                          </span>
-                        </div>
-                      )}
-                    {showDiff &&
-                      previousGeneration?.jobType != null &&
-                      generation.jobType != null &&
-                      generation.jobType !== previousGeneration.jobType && (
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Type:{" "}
-                          </span>
-                          <span className="text-muted-foreground mr-1">
-                            {previousGeneration.jobType}
-                          </span>
-                          →{" "}
-                          <span>
-                            {generation.jobType}
-                          </span>
-                        </div>
-                      )}
-                    {attrDiff ? (
-                      <div className="space-y-0.5">
-                        {attrDiff.map((d) => (
-                          <div key={d.key}>
-                            <span className="font-medium text-muted-foreground">
-                              {d.label}:{" "}
-                            </span>
-                            <span className="text-muted-foreground mr-1">
-                              {[
-                                ...d.kept,
-                                ...d.removed,
-                              ].join(", ")}
-                            </span>
-                            →{" "}
-                            <span>
-                              {[
-                                ...d.kept,
-                                ...d.added,
-                              ].join(", ")}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {/* Text layer diff */}
-                    {(() => {
-                      const prevLayers = asTextLayerSnapshot(
-                        previousGeneration?.textLayerSnapshot
-                      );
-                      const curLayers = textLayers;
-                      if (!prevLayers && !curLayers) return null;
-                      const prevTexts = (prevLayers ?? []).map(
-                        (l) => l.text || l.name
-                      );
-                      const curTexts = (curLayers ?? []).map(
-                        (l) => l.text || l.name
-                      );
-                      const prevStr = prevTexts.join(", ");
-                      const curStr = curTexts.join(", ");
-                      if (prevStr === curStr) return null;
-                      return (
-                        <div>
-                          <span className="font-medium text-muted-foreground">
-                            Text layers:{" "}
-                          </span>
-                          {prevTexts.length > 0 && (
-                            <span className="text-muted-foreground mr-1">
-                              {prevTexts
-                                .map((t) => `"${t}"`)
-                                .join(", ")}
-                            </span>
-                          )}
-                          {curTexts.length > 0 && (
-                            <>
-                              {prevTexts.length > 0 && "→ "}
-                              <span>
-                                {curTexts
-                                  .map((t) => `"${t}"`)
-                                  .join(", ")}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    {!promptChanged &&
-                      !modelChanged &&
-                      !attrDiff &&
-                      !(
-                        previousGeneration?.imageCount != null &&
-                        generation.imageCount != null &&
-                        generation.imageCount !==
-                          previousGeneration.imageCount
-                      ) &&
-                      !(
-                        previousGeneration?.jobType != null &&
-                        generation.jobType != null &&
-                        generation.jobType !== previousGeneration.jobType
-                      ) && (
-                        <div className="text-muted-foreground/60 italic">
-                          No changes
-                        </div>
-                      )}
-                  </div>
+                  <DiffDisplay
+                    current={generation}
+                    target={parentGeneration}
+                  />
                 )}
               </div>
             )}
+
+            {/* Manual compare */}
+            <div>
+              {compareTargetId === null ? (
+                <button
+                  onClick={() => setCompareTargetId("")}
+                  className="text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                >
+                  Compare
+                </button>
+              ) : (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground font-medium">
+                      Compare with:
+                    </span>
+                    <select
+                      value={compareTargetId}
+                      onChange={(e) => setCompareTargetId(e.target.value)}
+                      className="h-6 rounded border bg-background px-1.5 text-xs outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="">Select...</option>
+                      {allGenerations
+                        .filter((g) => g.id !== generation.id)
+                        .map((g) => {
+                          const gIdx = findParentGenerationIndex(
+                            g.images[0]?.id,
+                            allGenerations
+                          );
+                          const name = getDisplayName(g);
+                          return (
+                            <option key={g.id} value={g.id}>
+                              {name ? `${name} #${gIdx}` : `#${gIdx}`}
+                            </option>
+                          );
+                        })}
+                    </select>
+                    <button
+                      onClick={() => setCompareTargetId(null)}
+                      className="text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  {compareTarget && (
+                    <DiffDisplay
+                      current={generation}
+                      target={compareTarget}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </CollapsibleContent>
