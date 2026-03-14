@@ -12,7 +12,7 @@ export interface AttributeValue {
 export interface AttributeCategory {
   id: string;
   name: string;
-  type: "single" | "multi";
+  type: "single" | "multi" | "text";
   builtIn: boolean;
   enabled: boolean;
   values: AttributeValue[];
@@ -20,6 +20,8 @@ export interface AttributeCategory {
 
 export interface AttributeConfigJson {
   categories: AttributeCategory[];
+  /** Index among enabled categories where the brief/prompt textarea appears. */
+  briefPosition?: number;
 }
 
 /** Per-project selections: category id → selected value(s) */
@@ -115,6 +117,8 @@ export function buildDefaultSelection(
     if (!cat.enabled) continue;
     if (cat.type === "single") {
       selection[cat.id] = cat.values[0]?.value ?? "";
+    } else if (cat.type === "text") {
+      selection[cat.id] = "";
     } else {
       selection[cat.id] = [];
     }

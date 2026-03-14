@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import type { AttributeCategory } from "@/lib/attributes";
 
 interface AttributeCategoryInputProps {
@@ -23,6 +24,20 @@ export function AttributeCategoryInput({
   onAddCustomValue,
   onRemoveCustomValue,
 }: AttributeCategoryInputProps) {
+  if (category.type === "text") {
+    return (
+      <div className="space-y-1.5">
+        <Label>{category.name}</Label>
+        <Textarea
+          rows={3}
+          placeholder={`Enter ${category.name.toLowerCase()}...`}
+          value={(value as string) ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </div>
+    );
+  }
+
   if (category.type === "single") {
     return (
       <SingleSelect

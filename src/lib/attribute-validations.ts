@@ -10,7 +10,7 @@ const attributeValueSchema = z.object({
 const attributeCategorySchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(50),
-  type: z.enum(["single", "multi"]),
+  type: z.enum(["single", "multi", "text"]),
   builtIn: z.boolean(),
   enabled: z.boolean(),
   values: z.array(attributeValueSchema),
@@ -18,6 +18,7 @@ const attributeCategorySchema = z.object({
 
 export const attributeConfigSchema = z.object({
   categories: z.array(attributeCategorySchema).min(1),
+  briefPosition: z.number().int().min(0).optional(),
 });
 
 export const attributeSelectionSchema = z.record(

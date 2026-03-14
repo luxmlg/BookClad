@@ -118,6 +118,7 @@ model CoverProject {
 model Generation {
   id                String    @id @default(cuid())
   projectId         String
+  name              String?
   prompt            String    @db.Text
   status            JobStatus @default(QUEUED)
   cost              Float?

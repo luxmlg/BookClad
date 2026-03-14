@@ -8,10 +8,19 @@ import {
   Loader2,
   RefreshCw,
   Sparkles,
+  Images,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AI_MODELS } from "@/lib/constants";
 
 interface InpaintToolbarProps {
   brushMode: boolean;
@@ -31,6 +40,11 @@ interface InpaintToolbarProps {
   pendingGeneration: boolean;
   onOpenSimilarDialog: () => void;
   selectedImageId: string | null;
+  // Generation settings
+  model: string;
+  setModel: (v: string) => void;
+  imageCount: number;
+  setImageCount: (v: number) => void;
 }
 
 export function InpaintToolbar({
@@ -49,6 +63,10 @@ export function InpaintToolbar({
   pendingGeneration,
   onOpenSimilarDialog,
   selectedImageId,
+  model,
+  setModel,
+  imageCount,
+  setImageCount,
 }: InpaintToolbarProps) {
   // Painting phase — show brush controls
   if (brushMode) {
@@ -152,6 +170,34 @@ export function InpaintToolbar({
         <Paintbrush className="size-3.5" />
         Edit Region
       </Button>
+      <div className="mx-1 h-5 w-px bg-border" />
+      <Select value={model} onValueChange={(v) => v && setModel(v)}>
+        <SelectTrigger className="h-7 w-[130px] text-xs">
+          <SelectValue>
+            {AI_MODELS.find((m) => m.value === model)?.label ?? "Model"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false} className="min-w-52">
+          {AI_MODELS.map((m) => (
+            <SelectItem key={m.value} value={m.value}>
+              {m.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="flex items-center gap-1.5" title="Images per generation">
+        <Images className="size-3.5 text-muted-foreground" />
+        <div className="w-16">
+          <Slider
+            value={[imageCount]}
+            onValueChange={(v) => setImageCount(Array.isArray(v) ? v[0] : v)}
+            min={1}
+            max={8}
+            step={1}
+          />
+        </div>
+        <span className="text-[10px] text-muted-foreground w-3 text-right">{imageCount}</span>
+      </div>
     </div>
   );
 }

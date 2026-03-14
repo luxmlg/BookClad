@@ -43,6 +43,10 @@ export const updateImageSchema = z.object({
   canvasState: z.any().optional(),
 });
 
+export const updateGenerationSchema = z.object({
+  name: z.string().max(100),
+});
+
 export const createInpaintSchema = z.object({
   imageId: z.string().min(1),
   maskDataUrl: z.string().min(1),
