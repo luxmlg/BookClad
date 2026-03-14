@@ -21,10 +21,15 @@ model User {
   tier             Tier      @default(FREE)
   generationsUsed  Int       @default(0)
   generationsReset DateTime?
+  defaultFont      String    @default("Playfair Display")
 
-  accounts Account[]
-  sessions Session[]
-  projects CoverProject[]
+  accounts        Account[]
+  sessions        Session[]
+  projects        CoverProject[]
+  attributeConfig AttributeConfig?
+  stylePresets    StylePreset[]
+  assets          UserAsset[]
+  fonts           UserFont[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -95,15 +100,14 @@ model CoverProject {
   userId      String
   title       String
   author      String
-  genre       String
-  mood        String[]
-  style       String
+  attributes  Json
   brief       String?
   canvasState Json?
 
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   generations Generation[]
   exports     Export[]
+  assets      UserAsset[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -112,18 +116,23 @@ model CoverProject {
 }
 
 model Generation {
-  id             String    @id @default(cuid())
-  projectId      String
-  prompt         String    @db.Text
-  status         JobStatus @default(QUEUED)
-  cost           Float?
-  imageCount     Int       @default(4)
-  referenceImage String?
-  jobType        String    @default("generate")
-  model          String    @default("openai")
+  id                String    @id @default(cuid())
+  projectId         String
+  name              String?
+  prompt            String    @db.Text
+  status            JobStatus @default(QUEUED)
+  cost              Float?
+  imageCount        Int       @default(4)
+  referenceImage    String?
+  jobType           String    @default("generate")
+  model             String    @default("openai")
+  parentImageId     String?
+  attributeSnapshot Json?
+  textLayerSnapshot Json?
 
-  project CoverProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  images  GeneratedImage[]
+  project     CoverProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  images      GeneratedImage[]
+  parentImage GeneratedImage?  @relation("DerivedFrom", fields: [parentImageId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -138,8 +147,10 @@ model GeneratedImage {
   width        Int
   height       Int
   selected     Boolean @default(false)
+  canvasState  Json?
 
-  generation Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  generation         Generation   @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  derivedGenerations Generation[] @relation("DerivedFrom")
 
   @@index([generationId])
 }
@@ -155,4 +166,68 @@ model Export {
   createdAt DateTime @default(now())
 
   @@index([projectId])
+}
+
+model AttributeConfig {
+  id     String @id @default(cuid())
+  userId String @unique
+  config Json
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserAsset {
+  id         String @id @default(cuid())
+  projectId  String
+  userId     String
+  fileName   String
+  storageKey String
+  mimeType   String
+  width      Int?
+  height     Int?
+  fileSize   Int
+
+  project CoverProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([userId])
+}
+
+model UserFont {
+  id         String @id @default(cuid())
+  userId     String
+  family     String
+  fileName   String
+  storageKey String
+  mimeType   String
+  fileSize   Int
+  disabled   Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@unique([userId, family])
+}
+
+model StylePreset {
+  id             String  @id @default(cuid())
+  userId         String
+  name           String
+  attributes     Json
+  promptTemplate String? @db.Text
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }

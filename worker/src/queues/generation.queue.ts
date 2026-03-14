@@ -15,4 +15,5 @@ export interface GenerationJobData {
   imageCount: number;
   model: string;
   referenceImageKey: string | null;
+  flattenedImageDataUrl?: string | null;
 }

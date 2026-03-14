@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -128,13 +129,19 @@ export function EditorShell({ project }: { project: Project }) {
   const [inpaintPrompt, setInpaintPrompt] = useState("");
   const [inpaintMask, setInpaintMask] = useState<string | null>(null);
   const [inpaintSubmitting, setInpaintSubmitting] = useState(false);
+  const [includeLayers, setIncludeLayers] = useState(false);
+  const [layerPreviewUrl, setLayerPreviewUrl] = useState<string | null>(null);
   const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false);
+  const [pollingGenerationId, setPollingGenerationId] = useState<string | null>(null);
   const [brushSize, setBrushSize] = useState(30);
   const [erasing, setErasing] = useState(false);
   const [hasBrushMask, setHasBrushMask] = useState(false);
   const brushToolRef = useRef<import("./brush-tool").BrushToolHandle>(null);
   const [model, setModel] = useState("openai");
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [keepLayersOnGenerate, setKeepLayersOnGenerate] = useState(true);
+  const keepLayersRef = useRef(true);
+  useEffect(() => { keepLayersRef.current = keepLayersOnGenerate; }, [keepLayersOnGenerate]);
   const [bgLoaded, setBgLoaded] = useState(false);
   const [crossfadeSnapshot, setCrossfadeSnapshot] = useState<string | null>(null);
   const [kindleCrossfadeSnapshot, setKindleCrossfadeSnapshot] = useState<string | null>(null);
@@ -143,8 +150,9 @@ export function EditorShell({ project }: { project: Project }) {
   }, []);
   const [kindlePreview, setKindlePreview] = useState<string | null>(null);
   const [showKindlePreview, setShowKindlePreview] = useState(true);
-  const fetchedRef = useRef(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevImageCountRef = useRef(0);
+  const pendingAutoSelectRef = useRef<string | null>(null);
   const layersCacheRef = useRef<Map<string, CanvasNode[]>>(new Map());
 
   // Asset and font state
@@ -206,6 +214,21 @@ export function EditorShell({ project }: { project: Project }) {
   const pendingGeneration = project.generations.find(
     (g) => g.status === "QUEUED" || g.status === "PROCESSING"
   );
+  const activePollingId = pendingGeneration?.id ?? pollingGenerationId;
+
+  // Clear polling state once project data confirms generation is done
+  useEffect(() => {
+    if (
+      pollingGenerationId &&
+      project.generations.some(
+        (g) =>
+          g.id === pollingGenerationId &&
+          (g.status === "COMPLETED" || g.status === "FAILED")
+      )
+    ) {
+      setPollingGenerationId(null);
+    }
+  }, [pollingGenerationId, project.generations]);
 
   const selectedImageUrl = selectedImageId
     ? imageUrls[selectedImageId]
@@ -361,30 +384,64 @@ export function EditorShell({ project }: { project: Project }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (allImages.length === 0 || fetchedRef.current) return;
-    fetchedRef.current = true;
+    if (allImages.length === 0) return;
+
+    const unfetched = allImages.filter((img) => !imageUrls[img.id]);
+    if (unfetched.length === 0) return;
+
+    let cancelled = false;
+    const isInitialLoad = Object.keys(imageUrls).length === 0;
+    if (isInitialLoad) setLoadingUrls(true);
 
     async function fetchUrls() {
-      setLoadingUrls(true);
-      const urls: Record<string, string> = {};
+      const newUrls: Record<string, string> = {};
       await Promise.all(
-        allImages.map(async (img) => {
+        unfetched.map(async (img) => {
           try {
             const res = await fetch(`/api/images/${img.id}`);
             if (res.ok) {
               const data = await res.json();
-              urls[img.id] = data.url;
+              newUrls[img.id] = data.url;
             }
-          } catch {
-            // skip
-          }
+          } catch { /* skip */ }
         })
       );
-      setImageUrls(urls);
-      setLoadingUrls(false);
+      if (!cancelled) {
+        setImageUrls((prev) => ({ ...prev, ...newUrls }));
+        if (isInitialLoad) setLoadingUrls(false);
+      }
     }
     fetchUrls();
+
+    return () => { cancelled = true; };
   }, [allImages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Detect new images arriving → set pending auto-select
+  useEffect(() => {
+    const prevCount = prevImageCountRef.current;
+    prevImageCountRef.current = allImages.length;
+
+    if (allImages.length > prevCount && completedGenerations.length > 0) {
+      const newestGen = completedGenerations[0]; // sorted createdAt desc
+      if (newestGen?.images?.length > 0) {
+        if (!keepLayersRef.current) {
+          for (const img of newestGen.images) {
+            layersCacheRef.current.set(img.id, []);
+          }
+        }
+        pendingAutoSelectRef.current = newestGen.images[0].id;
+      }
+    }
+  }, [allImages.length, completedGenerations]);
+
+  // Auto-select once the URL becomes available
+  useEffect(() => {
+    const pendingId = pendingAutoSelectRef.current;
+    if (pendingId && imageUrls[pendingId]) {
+      pendingAutoSelectRef.current = null;
+      selectImage(pendingId);
+    }
+  }, [imageUrls]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Auto-save canvas state (debounced 3s) — save to current image + project template
@@ -542,10 +599,11 @@ export function EditorShell({ project }: { project: Project }) {
           })),
         }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Failed to regenerate");
       }
+      setPollingGenerationId(data.generationId);
       toast.success("Regeneration queued!");
       router.refresh();
     } catch (err) {
@@ -553,10 +611,47 @@ export function EditorShell({ project }: { project: Project }) {
     }
   }
 
+  async function handleIncludeLayersChange(checked: boolean) {
+    setIncludeLayers(checked);
+    if (checked) {
+      const url = await flattenCanvasToDataUrl();
+      setLayerPreviewUrl(url ?? null);
+    } else {
+      setLayerPreviewUrl(null);
+    }
+  }
+
+  async function flattenCanvasToDataUrl(): Promise<string | undefined> {
+    const stage = stageRef.current;
+    if (!stage) return undefined;
+    setSelectedNodeId(null);
+    await new Promise((r) => setTimeout(r, 50));
+    await document.fonts.ready;
+    const layers = stage.getLayers();
+    // Hide extra layers (brush tool, selection, etc.) but keep text visible
+    const hiddenLayers: Konva.Layer[] = [];
+    for (let i = 2; i < layers.length; i++) {
+      if (layers[i].visible()) {
+        layers[i].visible(false);
+        hiddenLayers.push(layers[i]);
+      }
+    }
+    const dataUrl = stage.toDataURL({
+      pixelRatio: 1600 / 400,
+      mimeType: "image/jpeg",
+      quality: 0.9,
+    });
+    for (const layer of hiddenLayers) {
+      layer.visible(true);
+    }
+    return dataUrl;
+  }
+
   async function handleGenerateSimilar() {
     if (!selectedImageId) return;
     setRefSubmitting(true);
     try {
+      const flattenedImageDataUrl = includeLayers ? await flattenCanvasToDataUrl() : undefined;
       const res = await fetch("/api/generations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -565,6 +660,7 @@ export function EditorShell({ project }: { project: Project }) {
           imageCount,
           model,
           referenceImageId: selectedImageId,
+          flattenedImageDataUrl,
           attributeSnapshot: attributes,
           textLayerSnapshot: textNodes.map((n) => ({
             name: n.name ?? n.id,
@@ -572,10 +668,11 @@ export function EditorShell({ project }: { project: Project }) {
           })),
         }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Failed to generate");
       }
+      setPollingGenerationId(data.generationId);
       toast.success("Reference generation queued!");
       setRefDialogOpen(false);
       setRefPrompt("");
@@ -594,6 +691,7 @@ export function EditorShell({ project }: { project: Project }) {
     }
     setInpaintSubmitting(true);
     try {
+      const flattenedImageDataUrl = includeLayers ? await flattenCanvasToDataUrl() : undefined;
       const res = await fetch("/api/inpaint", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -602,6 +700,7 @@ export function EditorShell({ project }: { project: Project }) {
           maskDataUrl: inpaintMask,
           prompt: inpaintPrompt,
           model,
+          flattenedImageDataUrl,
           attributeSnapshot: attributes,
           textLayerSnapshot: textNodes.map((n) => ({
             name: n.name ?? n.id,
@@ -609,10 +708,11 @@ export function EditorShell({ project }: { project: Project }) {
           })),
         }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Inpaint failed");
       }
+      setPollingGenerationId(data.generationId);
       toast.success("Inpainting job queued!");
       setInpaintDialogOpen(false);
       setBrushMode(false);
@@ -970,11 +1070,8 @@ export function EditorShell({ project }: { project: Project }) {
                   </div>
                 </div>
               )
-            ) : pendingGeneration ? (
-              <GenerationPoller
-                generationId={pendingGeneration.id}
-                status={pendingGeneration.status}
-              />
+            ) : activePollingId ? (
+              <GenerationPoller generationId={activePollingId} />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
                 <ImageIcon className="size-12 text-muted-foreground/30" />
@@ -985,6 +1082,12 @@ export function EditorShell({ project }: { project: Project }) {
                   <RefreshCw className="mr-2 size-3.5" />
                   Generate Now
                 </Button>
+              </div>
+            )}
+            {/* Generation progress overlay — shown when generating with existing images */}
+            {activePollingId && allImages.length > 0 && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm">
+                <GenerationPoller generationId={activePollingId} />
               </div>
             )}
             </div>
@@ -1070,6 +1173,8 @@ export function EditorShell({ project }: { project: Project }) {
           hasSelectedImage={!!selectedImageUrl}
           onExportJpeg={() => handleExport("jpeg")}
           onExportPng={() => handleExport("png")}
+          keepLayersOnGenerate={keepLayersOnGenerate}
+          onKeepLayersOnGenerateChange={setKeepLayersOnGenerate}
         />
       </div>
 
@@ -1090,14 +1195,23 @@ export function EditorShell({ project }: { project: Project }) {
                   className="overflow-hidden rounded-lg border"
                   style={{ width: 120, aspectRatio: "1600/2560" }}
                 >
-                  <Image
-                    src={selectedImageUrl}
-                    alt="Reference"
-                    width={120}
-                    height={192}
-                    className="h-full w-full object-cover"
-                    unoptimized
-                  />
+                  {includeLayers && layerPreviewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={layerPreviewUrl}
+                      alt="Reference with layers"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Image
+                      src={selectedImageUrl}
+                      alt="Reference"
+                      width={120}
+                      height={192}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -1121,6 +1235,10 @@ export function EditorShell({ project }: { project: Project }) {
                 max={8}
                 step={1}
               />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="include-layers-ref">Include canvas layers</Label>
+              <Switch id="include-layers-ref" checked={includeLayers} onCheckedChange={handleIncludeLayersChange} />
             </div>
           </div>
           <DialogFooter>
@@ -1167,14 +1285,23 @@ export function EditorShell({ project }: { project: Project }) {
                   className="relative overflow-hidden rounded-lg border"
                   style={{ width: 120, aspectRatio: "1600/2560" }}
                 >
-                  <Image
-                    src={selectedImageUrl}
-                    alt="Selected cover"
-                    width={120}
-                    height={192}
-                    className="h-full w-full object-cover"
-                    unoptimized
-                  />
+                  {includeLayers && layerPreviewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={layerPreviewUrl}
+                      alt="With layers"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Image
+                      src={selectedImageUrl}
+                      alt="Selected cover"
+                      width={120}
+                      height={192}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  )}
                   {inpaintMask && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -1195,6 +1322,10 @@ export function EditorShell({ project }: { project: Project }) {
                 rows={3}
                 autoFocus
               />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="include-layers-inpaint">Include canvas layers</Label>
+              <Switch id="include-layers-inpaint" checked={includeLayers} onCheckedChange={handleIncludeLayersChange} />
             </div>
           </div>
           <DialogFooter>
@@ -1281,7 +1412,7 @@ export function EditorShell({ project }: { project: Project }) {
               onBrushDone={() => brushToolRef.current?.export()}
               hasBrushMask={hasBrushMask}
               onRegenerate={handleRegenerate}
-              pendingGeneration={!!pendingGeneration}
+              pendingGeneration={!!activePollingId}
               onOpenSimilarDialog={() => setRefDialogOpen(true)}
               selectedImageId={selectedImageId}
               model={model}

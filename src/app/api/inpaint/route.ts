@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       maskDataUrl,
       prompt,
       model,
+      flattenedImageDataUrl,
       attributeSnapshot,
       textLayerSnapshot,
     } = parsed.data;
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
       maskBase64: maskDataUrl,
       prompt,
       model,
+      flattenedImageDataUrl: flattenedImageDataUrl ?? null,
     });
 
     return NextResponse.json({ generationId: generation.id }, { status: 202 });

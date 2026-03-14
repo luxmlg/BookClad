@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       imageCount,
       referenceImageId,
       model,
+      flattenedImageDataUrl,
       attributeSnapshot,
       textLayerSnapshot,
     } = parsed.data;
@@ -92,6 +93,7 @@ export async function POST(request: Request) {
       imageCount,
       model,
       referenceImageKey: referenceImageKey ?? null,
+      flattenedImageDataUrl: flattenedImageDataUrl ?? null,
     });
 
     return NextResponse.json({ generationId: generation.id }, { status: 202 });

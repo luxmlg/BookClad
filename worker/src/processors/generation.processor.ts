@@ -1,5 +1,6 @@
 import { Job } from "bullmq";
 import { prisma } from "../lib/prisma.js";
+import { publishProgress } from "../lib/progress.js";
 import { generateImages as openaiGenerate } from "../services/openai.service.js";
 import { generateImages as geminiGenerate } from "../services/gemini.service.js";
 import { ideogramGenerate } from "../services/ideogram.service.js";
@@ -33,10 +34,16 @@ export async function processGeneration(job: Job<GenerationJobData>) {
   const { generationId, projectId, imageCount, referenceImageKey, model } =
     job.data;
 
+  // totalSteps: generate + (upscale + crop + upload) per image + optional reference download
+  const hasRef = !!referenceImageKey;
+  const totalSteps = (hasRef ? 1 : 0) + 1 + imageCount * 3;
+  let step = 0;
+
   await prisma.generation.update({
     where: { id: generationId },
     data: { status: "PROCESSING" },
   });
+  await publishProgress(job, generationId, { type: "status", status: "PROCESSING" });
 
   try {
     const project = await prisma.coverProject.findUniqueOrThrow({
@@ -47,14 +54,19 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     let rawImages: Buffer[];
 
     if (referenceImageKey) {
-      prompt = buildReferencePrompt(project);
-      job.log(`Downloading reference image...`);
-      const refBuffer = await downloadImage(referenceImageKey);
-      job.log(`Generating ${imageCount} images from reference with ${model}...`);
+      prompt = buildReferencePrompt(project as Parameters<typeof buildReferencePrompt>[0]);
+      step++;
+      await publishProgress(job, generationId, { type: "progress", message: "Downloading reference image...", step, totalSteps });
+      const refBuffer = job.data.flattenedImageDataUrl
+        ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
+        : await downloadImage(referenceImageKey);
+      step++;
+      await publishProgress(job, generationId, { type: "progress", message: `Generating ${imageCount} images from reference with ${model}...`, step, totalSteps });
       rawImages = await dispatchGenerate(model, prompt, imageCount, refBuffer);
     } else {
-      prompt = buildPrompt(project);
-      job.log(`Generating ${imageCount} images with ${model}...`);
+      prompt = buildPrompt(project as Parameters<typeof buildPrompt>[0]);
+      step++;
+      await publishProgress(job, generationId, { type: "progress", message: `Generating ${imageCount} images with ${model}...`, step, totalSteps });
       rawImages = await dispatchGenerate(model, prompt, imageCount);
     }
 
@@ -64,13 +76,16 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     });
 
     for (let i = 0; i < rawImages.length; i++) {
-      job.log(`Upscaling image ${i + 1}/${rawImages.length}...`);
+      step++;
+      await publishProgress(job, generationId, { type: "progress", message: `Upscaling image ${i + 1}/${rawImages.length}...`, step, totalSteps });
       const upscaled = await upscaleImage(rawImages[i]);
 
-      job.log(`Cropping image ${i + 1} to KDP dimensions...`);
+      step++;
+      await publishProgress(job, generationId, { type: "progress", message: `Cropping image ${i + 1} to KDP dimensions...`, step, totalSteps });
       const final = await cropToKDP(upscaled);
 
-      job.log(`Uploading image ${i + 1}...`);
+      step++;
+      await publishProgress(job, generationId, { type: "progress", message: `Uploading image ${i + 1}...`, step, totalSteps });
       const storageKey = await uploadImage(final, `projects/${projectId}`);
 
       await prisma.generatedImage.create({
@@ -94,11 +109,15 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       data: { generationsUsed: { increment: 1 } },
     });
 
-    job.log("Generation complete.");
+    await publishProgress(job, generationId, { type: "completed" });
   } catch (error) {
     await prisma.generation.update({
       where: { id: generationId },
       data: { status: "FAILED" },
+    });
+    await publishProgress(job, generationId, {
+      type: "failed",
+      error: error instanceof Error ? error.message : "Unknown error",
     });
     throw error;
   }

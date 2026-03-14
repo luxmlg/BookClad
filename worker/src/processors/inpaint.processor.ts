@@ -1,5 +1,6 @@
 import { Job } from "bullmq";
 import { prisma } from "../lib/prisma.js";
+import { publishProgress } from "../lib/progress.js";
 import { inpaintImage as openaiInpaint } from "../services/openai.service.js";
 import { ideogramInpaint } from "../services/ideogram.service.js";
 import { inpaintImage as geminiInpaint } from "../services/gemini.service.js";
@@ -18,6 +19,7 @@ export interface InpaintJobData {
   maskBase64: string;
   prompt: string;
   model: string;
+  flattenedImageDataUrl?: string | null;
 }
 
 async function dispatchInpaint(
@@ -41,30 +43,35 @@ export async function processInpaint(job: Job<InpaintJobData>) {
   const { generationId, projectId, sourceImageKey, maskBase64, prompt, model } =
     job.data;
 
+  const totalSteps = 5; // download, inpaint, upscale, crop, upload
+
   await prisma.generation.update({
     where: { id: generationId },
     data: { status: "PROCESSING" },
   });
+  await publishProgress(job, generationId, { type: "status", status: "PROCESSING" });
 
   try {
-    job.log("Downloading source image...");
-    const imageBuffer = await downloadImage(sourceImageKey);
+    await publishProgress(job, generationId, { type: "progress", message: "Downloading source image...", step: 1, totalSteps });
+    const imageBuffer = job.data.flattenedImageDataUrl
+      ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
+      : await downloadImage(sourceImageKey);
 
     const maskBuffer = Buffer.from(
       maskBase64.replace(/^data:image\/\w+;base64,/, ""),
       "base64"
     );
 
-    job.log(`Inpainting with ${model}...`);
+    await publishProgress(job, generationId, { type: "progress", message: `Inpainting with ${model}...`, step: 2, totalSteps });
     const result = await dispatchInpaint(model, imageBuffer, maskBuffer, prompt);
 
-    job.log("Upscaling inpainted image...");
+    await publishProgress(job, generationId, { type: "progress", message: "Upscaling inpainted image...", step: 3, totalSteps });
     const upscaled = await upscaleImage(result);
 
-    job.log("Cropping to KDP dimensions...");
+    await publishProgress(job, generationId, { type: "progress", message: "Cropping to KDP dimensions...", step: 4, totalSteps });
     const final = await cropToKDP(upscaled);
 
-    job.log("Uploading result...");
+    await publishProgress(job, generationId, { type: "progress", message: "Uploading result...", step: 5, totalSteps });
     const storageKey = await uploadImage(final, `projects/${projectId}`);
 
     await prisma.generatedImage.create({
@@ -82,11 +89,15 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       data: { status: "COMPLETED" },
     });
 
-    job.log("Inpainting complete.");
+    await publishProgress(job, generationId, { type: "completed" });
   } catch (error) {
     await prisma.generation.update({
       where: { id: generationId },
       data: { status: "FAILED" },
+    });
+    await publishProgress(job, generationId, {
+      type: "failed",
+      error: error instanceof Error ? error.message : "Unknown error",
     });
     throw error;
   }

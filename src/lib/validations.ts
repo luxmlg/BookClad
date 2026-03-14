@@ -27,6 +27,7 @@ export const createGenerationSchema = z.object({
   imageCount: z.number().int().min(1).max(8).optional().default(4),
   referenceImageId: z.string().optional(),
   model: z.enum(modelValues).optional().default("openai"),
+  flattenedImageDataUrl: z.string().optional(),
   ...snapshotFields,
 });
 
@@ -52,5 +53,6 @@ export const createInpaintSchema = z.object({
   maskDataUrl: z.string().min(1),
   prompt: z.string().min(1).max(2000),
   model: z.enum(modelValues).optional().default("openai"),
+  flattenedImageDataUrl: z.string().optional(),
   ...snapshotFields,
 });

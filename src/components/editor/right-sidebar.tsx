@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import type { CanvasNode, TextNodeConfig, ImageNodeConfig } from "./cover-canvas";
 import { TextLayerControls } from "./text-layer-controls";
 import { ImageLayerControls } from "./image-layer-controls";
@@ -45,6 +46,8 @@ interface RightSidebarProps {
   hasSelectedImage: boolean;
   onExportJpeg: () => void;
   onExportPng: () => void;
+  keepLayersOnGenerate: boolean;
+  onKeepLayersOnGenerateChange: (value: boolean) => void;
 }
 
 function getNodeLabel(node: CanvasNode) {
@@ -67,6 +70,8 @@ export function RightSidebar({
   hasSelectedImage,
   onExportJpeg,
   onExportPng,
+  keepLayersOnGenerate,
+  onKeepLayersOnGenerateChange,
 }: RightSidebarProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -263,6 +268,10 @@ export function RightSidebar({
                 e.target.value = "";
               }}
             />
+          </div>
+          <div className="flex items-center justify-between px-2 py-1">
+            <Label htmlFor="keep-layers" className="text-xs">Keep layers on new generations</Label>
+            <Switch id="keep-layers" checked={keepLayersOnGenerate} onCheckedChange={onKeepLayersOnGenerateChange} />
           </div>
         </div>
 
