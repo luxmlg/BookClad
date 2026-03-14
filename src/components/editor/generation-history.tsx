@@ -73,9 +73,21 @@ export function GenerationHistory({
     imageId: string;
     seq: number;
   } | null>(null);
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>(
+    {}
+  );
 
   const handleExpandImage = (imageId: string) => {
     setExpandRequest({ imageId, seq: ++expandSeqRef.current });
+  };
+
+  const handleNameChange = (genId: string, name: string) => {
+    setNameOverrides((prev) => ({ ...prev, [genId]: name }));
+  };
+
+  const getDisplayName = (gen: Generation) => {
+    if (gen.id in nameOverrides) return nameOverrides[gen.id];
+    return gen.name ?? "";
   };
 
   return (
@@ -119,6 +131,8 @@ export function GenerationHistory({
                       ? generations[idx + 1]
                       : undefined
                   }
+                  onNameChange={handleNameChange}
+                  getDisplayName={getDisplayName}
                 />
               ))}
             </div>
@@ -244,6 +258,8 @@ function GenerationGroup({
   defaultOpen,
   allGenerations,
   previousGeneration,
+  onNameChange,
+  getDisplayName,
 }: {
   generation: Generation;
   index: number;
@@ -255,12 +271,14 @@ function GenerationGroup({
   defaultOpen: boolean;
   allGenerations: Generation[];
   previousGeneration?: Generation;
+  onNameChange: (genId: string, name: string) => void;
+  getDisplayName: (gen: Generation) => string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [showDiff, setShowDiff] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [displayName, setDisplayName] = useState(generation.name ?? "");
+  const displayName = getDisplayName(generation);
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -291,7 +309,7 @@ function GenerationGroup({
 
   async function saveName(value: string) {
     const trimmed = value.trim();
-    setDisplayName(trimmed);
+    onNameChange(generation.id, trimmed);
     setEditing(false);
     try {
       await fetch(`/api/generations/${generation.id}`, {
@@ -300,7 +318,7 @@ function GenerationGroup({
         body: JSON.stringify({ name: trimmed }),
       });
     } catch {
-      setDisplayName(generation.name ?? "");
+      onNameChange(generation.id, generation.name ?? "");
     }
   }
 
@@ -385,7 +403,20 @@ function GenerationGroup({
         )}
         {parentGenIndex && (
           <span className="text-xs text-muted-foreground">
-            {jobType === "inpaint" ? "edit on" : "from"} #{parentGenIndex}
+            {jobType === "inpaint" ? "edit on" : "from"}{" "}
+            {(() => {
+              const parentGen = allGenerations.find((g) =>
+                g.images.some(
+                  (img) => img.id === generation.parentImageId
+                )
+              );
+              const parentName = parentGen
+                ? getDisplayName(parentGen)
+                : "";
+              return parentName
+                ? `${parentName} #${parentGenIndex}`
+                : `#${parentGenIndex}`;
+            })()}
           </span>
         )}
         <span className="text-xs text-muted-foreground">
@@ -512,21 +543,74 @@ function GenerationGroup({
                 >
                   {showDiff
                     ? `Hide changes`
-                    : `Changes from #${index - 1}`}
+                    : `Changes from ${previousGeneration ? (() => { const name = getDisplayName(previousGeneration); return name ? `${name} #${index - 1}` : `#${index - 1}`; })() : `#${index - 1}`}`}
                 </button>
                 {showDiff && (
-                  <div className="mt-1 space-y-0.5 rounded border border-dashed bg-muted/20 px-2 py-1.5">
+                  <div className="mt-1 space-y-1.5 rounded border border-dashed bg-muted/20 px-2 py-1.5">
                     {promptChanged && (
-                      <div className="text-muted-foreground">
-                        Prompt changed
+                      <div>
+                        <span className="font-medium text-muted-foreground">
+                          Prompt:{" "}
+                        </span>
+                        <div className="mt-0.5 space-y-0.5">
+                          <div className="text-muted-foreground line-through">
+                            {previousGeneration?.prompt}
+                          </div>
+                          <div className="font-semibold text-primary">
+                            {generation.prompt}
+                          </div>
+                        </div>
                       </div>
                     )}
                     {modelChanged && (
-                      <div className="text-muted-foreground">
-                        Model: {getModelLabel(previousGeneration?.model)}{" "}
-                        → {getModelLabel(generation.model)}
+                      <div>
+                        <span className="font-medium text-muted-foreground">
+                          Model:{" "}
+                        </span>
+                        <span className="text-muted-foreground line-through mr-1">
+                          {getModelLabel(previousGeneration?.model)}
+                        </span>
+                        →{" "}
+                        <span className="font-semibold text-primary">
+                          {getModelLabel(generation.model)}
+                        </span>
                       </div>
                     )}
+                    {showDiff &&
+                      previousGeneration?.imageCount != null &&
+                      generation.imageCount != null &&
+                      generation.imageCount !==
+                        previousGeneration.imageCount && (
+                        <div>
+                          <span className="font-medium text-muted-foreground">
+                            Image count:{" "}
+                          </span>
+                          <span className="text-muted-foreground line-through mr-1">
+                            {previousGeneration.imageCount}
+                          </span>
+                          →{" "}
+                          <span className="font-semibold text-primary">
+                            {generation.imageCount}
+                          </span>
+                        </div>
+                      )}
+                    {showDiff &&
+                      previousGeneration?.jobType != null &&
+                      generation.jobType != null &&
+                      generation.jobType !== previousGeneration.jobType && (
+                        <div>
+                          <span className="font-medium text-muted-foreground">
+                            Type:{" "}
+                          </span>
+                          <span className="text-muted-foreground line-through mr-1">
+                            {previousGeneration.jobType}
+                          </span>
+                          →{" "}
+                          <span className="font-semibold text-primary">
+                            {generation.jobType}
+                          </span>
+                        </div>
+                      )}
                     {attrDiff ? (
                       <div className="space-y-0.5">
                         {attrDiff.map((d) => (
@@ -558,14 +642,66 @@ function GenerationGroup({
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      !promptChanged &&
-                      !modelChanged && (
-                        <div className="text-muted-foreground/60 italic">
-                          No attribute changes
+                    ) : null}
+                    {/* Text layer diff */}
+                    {(() => {
+                      const prevLayers = asTextLayerSnapshot(
+                        previousGeneration?.textLayerSnapshot
+                      );
+                      const curLayers = textLayers;
+                      if (!prevLayers && !curLayers) return null;
+                      const prevTexts = (prevLayers ?? []).map(
+                        (l) => l.text || l.name
+                      );
+                      const curTexts = (curLayers ?? []).map(
+                        (l) => l.text || l.name
+                      );
+                      const prevStr = prevTexts.join(", ");
+                      const curStr = curTexts.join(", ");
+                      if (prevStr === curStr) return null;
+                      return (
+                        <div>
+                          <span className="font-medium text-muted-foreground">
+                            Text layers:{" "}
+                          </span>
+                          {prevTexts.length > 0 && (
+                            <span className="text-muted-foreground line-through mr-1">
+                              {prevTexts
+                                .map((t) => `"${t}"`)
+                                .join(", ")}
+                            </span>
+                          )}
+                          {curTexts.length > 0 && (
+                            <>
+                              {prevTexts.length > 0 && "→ "}
+                              <span className="font-semibold text-primary">
+                                {curTexts
+                                  .map((t) => `"${t}"`)
+                                  .join(", ")}
+                              </span>
+                            </>
+                          )}
                         </div>
-                      )
-                    )}
+                      );
+                    })()}
+                    {!promptChanged &&
+                      !modelChanged &&
+                      !attrDiff &&
+                      !(
+                        previousGeneration?.imageCount != null &&
+                        generation.imageCount != null &&
+                        generation.imageCount !==
+                          previousGeneration.imageCount
+                      ) &&
+                      !(
+                        previousGeneration?.jobType != null &&
+                        generation.jobType != null &&
+                        generation.jobType !== previousGeneration.jobType
+                      ) && (
+                        <div className="text-muted-foreground/60 italic">
+                          No changes
+                        </div>
+                      )}
                   </div>
                 )}
               </div>
