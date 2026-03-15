@@ -11,8 +11,8 @@ import {
   JOB_TYPE_ICON,
   getModelLabel,
   formatRelativeTime,
-  asAttributeSnapshot,
 } from "./generation-history";
+import { asAttributeSnapshot } from "./types";
 import { formatAttributes } from "@/lib/attributes";
 
 interface GenerationQueueProps {

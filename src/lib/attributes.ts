@@ -207,31 +207,6 @@ export function buildDefaultConfig(): AttributeConfigJson {
   };
 }
 
-/** Merge new built-in values into an existing user config. */
-export function mergeWithDefaults(
-  userConfig: AttributeConfigJson
-): AttributeConfigJson {
-  const defaults = buildDefaultConfig();
-  const merged = { ...userConfig, categories: [...userConfig.categories] };
-
-  for (const defaultCat of defaults.categories) {
-    const existing = merged.categories.find((c) => c.id === defaultCat.id);
-    if (!existing) {
-      // New built-in category added since user created their config
-      merged.categories.push(defaultCat);
-    } else {
-      // Merge any new built-in values
-      for (const dv of defaultCat.values) {
-        if (!existing.values.some((v) => v.value === dv.value)) {
-          existing.values.push(dv);
-        }
-      }
-    }
-  }
-
-  return merged;
-}
-
 /** Get the visual rule string for a given attribute value. */
 export function getVisualRule(
   config: AttributeConfigJson,

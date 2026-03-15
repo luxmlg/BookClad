@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode, CanvasState } from "./cover-canvas";
-import { getDefaultCanvasState, migrateCanvasState, CANVAS_WIDTH, CANVAS_HEIGHT, SCALE } from "./cover-canvas";
+import { getDefaultCanvasState, parseCanvasState, CANVAS_WIDTH, CANVAS_HEIGHT, SCALE } from "./cover-canvas";
 import { KDP } from "@/lib/constants";
 import { ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
@@ -55,12 +55,11 @@ export function EditorShell({ project }: { project: Project }) {
   const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number; width: number; minTop: number; maxBottom: number } | null>(null);
 
   const initialCanvas = useMemo(() => {
-    const migrated = migrateCanvasState(project.canvasState);
-    if (migrated?.nodes?.length) return migrated;
+    const parsed = parseCanvasState(project.canvasState);
+    if (parsed?.nodes?.length) return parsed;
     return getDefaultCanvasState(project.title, project.author);
   }, [project.canvasState, project.title, project.author]);
 
-  const replacedFontWarningShown = useRef(false);
   const [nodes, setNodesRaw] = useState<CanvasNode[]>(initialCanvas.nodes);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
@@ -279,10 +278,10 @@ export function EditorShell({ project }: { project: Project }) {
 
     const img = allImages.find(i => i.id === imageId);
     if (img?.canvasState) {
-      const migrated = migrateCanvasState(img.canvasState);
-      if (migrated?.nodes?.length) {
-        layersCacheRef.current.set(imageId, migrated.nodes);
-        return migrated.nodes;
+      const parsed = parseCanvasState(img.canvasState);
+      if (parsed?.nodes?.length) {
+        layersCacheRef.current.set(imageId, parsed.nodes);
+        return parsed.nodes;
       }
     }
 
@@ -309,53 +308,11 @@ export function EditorShell({ project }: { project: Project }) {
   useEffect(() => {
     for (const img of allImages) {
       if (img.canvasState && !layersCacheRef.current.has(img.id)) {
-        const migrated = migrateCanvasState(img.canvasState);
-        if (migrated?.nodes?.length) {
-          layersCacheRef.current.set(img.id, migrated.nodes);
+        const parsed = parseCanvasState(img.canvasState);
+        if (parsed?.nodes?.length) {
+          layersCacheRef.current.set(img.id, parsed.nodes);
         }
       }
-    }
-
-    // Strip replacedFont flags from all layers and persist cleaned state
-    const replacedFonts = new Set<string>();
-    const collectReplacedFonts = (nodes: CanvasNode[]) => {
-      for (const n of nodes) {
-        if (n.type === "text" && (n as TextNodeConfig).replacedFont) {
-          replacedFonts.add((n as TextNodeConfig).replacedFont!);
-        }
-      }
-    };
-    const stripReplacedFont = (nodes: CanvasNode[]): CanvasNode[] =>
-      nodes.map(n => {
-        if (n.type === "text" && (n as TextNodeConfig).replacedFont) {
-          const { replacedFont: _, ...rest } = n as TextNodeConfig;
-          return rest as TextNodeConfig;
-        }
-        return n;
-      });
-
-    // Collect from all sources
-    collectReplacedFonts(initialCanvas.nodes);
-    for (const layers of layersCacheRef.current.values()) {
-      collectReplacedFonts(layers);
-    }
-
-    // Clean and persist if any replaced fonts were found
-    if (replacedFonts.size > 0) {
-      for (const [imageId, layers] of layersCacheRef.current.entries()) {
-        const cleaned = stripReplacedFont(layers);
-        layersCacheRef.current.set(imageId, cleaned);
-        fetch(`/api/images/${imageId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ canvasState: { nodes: cleaned } }),
-        }).catch(() => {});
-      }
-      fetch(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canvasState: { nodes: stripReplacedFont(initialCanvas.nodes) } }),
-      }).catch(() => {});
     }
 
     const sel = allImages.find((img) => img.selected);
@@ -369,15 +326,6 @@ export function EditorShell({ project }: { project: Project }) {
       Promise.all(uniqueFonts.map(ensureFontLoaded));
       setSelectedImageId(initialId);
       setNodesRaw(layers);
-    }
-
-    // Show warning once after cleanup (ref guards against StrictMode double-invoke)
-    if (replacedFonts.size > 0 && !replacedFontWarningShown.current) {
-      replacedFontWarningShown.current = true;
-      const fontNames = [...replacedFonts].join(", ");
-      toast.warning(
-        `Some text layers used fonts that are no longer available (${fontNames}). They have been set to the default font.`
-      );
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

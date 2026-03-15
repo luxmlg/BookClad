@@ -22,7 +22,7 @@ function replaceFontInCanvasState(canvasState: any, oldFamily: string, newFamily
   const nodes = canvasState.nodes.map((node: Record<string, unknown>) => {
     if (node.type === "text" && node.fontFamily === oldFamily) {
       changed = true;
-      return { ...node, fontFamily: newFamily, replacedFont: oldFamily };
+      return { ...node, fontFamily: newFamily };
     }
     return node;
   });

@@ -10,7 +10,6 @@ import {
   Line,
 } from "react-konva";
 import type Konva from "konva";
-import { migrateFont } from "@/lib/fonts";
 import { KDP } from "@/lib/constants";
 
 const CANVAS_SCALE_DIVISOR = 4;
@@ -48,7 +47,6 @@ export interface TextNodeConfig {
   lineHeight?: number;
   textDecoration?: string;
   textTransform?: "none" | "uppercase" | "lowercase";
-  replacedFont?: string;
 }
 
 export interface ImageNodeConfig {
@@ -72,63 +70,10 @@ export interface CanvasState {
   nodes: CanvasNode[];
 }
 
-// ── Legacy types for migration ──────────────────────────
-
-interface LegacyCanvasState {
-  titleNode: TextNodeConfig;
-  authorNode: TextNodeConfig;
-  subtitleNode?: TextNodeConfig;
-}
-
-function migrateTextNode(n: Omit<TextNodeConfig, "type"> & { type?: string }): TextNodeConfig {
-  const migrated = {
-    ...n,
-    type: "text" as const,
-    fontFamily: migrateFont(n.fontFamily),
-  };
-  if (migrated.autoWidth === undefined) {
-    migrated.autoWidth = true;
-    if (migrated.align === "center") migrated.x = migrated.x + migrated.width / 2;
-    else if (migrated.align === "right") migrated.x = migrated.x + migrated.width;
-  }
-  return migrated;
-}
-
-export function migrateCanvasState(raw: unknown): CanvasState | null {
+export function parseCanvasState(raw: unknown): CanvasState | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
-
-  // New format: { nodes: [...] }
-  if (Array.isArray(obj.nodes)) {
-    const nodes = (obj.nodes as CanvasNode[]).map((n) => {
-      if (n.type === "image") return n;
-      return migrateTextNode(n as TextNodeConfig);
-    });
-    return { nodes };
-  }
-
-  // Old format: { textNodes: [...] }
-  if (Array.isArray(obj.textNodes)) {
-    const nodes = (obj.textNodes as TextNodeConfig[]).map((n) => migrateTextNode(n));
-    return { nodes };
-  }
-
-  // Legacy shape: { titleNode, authorNode }
-  if (obj.titleNode && obj.authorNode) {
-    const legacy = obj as unknown as LegacyCanvasState;
-    const idToName: Record<string, string> = { title: "Title", subtitle: "Subtitle", author: "Author" };
-    const withName = (n: TextNodeConfig) => {
-      const migrated = migrateTextNode({
-        ...n,
-        name: n.name ?? idToName[n.id] ?? n.id,
-      });
-      return migrated;
-    };
-    const nodes: CanvasNode[] = [withName(legacy.titleNode), withName(legacy.authorNode)];
-    if (legacy.subtitleNode) nodes.splice(1, 0, withName(legacy.subtitleNode));
-    return { nodes };
-  }
-
+  if (Array.isArray(obj.nodes)) return { nodes: obj.nodes as CanvasNode[] };
   return null;
 }
 

@@ -18,13 +18,6 @@ import {
 } from "@/lib/attributes";
 
 
-export type {
-  GeneratedImage,
-  Generation,
-  AttributeSnapshot,
-  TextLayerSnapshot,
-} from "./types";
-export { asAttributeSnapshot, asTextLayerSnapshot } from "./types";
 import type { Generation } from "./types";
 import { PANEL_MAX_HEIGHT, asAttributeSnapshot, asTextLayerSnapshot } from "./types";
 
@@ -125,10 +118,6 @@ function findParentGenerationIndex(
   }
   return null;
 }
-
-// formatAttributes, computeAttributeDiff, and AttributeDiff are
-// re-exported from @/lib/attributes for backwards compatibility.
-export { formatAttributes, computeAttributeDiff, type AttributeDiff };
 
 export function formatRelativeTime(date: Date): string {
   const diff = Date.now() - date.getTime();

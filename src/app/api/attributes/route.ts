@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { buildDefaultConfig, mergeWithDefaults } from "@/lib/attributes";
+import { buildDefaultConfig } from "@/lib/attributes";
 import { attributeConfigSchema } from "@/lib/attribute-validations";
-import type { AttributeConfigJson } from "@/lib/attributes";
 import type { Prisma } from "@/generated/prisma/client";
 
 export async function GET() {
@@ -22,15 +21,6 @@ export async function GET() {
       record = await prisma.attributeConfig.create({
         data: { userId: session.user.id, config: config as unknown as Prisma.InputJsonValue },
       });
-    } else {
-      // Merge any new built-in values from code updates
-      const merged = mergeWithDefaults(record.config as unknown as AttributeConfigJson);
-      if (JSON.stringify(merged) !== JSON.stringify(record.config)) {
-        record = await prisma.attributeConfig.update({
-          where: { id: record.id },
-          data: { config: merged as unknown as Prisma.InputJsonValue },
-        });
-      }
     }
 
     return NextResponse.json(record.config);

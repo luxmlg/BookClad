@@ -39,23 +39,6 @@ export const FONTS: FontDefinition[] = [
   { family: "Source Code Pro", category: "monospace" },
 ];
 
-const FONT_MIGRATION_MAP: Record<string, string> = {
-  "Georgia, serif": "Playfair Display",
-  "Times New Roman, serif": "Libre Baskerville",
-  "Garamond, serif": "Cormorant Garamond",
-  "Palatino, serif": "Source Serif 4",
-  "Helvetica, sans-serif": "Montserrat",
-  "Arial, sans-serif": "Open Sans",
-  "Futura, sans-serif": "Poppins",
-  "Verdana, sans-serif": "Nunito",
-  "Courier New, monospace": "Roboto Mono",
-  "Impact, sans-serif": "Righteous",
-};
-
-export function migrateFont(fontFamily: string): string {
-  return FONT_MIGRATION_MAP[fontFamily] ?? fontFamily;
-}
-
 // Custom font registry: family → URL (for fonts loaded via FontFace API)
 const customFontUrls = new Map<string, string>();
 
