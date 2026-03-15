@@ -229,9 +229,14 @@ export function EditorShell({ project }: { project: Project }) {
       const newestGen = completedGenerations[0];
       if (newestGen?.images?.length > 0) {
         const layersWereBakedIn = genActions.layerIncludedIdsRef.current.has(newestGen.id);
-        if (!keepLayersRef.current || layersWereBakedIn) {
+        if (!keepLayersRef.current) {
           for (const img of newestGen.images) {
             layersCacheRef.current.set(img.id, []);
+          }
+        } else if (layersWereBakedIn) {
+          const hiddenNodes = nodes.filter(n => !n.visible);
+          for (const img of newestGen.images) {
+            layersCacheRef.current.set(img.id, hiddenNodes);
           }
         }
         if (layersWereBakedIn) {
