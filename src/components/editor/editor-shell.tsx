@@ -121,7 +121,7 @@ export function EditorShell({ project }: { project: Project }) {
   // Generation actions (created first with ref — only reads inpaint in event handlers)
   const genActions = useGenerationActions(
     project.id, project.generations,
-    attributes, textNodes, selectedImageId,
+    attributes, nodes, selectedImageId,
     inpaintRef, router,
   );
 
@@ -132,7 +132,7 @@ export function EditorShell({ project }: { project: Project }) {
     genActions.setActiveTab,
     genActions.setPanelOpen,
     genActions.model,
-    attributes, textNodes, router,
+    attributes, nodes, router,
   );
 
   // Keep inpaint ref in sync

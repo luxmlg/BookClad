@@ -3,7 +3,8 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { TextNodeConfig } from "./canvas-types";
+import type { CanvasNode } from "./canvas-types";
+import { NODE_TYPE } from "./canvas-types";
 import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, DEFAULT_MODEL } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
 import { createGeneration } from "@/lib/api";
@@ -38,7 +39,7 @@ export function useGenerationActions(
   projectId: string,
   projectGenerations: Generation[],
   attributes: AttributeSelection,
-  textNodes: TextNodeConfig[],
+  canvasNodes: CanvasNode[],
   selectedImageId: string | null,
   inpaintRef: React.RefObject<Pick<UseInpaintStateResult, "includeLayers" | "flattenCanvasToDataUrl">>,
   router: ReturnType<typeof useRouter>,
@@ -103,9 +104,11 @@ export function useGenerationActions(
         imageCount,
         model,
         attributeSnapshot: attributes,
-        textLayerSnapshot: textNodes.map((n) => ({
+        textLayerSnapshot: canvasNodes.map((n) => ({
           name: n.name ?? n.id,
-          text: n.text ?? "",
+          text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
+          type: n.type,
+          visible: n.visible,
         })),
       });
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
@@ -130,9 +133,11 @@ export function useGenerationActions(
         referenceImageId: selectedImageId,
         flattenedImageDataUrl,
         attributeSnapshot: attributes,
-        textLayerSnapshot: textNodes.map((n) => ({
+        textLayerSnapshot: canvasNodes.map((n) => ({
           name: n.name ?? n.id,
-          text: n.text ?? "",
+          text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
+          type: n.type,
+          visible: n.visible,
         })),
       });
       setActiveGenerationIds((prev) => [...prev, data.generationId]);

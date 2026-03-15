@@ -41,10 +41,10 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
     current.includeLayers !== target.includeLayers;
 
   const prevLayers = asTextLayerSnapshot(target.textLayerSnapshot);
-  const prevTexts = (prevLayers ?? []).map((l) => l.text || l.name);
-  const curTexts = (curTextLayers ?? []).map((l) => l.text || l.name);
-  const prevStr = prevTexts.join(", ");
-  const curStr = curTexts.join(", ");
+  const layerKey = (l: { name: string; text: string; type?: string; visible?: boolean }): string =>
+    `${l.type ?? "text"}|${l.text || l.name}|${l.visible ?? true}`;
+  const prevStr = (prevLayers ?? []).map(layerKey).join(",");
+  const curStr = (curTextLayers ?? []).map(layerKey).join(",");
   const textLayersChanged =
     (prevLayers || curTextLayers) && prevStr !== curStr;
 
@@ -115,17 +115,27 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
       {textLayersChanged && (
         <div>
           <span className="font-medium text-muted-foreground">
-            Text layers:{" "}
+            Layers:{" "}
           </span>
-          {prevTexts.length > 0 && (
+          {(prevLayers ?? []).length > 0 && (
             <span className="text-muted-foreground mr-1">
-              {prevTexts.map((t) => `"${t}"`).join(", ")}
+              {(prevLayers ?? []).map((l) => {
+                const label = `"${l.text || l.name}"`;
+                const vis = l.visible === false ? " hidden" : "";
+                return l.type ? `${label} (${l.type}${vis})` : label;
+              }).join(", ")}
             </span>
           )}
-          {curTexts.length > 0 && (
+          {(curTextLayers ?? []).length > 0 && (
             <>
-              {prevTexts.length > 0 && "→ "}
-              <span>{curTexts.map((t) => `"${t}"`).join(", ")}</span>
+              {(prevLayers ?? []).length > 0 && "→ "}
+              <span>
+                {(curTextLayers ?? []).map((l) => {
+                  const label = `"${l.text || l.name}"`;
+                  const vis = l.visible === false ? " hidden" : "";
+                  return l.type ? `${label} (${l.type}${vis})` : label;
+                }).join(", ")}
+              </span>
             </>
           )}
         </div>

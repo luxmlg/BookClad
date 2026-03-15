@@ -4,6 +4,8 @@ import api from "./client";
 interface TextLayerEntry {
   name: string;
   text: string;
+  type: string;
+  visible: boolean;
 }
 
 export interface CreateGenerationParams {

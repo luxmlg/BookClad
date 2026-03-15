@@ -18,7 +18,12 @@ export const createProjectSchema = z.object({
 const snapshotFields = {
   attributeSnapshot: attributeSelectionField.optional(),
   textLayerSnapshot: z
-    .array(z.object({ name: z.string(), text: z.string() }))
+    .array(z.object({
+      name: z.string(),
+      text: z.string(),
+      type: z.string().optional(),
+      visible: z.boolean().optional(),
+    }))
     .optional(),
 };
 

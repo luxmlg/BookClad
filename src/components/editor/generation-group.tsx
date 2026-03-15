@@ -322,13 +322,23 @@ export function GenerationGroup({
               </div>
             )}
 
-            {/* Text layers */}
+            {/* Layers */}
             {textLayers && textLayers.length > 0 && (
-              <div className="text-muted-foreground">
-                <span className="font-medium">Layers: </span>
-                {textLayers
-                  .map((l) => `"${l.text || l.name}"`)
-                  .join(", ")}
+              <div className="text-muted-foreground space-x-1">
+                <span className="font-medium">Layers:</span>
+                {textLayers.map((l, i) => (
+                  <span key={i}>
+                    {i > 0 && ", "}
+                    <span className={l.visible === false ? "line-through opacity-50" : ""}>
+                      &quot;{l.text || l.name}&quot;
+                    </span>
+                    {l.type && (
+                      <span className="text-[10px] opacity-60 ml-0.5">
+                        {l.type}
+                      </span>
+                    )}
+                  </span>
+                ))}
               </div>
             )}
 

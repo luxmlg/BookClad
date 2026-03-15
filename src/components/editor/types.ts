@@ -43,7 +43,12 @@ export interface CustomFont {
 }
 
 export type AttributeSnapshot = Record<string, string | string[]>;
-export type TextLayerSnapshot = Array<{ name: string; text: string }>;
+export type TextLayerSnapshot = Array<{
+  name: string;
+  text: string;
+  type: string;
+  visible: boolean;
+}>;
 
 export function asAttributeSnapshot(val: unknown): AttributeSnapshot | null {
   if (val && typeof val === "object" && !Array.isArray(val)) {

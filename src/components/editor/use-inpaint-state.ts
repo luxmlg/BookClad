@@ -4,8 +4,8 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type Konva from "konva";
-import type { TextNodeConfig } from "./canvas-types";
-import { CANVAS_WIDTH } from "./canvas-types";
+import type { CanvasNode } from "./canvas-types";
+import { CANVAS_WIDTH, NODE_TYPE } from "./canvas-types";
 import { KDP } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
 import { createInpaint } from "@/lib/api";
@@ -43,7 +43,7 @@ export function useInpaintState(
   setPanelOpen: React.Dispatch<React.SetStateAction<boolean>>,
   model: string,
   attributes: AttributeSelection,
-  textNodes: TextNodeConfig[],
+  canvasNodes: CanvasNode[],
   router: ReturnType<typeof useRouter>,
 ): UseInpaintStateResult {
   const [brushMode, setBrushMode] = useState(false);
@@ -108,9 +108,11 @@ export function useInpaintState(
         model,
         flattenedImageDataUrl,
         attributeSnapshot: attributes,
-        textLayerSnapshot: textNodes.map((n) => ({
+        textLayerSnapshot: canvasNodes.map((n) => ({
           name: n.name ?? n.id,
-          text: n.text ?? "",
+          text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
+          type: n.type,
+          visible: n.visible,
         })),
       });
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
