@@ -14,7 +14,12 @@ import type {
   AttributeConfigJson,
   AttributeSelection,
 } from "@/lib/attributes";
-import { buildDefaultConfig, buildDefaultSelection } from "@/lib/attributes";
+import {
+  buildDefaultConfig,
+  buildDefaultSelection,
+  getDefaultValue,
+  addValueToCategory,
+} from "@/lib/attributes";
 
 const STEPS = [
   { label: "Book Info", icon: BookText },
@@ -57,19 +62,8 @@ export function BriefWizard() {
   );
 
   function addCustomValue(categoryId: string, value: string, label: string) {
-    const updated = {
-      ...attributeConfig,
-      categories: attributeConfig.categories.map((c) =>
-        c.id === categoryId
-          ? {
-              ...c,
-              values: [...c.values, { value, label, builtIn: false }],
-            }
-          : c
-      ),
-    };
+    const updated = addValueToCategory(attributeConfig, categoryId, value, label);
     setAttributeConfig(updated);
-    // Persist to server
     fetch("/api/attributes", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -239,7 +233,7 @@ export function BriefWizard() {
                   category={category}
                   value={
                     attributes[category.id] ??
-                    (category.type === "multi" ? [] : "")
+                    getDefaultValue(category.type, category.values[0]?.value)
                   }
                   onChange={(v) =>
                     setAttributes({ ...attributes, [category.id]: v })

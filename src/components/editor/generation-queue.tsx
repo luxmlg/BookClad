@@ -10,9 +10,9 @@ import {
   JOB_TYPE_ICON,
   getModelLabel,
   formatRelativeTime,
-  formatAttributes,
   asAttributeSnapshot,
 } from "./generation-history";
+import { formatAttributes } from "@/lib/attributes";
 
 interface QueueGeneration {
   id: string;

@@ -32,7 +32,10 @@ interface ProjectBrief {
 }
 
 function formatAttrValue(val: string | string[]): string {
-  return Array.isArray(val) ? val.join(", ") : val;
+  if (Array.isArray(val)) return val.join(", ");
+  if (val === "true") return "yes";
+  if (val === "false") return "no";
+  return val;
 }
 
 function categoryLabel(key: string): string {

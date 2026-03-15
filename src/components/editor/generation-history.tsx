@@ -11,6 +11,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { AI_MODELS } from "@/lib/constants";
+import {
+  formatAttributes,
+  computeAttributeDiff,
+  type AttributeDiff,
+} from "@/lib/attributes";
 
 
 interface GeneratedImage {
@@ -150,69 +155,9 @@ function findParentGenerationIndex(
   return null;
 }
 
-export function formatAttributes(
-  snapshot: Record<string, string | string[]>
-): string {
-  return Object.entries(snapshot)
-    .map(([key, val]) => {
-      const label = key.charAt(0).toUpperCase() + key.slice(1);
-      const value = Array.isArray(val) ? val.join(", ") : val;
-      return `${label}: ${value}`;
-    })
-    .join(" · ");
-}
-
-interface AttributeDiff {
-  key: string;
-  label: string;
-  added: string[];
-  removed: string[];
-  kept: string[];
-}
-
-function computeAttributeDiff(
-  current: Record<string, string | string[]> | null | undefined,
-  previous: Record<string, string | string[]> | null | undefined
-): AttributeDiff[] | null {
-  if (!current || !previous) return null;
-
-  const allKeys = new Set([...Object.keys(current), ...Object.keys(previous)]);
-  const diffs: AttributeDiff[] = [];
-
-  for (const key of allKeys) {
-    const curVal = current[key];
-    const prevVal = previous[key];
-    const curArr = curVal
-      ? Array.isArray(curVal)
-        ? curVal
-        : [curVal]
-      : [];
-    const prevArr = prevVal
-      ? Array.isArray(prevVal)
-        ? prevVal
-        : [prevVal]
-      : [];
-
-    const curSet = new Set(curArr);
-    const prevSet = new Set(prevArr);
-
-    const added = curArr.filter((v) => !prevSet.has(v));
-    const removed = prevArr.filter((v) => !curSet.has(v));
-    const kept = curArr.filter((v) => prevSet.has(v));
-
-    if (added.length > 0 || removed.length > 0) {
-      diffs.push({
-        key,
-        label: key.charAt(0).toUpperCase() + key.slice(1),
-        added,
-        removed,
-        kept,
-      });
-    }
-  }
-
-  return diffs.length > 0 ? diffs : null;
-}
+// formatAttributes, computeAttributeDiff, and AttributeDiff are
+// re-exported from @/lib/attributes for backwards compatibility.
+export { formatAttributes, computeAttributeDiff, type AttributeDiff };
 
 export function formatRelativeTime(date: Date): string {
   const diff = Date.now() - date.getTime();

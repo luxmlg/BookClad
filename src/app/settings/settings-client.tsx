@@ -38,12 +38,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type {
-  AttributeConfigJson,
-  AttributeCategory,
-  AttributeSelection,
+import {
+  buildDefaultConfig,
+  slugify,
+  addValueToCategory,
+  removeValueFromCategory,
+  type AttributeConfigJson,
+  type AttributeCategory,
+  type AttributeSelection,
 } from "@/lib/attributes";
-import { buildDefaultConfig } from "@/lib/attributes";
 import { FONTS_BY_CATEGORY, loadCustomFont } from "@/lib/fonts";
 
 interface StylePreset {
@@ -163,7 +166,7 @@ function CategoriesTab({
 }) {
   const [addingCategory, setAddingCategory] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<"single" | "multi" | "text">("single");
+  const [newType, setNewType] = useState<AttributeCategory["type"]>("single");
 
   function toggleCategory(categoryId: string, enabled: boolean) {
     onSave({
@@ -175,37 +178,17 @@ function CategoriesTab({
   }
 
   function addValue(categoryId: string, value: string, label: string) {
-    onSave({
-      ...config,
-      categories: config.categories.map((c) =>
-        c.id === categoryId
-          ? {
-              ...c,
-              values: [...c.values, { value, label, builtIn: false }],
-            }
-          : c
-      ),
-    });
+    onSave(addValueToCategory(config, categoryId, value, label));
   }
 
   function removeValue(categoryId: string, value: string) {
-    onSave({
-      ...config,
-      categories: config.categories.map((c) =>
-        c.id === categoryId
-          ? { ...c, values: c.values.filter((v) => v.value !== value) }
-          : c
-      ),
-    });
+    onSave(removeValueFromCategory(config, categoryId, value));
   }
 
   function addCategory() {
     const name = newName.trim();
     if (!name) return;
-    const id = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+    const id = slugify(name);
 
     onSave({
       ...config,
@@ -260,28 +243,19 @@ function CategoriesTab({
                 if (e.key === "Escape") setAddingCategory(false);
               }}
             />
-            <div className="flex gap-2">
-              <Button
-                variant={newType === "single" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setNewType("single")}
-              >
-                Single select
-              </Button>
-              <Button
-                variant={newType === "multi" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setNewType("multi")}
-              >
-                Multi select
-              </Button>
-              <Button
-                variant={newType === "text" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setNewType("text")}
-              >
-                Text
-              </Button>
+            <div className="flex flex-wrap gap-2">
+              {(
+                ["single", "multi", "text", "toggle", "scale", "color"] as const
+              ).map((t) => (
+                <Button
+                  key={t}
+                  variant={newType === t ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setNewType(t)}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </Button>
+              ))}
             </div>
             <div className="flex gap-2">
               <Button size="sm" onClick={addCategory}>
@@ -331,10 +305,7 @@ function CategoryCard({
   function handleAddValue() {
     const label = newValue.trim();
     if (!label) return;
-    const slug = label
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+    const slug = slugify(label);
     onAddValue(slug, label);
     setNewValue("");
     setAddingValue(false);
@@ -351,7 +322,7 @@ function CategoryCard({
               />
               <CardTitle className="text-base">{category.name}</CardTitle>
               <Badge variant="secondary" className="text-xs">
-                {category.type === "single" ? "Single" : category.type === "multi" ? "Multi" : "Text"}
+                {category.type.charAt(0).toUpperCase() + category.type.slice(1)}
               </Badge>
               <span className="text-xs text-muted-foreground">
                 {category.values.length} values

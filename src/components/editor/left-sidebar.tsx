@@ -1,46 +1,22 @@
 "use client";
 
 import type React from "react";
-import { useRef, useState } from "react";
-import {
-  Save,
-  Loader2,
-  PlusIcon,
-  XIcon,
-  BookmarkIcon,
-} from "lucide-react";
+import { useState } from "react";
+import { Save, Loader2, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { SelectWithAction } from "@/components/ui/select-with-action";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
-import type {
-  AttributeConfigJson,
-  AttributeSelection,
-  AttributeCategory,
+  getDefaultValue,
+  addValueToCategory,
+  removeValueFromCategory,
+  type AttributeConfigJson,
+  type AttributeSelection,
+  type AttributeCategory,
 } from "@/lib/attributes";
 import { AttributeCategoryInput } from "./attribute-category-input";
-
-interface StylePreset {
-  id: string;
-  name: string;
-  attributes: AttributeSelection;
-}
+import { PresetPicker, type StylePreset } from "./preset-picker";
+import { AddCategoryForm } from "./add-category-form";
 
 interface LeftSidebarProps {
   attributeConfig: AttributeConfigJson;
@@ -73,17 +49,6 @@ export function LeftSidebar({
   saving,
   onSave,
 }: LeftSidebarProps) {
-  const [addingCategory, setAddingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryType, setNewCategoryType] = useState<
-    "single" | "multi" | "text"
-  >("single");
-  const [duplicateError, setDuplicateError] = useState("");
-  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
-  const [presetName, setPresetName] = useState("");
-  const [previewPreset, setPreviewPreset] = useState<StylePreset | null>(null);
-  const presetAnchorRef = useRef<HTMLDivElement>(null);
-
   // Drag-and-drop state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -94,12 +59,12 @@ export function LeftSidebar({
     | { kind: "brief" };
 
   const enabledCategories = attributeConfig.categories.filter(
-    (c) => c.enabled
+    (c) => c.enabled,
   );
   const briefPos = Math.min(
     attributeConfig.briefPosition ??
       enabledCategories.filter((c) => c.builtIn).length,
-    enabledCategories.length
+    enabledCategories.length,
   );
   const sidebarItems: SidebarItem[] = [
     ...enabledCategories
@@ -117,73 +82,40 @@ export function LeftSidebar({
   }
 
   function addCustomValue(categoryId: string, value: string, label: string) {
-    const updated = {
-      ...attributeConfig,
-      categories: attributeConfig.categories.map((c) =>
-        c.id === categoryId
-          ? {
-              ...c,
-              values: [
-                ...c.values,
-                { value, label, builtIn: false },
-              ],
-            }
-          : c
-      ),
-    };
-    onConfigChange(updated);
+    onConfigChange(
+      addValueToCategory(attributeConfig, categoryId, value, label),
+    );
   }
 
   function removeCustomValue(categoryId: string, value: string) {
-    const updated = {
-      ...attributeConfig,
-      categories: attributeConfig.categories.map((c) =>
-        c.id === categoryId
-          ? {
-              ...c,
-              values: c.values.filter((v) => v.value !== value || v.builtIn),
-            }
-          : c
-      ),
-    };
-    onConfigChange(updated);
+    onConfigChange(
+      removeValueFromCategory(attributeConfig, categoryId, value),
+    );
   }
 
-  function addCategory() {
-    const name = newCategoryName.trim();
-    if (!name) return;
-    const id = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-
-    if (attributeConfig.categories.some((c) => c.id === id)) {
-      setDuplicateError(`A category named "${name}" already exists`);
-      return;
-    }
-
-    const newCat: AttributeCategory = {
-      id,
-      name,
-      type: newCategoryType,
-      builtIn: false,
-      enabled: true,
-      values: [],
-    };
-
+  function removeCategory(categoryId: string) {
     onConfigChange({
       ...attributeConfig,
-      categories: [...attributeConfig.categories, newCat],
+      categories: attributeConfig.categories.filter(
+        (c) => c.id !== categoryId,
+      ),
     });
-    setAttributes({
-      ...attributes,
-      [id]: newCategoryType === "multi" ? [] : "",
-    });
-    setNewCategoryType("single");
-    setNewCategoryName("");
-    setDuplicateError("");
-    setAddingCategory(false);
+    const { [categoryId]: _removed, ...rest } = attributes;
+    setAttributes(rest);
   }
+
+  function handleAddCategory(
+    category: AttributeCategory,
+    defaultValue: string | string[],
+  ) {
+    onConfigChange({
+      ...attributeConfig,
+      categories: [...attributeConfig.categories, category],
+    });
+    setAttributes({ ...attributes, [category.id]: defaultValue });
+  }
+
+  // ── Drag-and-drop handlers ──────────────────────────────────────
 
   function handleItemDragStart(e: React.DragEvent, index: number) {
     setDraggedIndex(index);
@@ -209,7 +141,6 @@ export function LeftSidebar({
     const [moved] = newItems.splice(draggedIndex, 1);
     newItems.splice(toIndex, 0, moved);
 
-    // Extract new category order and brief position
     const orderedCatIds: string[] = [];
     let newBriefPos = 0;
     for (const item of newItems) {
@@ -222,7 +153,7 @@ export function LeftSidebar({
 
     const reorderedCategories = [
       ...orderedCatIds.map(
-        (id) => attributeConfig.categories.find((c) => c.id === id)!
+        (id) => attributeConfig.categories.find((c) => c.id === id)!,
       ),
       ...attributeConfig.categories.filter((c) => !c.enabled),
     ];
@@ -242,17 +173,7 @@ export function LeftSidebar({
     setDragOverIndex(null);
   }
 
-  function removeCategory(categoryId: string) {
-    const updated = {
-      ...attributeConfig,
-      categories: attributeConfig.categories.filter(
-        (c) => c.id !== categoryId
-      ),
-    };
-    onConfigChange(updated);
-    const { [categoryId]: _removed, ...rest } = attributes;
-    setAttributes(rest);
-  }
+  // ── Render ──────────────────────────────────────────────────────
 
   return (
     <div className="flex h-full flex-col">
@@ -276,74 +197,14 @@ export function LeftSidebar({
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
         <div className="space-y-4 p-4">
-          {/* Presets */}
-          <div className="space-y-2">
-            <Label>Style Preset</Label>
-            <div ref={presetAnchorRef}>
-              <SelectWithAction
-                icon={<BookmarkIcon className="size-3.5" />}
-                onClick={() => setPresetDialogOpen(true)}
-                title="Save current attributes as preset"
-              >
-                <Select
-                  value={previewPreset?.id ?? activePresetId ?? null}
-                  onValueChange={(v) => {
-                    if (!v) return;
-                    const preset = presets.find((p) => p.id === v);
-                    if (preset) setPreviewPreset(preset);
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Apply a preset...">
-                      {(value: string | null) => {
-                        if (!value) return "Apply a preset...";
-                        return presets.find((p) => p.id === value)?.name ?? value;
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {presets.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </SelectWithAction>
-            </div>
-          </div>
-
-          {/* Floating preview popover */}
-          <PopoverPrimitive.Root
-            open={!!previewPreset}
-            onOpenChange={(open) => {
-              if (!open) setPreviewPreset(null);
-            }}
-          >
-            <PopoverPrimitive.Portal>
-              <PopoverPrimitive.Positioner
-                anchor={presetAnchorRef}
-                side="right"
-                sideOffset={8}
-                align="start"
-              >
-                <PopoverPrimitive.Popup className="z-50 w-64 rounded-lg border bg-popover p-3 shadow-md">
-                  {previewPreset && (
-                    <PresetPreview
-                      current={attributes}
-                      preset={previewPreset}
-                      categories={attributeConfig.categories}
-                      onApply={() => {
-                        onApplyPreset(previewPreset);
-                        setPreviewPreset(null);
-                      }}
-                      onCancel={() => setPreviewPreset(null)}
-                    />
-                  )}
-                </PopoverPrimitive.Popup>
-              </PopoverPrimitive.Positioner>
-            </PopoverPrimitive.Portal>
-          </PopoverPrimitive.Root>
+          <PresetPicker
+            presets={presets}
+            activePresetId={activePresetId}
+            currentAttributes={attributes}
+            categories={attributeConfig.categories}
+            onSavePreset={onSavePreset}
+            onApplyPreset={onApplyPreset}
+          />
 
           {/* Draggable items: categories + brief */}
           {sidebarItems.map((item, index) => {
@@ -382,11 +243,10 @@ export function LeftSidebar({
                       category={item.category}
                       value={
                         attributes[item.category.id] ??
-                        (item.category.type === "text"
-                          ? ""
-                          : item.category.type === "multi"
-                            ? []
-                            : "")
+                        getDefaultValue(
+                          item.category.type,
+                          item.category.values[0]?.value,
+                        )
                       }
                       onChange={(v) =>
                         updateAttribute(item.category.id, v)
@@ -402,9 +262,7 @@ export function LeftSidebar({
                       <button
                         type="button"
                         className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
-                        onClick={() =>
-                          removeCategory(item.category.id)
-                        }
+                        onClick={() => removeCategory(item.category.id)}
                       >
                         <XIcon className="size-3" />
                       </button>
@@ -415,222 +273,11 @@ export function LeftSidebar({
             );
           })}
 
-          {/* Add category */}
-          {addingCategory ? (
-            <div className="space-y-2 rounded-lg border border-dashed p-3">
-              <Input
-                value={newCategoryName}
-                onChange={(e) => {
-                  setNewCategoryName(e.target.value);
-                  setDuplicateError("");
-                }}
-                placeholder="Attribute name..."
-                className="h-7 text-sm"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") addCategory();
-                  if (e.key === "Escape") setAddingCategory(false);
-                }}
-              />
-              {duplicateError && (
-                <p className="text-xs text-destructive">{duplicateError}</p>
-              )}
-              <div className="flex gap-2">
-                <Button
-                  variant={
-                    newCategoryType === "single" ? "default" : "outline"
-                  }
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={() => setNewCategoryType("single")}
-                >
-                  Single
-                </Button>
-                <Button
-                  variant={
-                    newCategoryType === "multi" ? "default" : "outline"
-                  }
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={() => setNewCategoryType("multi")}
-                >
-                  Multi
-                </Button>
-                <Button
-                  variant={
-                    newCategoryType === "text" ? "default" : "outline"
-                  }
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={() => setNewCategoryType("text")}
-                >
-                  Text
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" className="h-6 text-xs" onClick={addCategory}>
-                  Add
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={() => setAddingCategory(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full gap-1.5 text-xs"
-              onClick={() => setAddingCategory(true)}
-            >
-              <PlusIcon className="size-3.5" />
-              Add Attribute
-            </Button>
-          )}
-
+          <AddCategoryForm
+            existingCategoryIds={attributeConfig.categories.map((c) => c.id)}
+            onAddCategory={handleAddCategory}
+          />
         </div>
-      </div>
-
-      {/* Save Preset Dialog */}
-      <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Save Style Preset</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label>Preset Name</Label>
-            <Input
-              value={presetName}
-              onChange={(e) => setPresetName(e.target.value)}
-              placeholder="e.g., Dark Sci-Fi Noir"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && presetName.trim()) {
-                  onSavePreset(presetName.trim());
-                  setPresetName("");
-                  setPresetDialogOpen(false);
-                }
-              }}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPresetDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={!presetName.trim()}
-              onClick={() => {
-                onSavePreset(presetName.trim());
-                setPresetName("");
-                setPresetDialogOpen(false);
-              }}
-            >
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function PresetPreview({
-  current,
-  preset,
-  categories,
-  onApply,
-  onCancel,
-}: {
-  current: AttributeSelection;
-  preset: StylePreset;
-  categories: AttributeCategory[];
-  onApply: () => void;
-  onCancel: () => void;
-}) {
-  // Collect all category ids from both current and preset
-  const allKeys = new Set([
-    ...Object.keys(current),
-    ...Object.keys(preset.attributes),
-  ]);
-
-  const diffs: Array<{
-    label: string;
-    removed: string[];
-    added: string[];
-    kept: string[];
-  }> = [];
-
-  for (const key of allKeys) {
-    const cat = categories.find((c) => c.id === key);
-    if (!cat) continue;
-
-    const resolve = (v: string) =>
-      cat.values.find((cv) => cv.value === v)?.label ?? v;
-    const toArr = (val: string | string[] | undefined): string[] => {
-      if (val === undefined || val === "") return [];
-      return Array.isArray(val) ? val : [val];
-    };
-
-    const currentArr = toArr(current[key]);
-    const presetArr = toArr(preset.attributes[key]);
-    const currentSet = new Set(currentArr);
-    const presetSet = new Set(presetArr);
-
-    const removed = currentArr.filter((v) => !presetSet.has(v)).map(resolve);
-    const added = presetArr.filter((v) => !currentSet.has(v)).map(resolve);
-    const kept = currentArr.filter((v) => presetSet.has(v)).map(resolve);
-
-    if (removed.length > 0 || added.length > 0) {
-      diffs.push({ label: cat.name, removed, added, kept });
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      {diffs.length > 0 ? (
-        <div className="space-y-1.5">
-          {diffs.map((d) => (
-            <div key={d.label} className="text-xs">
-              <span className="font-medium text-muted-foreground">
-                {d.label}:
-              </span>{" "}
-              {[
-                ...d.added.map((v) => (
-                  <span key={`a-${v}`} className="font-semibold text-primary">{v}</span>
-                )),
-                ...d.kept.map((v) => (
-                  <span key={`k-${v}`} className="text-foreground">{v}</span>
-                )),
-                ...d.removed.map((v) => (
-                  <span key={`r-${v}`} className="text-muted-foreground line-through">{v}</span>
-                )),
-              ].reduce<React.ReactNode[]>((acc, el, i) => {
-                if (i > 0) acc.push(<span key={`sep-${i}`}>, </span>);
-                acc.push(el);
-                return acc;
-              }, [])}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          No changes — attributes already match
-        </p>
-      )}
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button size="sm" className="h-7 text-xs" onClick={onApply} disabled={diffs.length === 0}>
-          Apply Preset
-        </Button>
       </div>
     </div>
   );

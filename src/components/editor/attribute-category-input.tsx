@@ -6,8 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import type { AttributeCategory } from "@/lib/attributes";
+import { slugify, getDefaultValue, type AttributeCategory } from "@/lib/attributes";
 
 interface AttributeCategoryInputProps {
   category: AttributeCategory;
@@ -24,6 +26,67 @@ export function AttributeCategoryInput({
   onAddCustomValue,
   onRemoveCustomValue,
 }: AttributeCategoryInputProps) {
+  if (category.type === "toggle") {
+    return (
+      <div className="flex items-center justify-between">
+        <Label>{category.name}</Label>
+        <Switch
+          checked={value === "true"}
+          onCheckedChange={(c) => onChange(c ? "true" : "false")}
+        />
+      </div>
+    );
+  }
+
+  if (category.type === "scale") {
+    const num = parseInt(value as string, 10) || 5;
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label>{category.name}</Label>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {num}/10
+          </span>
+        </div>
+        <Slider
+          min={0}
+          max={10}
+          step={1}
+          value={[num]}
+          onValueChange={(vals) => onChange(String(Array.isArray(vals) ? vals[0] : vals))}
+        />
+        {category.scaleLabels && (
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>{category.scaleLabels.min}</span>
+            <span>{category.scaleLabels.max}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (category.type === "color") {
+    return (
+      <div className="space-y-1.5">
+        <Label>{category.name}</Label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={(value as string) || (getDefaultValue("color") as string)}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-8 w-8 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
+          />
+          <Input
+            value={(value as string) || (getDefaultValue("color") as string)}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-8 font-mono text-xs"
+            placeholder="#000000"
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (category.type === "text") {
     return (
       <div className="space-y-1.5">
@@ -87,10 +150,7 @@ function SingleSelect({
         onCreateOption={
           onAddCustomValue
             ? (label) => {
-                const slug = label
-                  .toLowerCase()
-                  .replace(/[^a-z0-9]+/g, "-")
-                  .replace(/^-|-$/g, "");
+                const slug = slugify(label);
                 onAddCustomValue(slug, label);
                 onChange(slug);
               }
@@ -128,10 +188,7 @@ function MultiSelect({
   function addCustom() {
     const label = customInput.trim();
     if (!label) return;
-    const slug = label
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+    const slug = slugify(label);
     if (category.values.some((v) => v.value === slug)) {
       // Already exists, just select it
       if (!value.includes(slug)) {
