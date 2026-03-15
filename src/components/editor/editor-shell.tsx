@@ -114,6 +114,20 @@ export function EditorShell({ project }: { project: Project }) {
   const replacedFontWarningShown = useRef(false);
   const [nodes, setNodesRaw] = useState<CanvasNode[]>(initialCanvas.nodes);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  // Escape key to deselect
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && selectedNodeId) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        setSelectedNodeId(null);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedNodeId]);
+
   const [attributes, setAttributes] = useState<AttributeSelection>(
     (project.attributes as AttributeSelection | null) ?? {}
   );
@@ -1052,7 +1066,12 @@ export function EditorShell({ project }: { project: Project }) {
 
       {/* Center: canvas + generation history */}
       <div className="flex flex-1 flex-col overflow-hidden bg-muted/20">
-        <div className="flex flex-1 items-center justify-center overflow-auto scrollbar-hide p-4">
+        <div
+          className="flex flex-1 items-center justify-center overflow-auto scrollbar-hide p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedNodeId(null);
+          }}
+        >
           {/* Canvas + preview wrapper */}
           <div className="relative shrink-0">
           {/* Canvas */}
