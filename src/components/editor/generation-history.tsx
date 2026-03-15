@@ -10,6 +10,7 @@ interface GenerationHistoryProps {
   imageUrls: Record<string, string>;
   selectedImageId: string | null;
   onSelect: (id: string) => void;
+  showPrompt: boolean;
 }
 
 export function GenerationHistory({
@@ -17,6 +18,7 @@ export function GenerationHistory({
   imageUrls,
   selectedImageId,
   onSelect,
+  showPrompt,
 }: GenerationHistoryProps) {
   const expandSeqRef = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +73,7 @@ export function GenerationHistory({
             onNameChange={handleNameChange}
             getDisplayName={getDisplayName}
             scrollContainerRef={scrollContainerRef}
+            showPrompt={showPrompt}
           />
         ))}
       </div>

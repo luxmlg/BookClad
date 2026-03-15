@@ -10,6 +10,7 @@ export interface Preset {
 
 export interface UserPreferences {
   defaultFont?: string;
+  showPrompt?: boolean;
 }
 
 export async function getAttributeConfig(): Promise<AttributeConfigJson> {

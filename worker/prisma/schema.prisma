@@ -120,6 +120,7 @@ model Generation {
   projectId         String
   name              String?
   prompt            String    @db.Text
+  userPrompt        String?   @db.Text
   status            JobStatus @default(QUEUED)
   cost              Float?
   imageCount        Int       @default(4)
@@ -127,6 +128,7 @@ model Generation {
   jobType           String    @default("generate")
   model             String    @default("openai")
   parentImageId     String?
+  includeLayers     Boolean   @default(false)
   attributeSnapshot Json?
   textLayerSnapshot Json?
 

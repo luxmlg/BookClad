@@ -89,6 +89,7 @@ interface EditorCenterPanelProps {
   allActiveIds: string[];
   activeGenerations: Generation[];
   handleGenerationComplete: (generationId: string) => void;
+  showPrompt: boolean;
 }
 
 export function EditorCenterPanel({
@@ -133,6 +134,7 @@ export function EditorCenterPanel({
   allActiveIds,
   activeGenerations,
   handleGenerationComplete,
+  showPrompt,
 }: EditorCenterPanelProps) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-muted/20">
@@ -288,6 +290,7 @@ export function EditorCenterPanel({
               imageUrls={imageUrls}
               selectedImageId={selectedImageId}
               onSelect={selectImage}
+              showPrompt={showPrompt}
             />
           </div>
           <div className={activeTab !== 1 ? "hidden" : undefined}>

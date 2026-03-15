@@ -8,16 +8,24 @@ import { getModelLabel } from "./generation-helpers";
 interface DiffDisplayProps {
   current: Generation;
   target: Generation;
+  showPrompt: boolean;
 }
 
-export function DiffDisplay({ current, target }: DiffDisplayProps) {
+export function DiffDisplay({ current, target, showPrompt }: DiffDisplayProps) {
   const curAttrs = asAttributeSnapshot(current.attributeSnapshot);
   const targetAttrs = asAttributeSnapshot(target.attributeSnapshot);
   const curTextLayers = asTextLayerSnapshot(current.textLayerSnapshot);
 
   const attrDiff = computeAttributeDiff(curAttrs, targetAttrs);
 
-  const promptChanged =
+  const curUserPrompt = current.userPrompt ?? current.prompt;
+  const targetUserPrompt = target.userPrompt ?? target.prompt;
+  const userPromptChanged =
+    targetUserPrompt != null &&
+    curUserPrompt != null &&
+    curUserPrompt !== targetUserPrompt;
+
+  const sysPromptChanged =
     target.prompt != null &&
     current.prompt != null &&
     current.prompt !== target.prompt;
@@ -50,13 +58,19 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
 
   return (
     <div className="mt-1 space-y-1.5 rounded border border-dashed bg-muted/20 px-2 py-1.5">
-      {promptChanged && (
+      {userPromptChanged && (
         <div>
           <span className="font-medium text-muted-foreground">Prompt: </span>
           <div className="mt-0.5 space-y-0.5">
-            <div className="text-muted-foreground">{target.prompt}</div>
-            <div>→ {current.prompt}</div>
+            <div className="text-muted-foreground line-clamp-3">{targetUserPrompt}</div>
+            <div className="line-clamp-3">→ {curUserPrompt}</div>
           </div>
+        </div>
+      )}
+      {showPrompt && sysPromptChanged && (
+        <div>
+          <span className="font-medium text-muted-foreground">System prompt: </span>
+          <span className="text-muted-foreground/60 italic">changed</span>
         </div>
       )}
       {modelChanged && (
@@ -140,7 +154,8 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
           )}
         </div>
       )}
-      {!promptChanged &&
+      {!userPromptChanged &&
+        !(showPrompt && sysPromptChanged) &&
         !modelChanged &&
         !attrDiff &&
         !imageCountChanged &&

@@ -33,12 +33,16 @@ export function KindlePreview({
           style={{ width: 75, aspectRatio: "1600/2560" }}
           title="Hide preview"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={kindlePreview ?? selectedImageUrl ?? undefined}
-            alt="Kindle preview"
-            className="h-full w-full object-cover transition-[filter] group-hover:blur-sm"
-          />
+          {(kindlePreview || selectedImageUrl) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={kindlePreview ?? selectedImageUrl ?? undefined}
+              alt="Kindle preview"
+              className="h-full w-full object-cover transition-[filter] group-hover:blur-sm"
+            />
+          ) : (
+            <div className="h-full w-full" />
+          )}
           {kindleCrossfadeSnapshot && (
             // eslint-disable-next-line @next/next/no-img-element
             <img

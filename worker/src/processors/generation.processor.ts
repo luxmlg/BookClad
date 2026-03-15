@@ -8,7 +8,7 @@ import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
-import { buildPrompt, buildReferencePrompt } from "../lib/prompt.js";
+import { buildSystemPrompt, buildAttributePrompt, type TextLayerInfo } from "../lib/prompt.js";
 import { KDP, GENERATION_STATUS, EVENT_TYPE } from "../lib/constants.js";
 
 async function dispatchGenerate(
@@ -44,15 +44,41 @@ export async function processGeneration(job: Job<GenerationJobData>) {
   await publishProgress(job, generationId, { type: EVENT_TYPE.STATUS, status: GENERATION_STATUS.PROCESSING });
 
   try {
-    const project = await prisma.coverProject.findUniqueOrThrow({
-      where: { id: projectId },
-    });
+    const [project, generation] = await Promise.all([
+      prisma.coverProject.findUniqueOrThrow({
+        where: { id: projectId },
+      }),
+      prisma.generation.findUniqueOrThrow({
+        where: { id: generationId },
+        select: { includeLayers: true, textLayerSnapshot: true, attributeSnapshot: true },
+      }),
+    ]);
 
-    let prompt: string;
+    const textLayers: TextLayerInfo[] = Array.isArray(generation.textLayerSnapshot)
+      ? (generation.textLayerSnapshot as unknown as TextLayerInfo[])
+      : [];
+
+    const promptOptions = {
+      includeLayers: generation.includeLayers,
+      textLayers,
+      isReference: !!referenceImageKey,
+    };
+
+    const snapshot = (generation.attributeSnapshot as Record<string, string | string[]> | null)
+      ?? (project.attributes as Record<string, string | string[]>);
+    const { brief: snapshotBrief, ...snapshotAttrs } = snapshot;
+
+    const systemPrompt = buildSystemPrompt(promptOptions);
+    const userPrompt = buildAttributePrompt({
+      attributes: snapshotAttrs,
+      brief: (snapshotBrief as string) ?? project.brief,
+      title: project.title,
+    });
+    const fullPrompt = systemPrompt + "\n\n" + userPrompt;
+
     let rawImages: Buffer[];
 
     if (referenceImageKey) {
-      prompt = buildReferencePrompt(project as Parameters<typeof buildReferencePrompt>[0]);
       step++;
       await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Downloading reference image...", step, totalSteps });
       const refBuffer = job.data.flattenedImageDataUrl
@@ -60,17 +86,16 @@ export async function processGeneration(job: Job<GenerationJobData>) {
         : await downloadImage(referenceImageKey);
       step++;
       await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Generating ${imageCount} images from reference with ${model}...`, step, totalSteps });
-      rawImages = await dispatchGenerate(model, prompt, imageCount, refBuffer);
+      rawImages = await dispatchGenerate(model, fullPrompt, imageCount, refBuffer);
     } else {
-      prompt = buildPrompt(project as Parameters<typeof buildPrompt>[0]);
       step++;
       await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Generating ${imageCount} images with ${model}...`, step, totalSteps });
-      rawImages = await dispatchGenerate(model, prompt, imageCount);
+      rawImages = await dispatchGenerate(model, fullPrompt, imageCount);
     }
 
     await prisma.generation.update({
       where: { id: generationId },
-      data: { prompt },
+      data: { prompt: systemPrompt, userPrompt },
     });
 
     for (let i = 0; i < rawImages.length; i++) {

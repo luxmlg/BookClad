@@ -39,6 +39,7 @@ export function useGenerationActions(
   projectId: string,
   projectGenerations: Generation[],
   attributes: AttributeSelection,
+  brief: string,
   canvasNodes: CanvasNode[],
   selectedImageId: string | null,
   inpaintRef: React.RefObject<Pick<UseInpaintStateResult, "includeLayers" | "flattenCanvasToDataUrl">>,
@@ -103,7 +104,7 @@ export function useGenerationActions(
         projectId,
         imageCount,
         model,
-        attributeSnapshot: attributes,
+        attributeSnapshot: brief ? { ...attributes, brief } : attributes,
         textLayerSnapshot: canvasNodes.map((n) => ({
           name: n.name ?? n.id,
           text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
@@ -132,7 +133,7 @@ export function useGenerationActions(
         model,
         referenceImageId: selectedImageId,
         flattenedImageDataUrl,
-        attributeSnapshot: attributes,
+        attributeSnapshot: brief ? { ...attributes, brief } : attributes,
         textLayerSnapshot: canvasNodes.map((n) => ({
           name: n.name ?? n.id,
           text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",

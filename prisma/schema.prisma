@@ -22,6 +22,7 @@ model User {
   generationsUsed  Int       @default(0)
   generationsReset DateTime?
   defaultFont      String    @default("Playfair Display")
+  showPrompt       Boolean   @default(false)
 
   accounts        Account[]
   sessions        Session[]
@@ -120,6 +121,7 @@ model Generation {
   projectId         String
   name              String?
   prompt            String    @db.Text
+  userPrompt        String?   @db.Text
   status            JobStatus @default(QUEUED)
   cost              Float?
   imageCount        Int       @default(4)

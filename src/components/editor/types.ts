@@ -18,6 +18,7 @@ export interface Generation {
   jobType?: string;
   model?: string;
   prompt?: string;
+  userPrompt?: string | null;
   images: GeneratedImage[];
   parentImageId?: string | null;
   parentImage?: { id: string; storageKey: string } | null;

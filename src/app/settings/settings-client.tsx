@@ -15,8 +15,10 @@ import {
   deletePreset,
   listFonts,
   getPreferences,
+  updatePreferences,
   type FontDetail,
 } from "@/lib/api";
+import { GeneralTab } from "./general-tab";
 import { CategoriesTab } from "./categories-tab";
 import { PresetsTab, type StylePreset } from "./presets-tab";
 import { FontsTab } from "./fonts-tab";
@@ -28,6 +30,7 @@ export function SettingsClient() {
   const [presets, setPresets] = useState<StylePreset[]>([]);
   const [fonts, setFonts] = useState<FontDetail[]>([]);
   const [defaultFont, setDefaultFont] = useState(DEFAULT_FONT);
+  const [showPrompt, setShowPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,6 +46,7 @@ export function SettingsClient() {
         setPresets(presetsData);
         setFonts(fontsData);
         if (prefs.defaultFont) setDefaultFont(prefs.defaultFont);
+        if (prefs.showPrompt != null) setShowPrompt(prefs.showPrompt);
         for (const f of fontsData) {
           loadCustomFont(f.family, f.url);
         }
@@ -82,13 +86,31 @@ export function SettingsClient() {
     );
   }
 
+  async function handleShowPromptChange(checked: boolean) {
+    setShowPrompt(checked);
+    try {
+      await updatePreferences({ showPrompt: checked });
+    } catch {
+      setShowPrompt(!checked);
+      toast.error("Failed to save preference");
+    }
+  }
+
   return (
-    <Tabs defaultValue="categories">
+    <Tabs defaultValue="general">
       <TabsList className="mb-6">
+        <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="categories">Attribute Categories</TabsTrigger>
         <TabsTrigger value="presets">Style Presets</TabsTrigger>
         <TabsTrigger value="fonts">Fonts</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="general">
+        <GeneralTab
+          showPrompt={showPrompt}
+          onShowPromptChange={handleShowPromptChange}
+        />
+      </TabsContent>
 
       <TabsContent value="categories">
         <CategoriesTab config={config} onSave={saveConfig} />

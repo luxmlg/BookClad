@@ -13,20 +13,26 @@ export default async function EditorPage({
 
   const { id } = await params;
 
-  const project = await prisma.coverProject.findFirst({
-    where: { id, userId: session.user.id },
-    include: {
-      generations: {
-        include: {
-          images: true,
-          parentImage: { select: { id: true, storageKey: true } },
+  const [project, user] = await Promise.all([
+    prisma.coverProject.findFirst({
+      where: { id, userId: session.user.id },
+      include: {
+        generations: {
+          include: {
+            images: true,
+            parentImage: { select: { id: true, storageKey: true } },
+          },
+          orderBy: { createdAt: "desc" },
         },
-        orderBy: { createdAt: "desc" },
       },
-    },
-  });
+    }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { showPrompt: true },
+    }),
+  ]);
 
   if (!project) notFound();
 
-  return <EditorShell project={project} />;
+  return <EditorShell project={project} showPrompt={user?.showPrompt ?? false} />;
 }

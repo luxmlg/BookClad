@@ -16,7 +16,7 @@ import { GenerateSimilarDialog } from "./generate-similar-dialog";
 import { InpaintDialog } from "./inpaint-dialog";
 import { EditorCenterPanel } from "./editor-center-panel";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
-import { buildDefaultConfig } from "@/lib/attributes";
+import { buildDefaultConfig, getDefaultValue } from "@/lib/attributes";
 import {
   getAttributeConfig,
   saveAttributeConfig,
@@ -42,7 +42,12 @@ import {
 import { useInpaintState } from "./use-inpaint-state";
 import { useGenerationActions } from "./use-generation-actions";
 
-export function EditorShell({ project }: { project: Project }) {
+interface EditorShellProps {
+  project: Project;
+  showPrompt: boolean;
+}
+
+export function EditorShell({ project, showPrompt }: EditorShellProps) {
   const router = useRouter();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -121,7 +126,7 @@ export function EditorShell({ project }: { project: Project }) {
   // Generation actions (created first with ref — only reads inpaint in event handlers)
   const genActions = useGenerationActions(
     project.id, project.generations,
-    attributes, nodes, selectedImageId,
+    attributes, brief, nodes, selectedImageId,
     inpaintRef, router,
   );
 
@@ -194,6 +199,21 @@ export function EditorShell({ project }: { project: Project }) {
     }
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hydrate attributes with defaults for all configured categories
+  useEffect(() => {
+    setAttributes(prev => {
+      const merged = { ...prev };
+      let changed = false;
+      for (const cat of attributeConfig.categories) {
+        if (!(cat.id in merged)) {
+          merged[cat.id] = getDefaultValue(cat.type);
+          changed = true;
+        }
+      }
+      return changed ? merged : prev;
+    });
+  }, [attributeConfig]);
 
   // Initialize per-image layers cache and set initial nodes
   useEffect(() => {
@@ -589,6 +609,7 @@ export function EditorShell({ project }: { project: Project }) {
         allActiveIds={genActions.allActiveIds}
         activeGenerations={genActions.activeGenerations}
         handleGenerationComplete={genActions.handleGenerationComplete}
+        showPrompt={showPrompt}
       />
 
       {/* Right sidebar */}

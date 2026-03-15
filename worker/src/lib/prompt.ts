@@ -34,6 +34,18 @@ interface ProjectBrief {
   title: string;
 }
 
+export interface TextLayerInfo {
+  name: string;
+  text: string;
+  visible: boolean;
+}
+
+export interface PromptOptions {
+  includeLayers: boolean;
+  textLayers: TextLayerInfo[];
+  isReference: boolean;
+}
+
 function formatAttrValue(val: string | string[]): string {
   if (Array.isArray(val)) return val.join(", ");
   if (val === "true") return "yes";
@@ -45,53 +57,64 @@ function categoryLabel(key: string): string {
   return key.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function buildPrompt(project: ProjectBrief): string {
+function buildTypographySpacing(options: PromptOptions): string {
+  if (!options.includeLayers || options.textLayers.length === 0) {
+    return "- Leave uncluttered space in the upper third for title text and in the lower fifth for the author name";
+  }
+
+  const visibleLayers = options.textLayers.filter((l) => l.visible);
+  if (visibleLayers.length === 0) {
+    return "- Leave uncluttered space in the upper third for title text and in the lower fifth for the author name";
+  }
+
+  const layerList = visibleLayers
+    .map((l) => `  - "${l.text}" (${l.name})`)
+    .join("\n");
+
+  return `- Text will be composited onto the image. Account for the following text placement:\n${layerList}`;
+}
+
+/** Fixed system instructions — no user attributes. */
+export function buildSystemPrompt(options: PromptOptions): string {
+  const typographySpacing = buildTypographySpacing(options);
+  const referenceClause = options.isReference
+    ? `\nYou are provided with a reference cover image. Create a new, original variation that matches its mood, composition style, and color palette. Do NOT reproduce the reference.\n`
+    : "";
+
+  return `You are a professional book cover designer creating covers for Amazon Kindle Direct Publishing.
+${referenceClause}
+Output requirements:
+- Portrait orientation, 1.6:1 aspect ratio (will be cropped to 1600×2560px at 300 DPI)
+- Do NOT generate any text, lettering, or typography in the image
+- No watermarks, borders, or frames
+
+Design principles:
+- Compose for thumbnail legibility — the cover must read at 120px wide on Amazon
+- Bold, high-contrast focal point
+${typographySpacing}`;
+}
+
+/** All dynamic user data — uniform key-value format. */
+export function buildAttributePrompt(project: ProjectBrief): string {
   const attrs = project.attributes;
   const genre = (attrs.genre as string) ?? "";
   const style = (attrs.style as string) ?? "";
   const mood = formatAttrValue(attrs.mood ?? []);
   const genreRules = GENRE_VISUAL_RULES[genre] ?? "";
 
-  const extraAttrs = Object.entries(attrs)
-    .filter(([key]) => !["genre", "mood", "style"].includes(key))
-    .map(([key, val]) => `- ${categoryLabel(key)}: ${formatAttrValue(val)}`)
-    .join("\n");
-
-  return `You are a professional book cover designer specializing in ${genre} covers for Amazon Kindle.
-
-Create a ${style} book cover image with the following specifications:
-- Canvas: Portrait orientation, 1.6:1 aspect ratio (will be cropped to exact dimensions later)
-${genreRules ? `- Genre conventions: ${genreRules}\n` : ""}- Mood: ${mood}
-${extraAttrs ? extraAttrs + "\n" : ""}- Key visual elements: ${project.brief ?? "Use genre-typical imagery"}
-- Leave clear, uncluttered space in the upper third for the title text
-- Leave clear space in the lower fifth for the author name
-- Color palette: Derived from the genre and mood
-- NO text, NO watermarks, NO borders in the generated image
-
-The cover must look competitive on the Amazon bestseller page for ${genre}. It should immediately communicate the book's theme to a browsing reader in thumbnail size.`;
-}
-
-export function buildReferencePrompt(project: ProjectBrief): string {
-  const attrs = project.attributes;
-  const genre = (attrs.genre as string) ?? "";
-  const style = (attrs.style as string) ?? "";
-  const mood = formatAttrValue(attrs.mood ?? []);
-  const genreRules = GENRE_VISUAL_RULES[genre] ?? "";
+  const parts: string[] = [];
+  if (genre) parts.push(`Genre: ${categoryLabel(genre)}`);
+  if (genreRules) parts.push(`Genre conventions: ${genreRules}`);
+  if (style) parts.push(`Art style: ${categoryLabel(style)}`);
+  if (mood) parts.push(`Mood: ${mood}`);
 
   const extraAttrs = Object.entries(attrs)
     .filter(([key]) => !["genre", "mood", "style"].includes(key))
-    .map(([key, val]) => `- ${categoryLabel(key)}: ${formatAttrValue(val)}`)
-    .join("\n");
+    .map(([key, val]) => `${categoryLabel(key)}: ${formatAttrValue(val)}`);
+  parts.push(...extraAttrs);
 
-  return `You are a professional book cover designer. I am providing a reference book cover image. Create a new variation inspired by this reference, keeping the same visual mood, composition style, and color palette, but creating an original image.
+  if (project.brief) parts.push(`Visual elements: ${project.brief}`);
 
-Specifications:
-- Genre: ${genre}${genreRules ? ` (${genreRules})` : ""}
-- Art style: ${style}
-- Mood: ${mood}
-${extraAttrs ? extraAttrs + "\n" : ""}- Key visual elements: ${project.brief ?? "Follow the reference image's theme"}
-- Maintain portrait orientation, 1.6:1 aspect ratio
-- Leave clear space in the upper third for title and lower fifth for author name
-- NO text, NO watermarks, NO borders
-- Do NOT reproduce the reference — create something new that matches its energy and feel`;
+  return parts.join("\n");
 }
+
