@@ -1,3 +1,5 @@
+export const DEFAULT_FONT = "Playfair Display";
+
 export type FontCategory = "serif" | "sans-serif" | "display" | "monospace";
 
 export interface FontDefinition {

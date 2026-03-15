@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { FONTS } from "@/lib/fonts";
+import { DEFAULT_FONT, FONTS } from "@/lib/fonts";
 
 export async function GET() {
   const session = await auth();
@@ -14,7 +14,7 @@ export async function GET() {
     select: { defaultFont: true },
   });
 
-  return NextResponse.json({ defaultFont: user?.defaultFont ?? "Playfair Display" });
+  return NextResponse.json({ defaultFont: user?.defaultFont ?? DEFAULT_FONT });
 }
 
 export async function PATCH(request: Request) {

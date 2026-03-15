@@ -7,7 +7,7 @@ import {
   buildDefaultConfig,
   type AttributeConfigJson,
 } from "@/lib/attributes";
-import { loadCustomFont } from "@/lib/fonts";
+import { DEFAULT_FONT, loadCustomFont } from "@/lib/fonts";
 import { CategoriesTab } from "./categories-tab";
 import { PresetsTab, type StylePreset } from "./presets-tab";
 import { FontsTab, type UserFontSettings } from "./fonts-tab";
@@ -18,7 +18,7 @@ export function SettingsClient() {
   );
   const [presets, setPresets] = useState<StylePreset[]>([]);
   const [fonts, setFonts] = useState<UserFontSettings[]>([]);
-  const [defaultFont, setDefaultFont] = useState("Playfair Display");
+  const [defaultFont, setDefaultFont] = useState(DEFAULT_FONT);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

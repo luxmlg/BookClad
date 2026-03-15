@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-
-type Status = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+import { GENERATION_STATUS, type GenerationStatus } from "@/lib/constants";
 
 interface GenerationProgress {
-  status: Status;
+  status: GenerationStatus;
   progressMessage: string | null;
   step: number;
   totalSteps: number;
@@ -59,7 +58,7 @@ function getSocket(): WebSocket | null {
         const genListeners = listeners.get(generationId);
         if (!genListeners) return;
 
-        let status: Status = "QUEUED";
+        let status: GenerationStatus = GENERATION_STATUS.QUEUED;
         let progressMessage: string | null = null;
         let step = 0;
         let totalSteps = 0;
@@ -69,16 +68,16 @@ function getSocket(): WebSocket | null {
             status = rest.status;
             break;
           case "progress":
-            status = "PROCESSING";
+            status = GENERATION_STATUS.PROCESSING;
             progressMessage = rest.message;
             step = rest.step;
             totalSteps = rest.totalSteps;
             break;
           case "completed":
-            status = "COMPLETED";
+            status = GENERATION_STATUS.COMPLETED;
             break;
           case "failed":
-            status = "FAILED";
+            status = GENERATION_STATUS.FAILED;
             break;
           default:
             return;
@@ -154,7 +153,7 @@ function subscribe(generationId: string, listener: Listener) {
 }
 
 export function useGenerationProgress(generationId: string) {
-  const [status, setStatus] = useState<Status>("QUEUED");
+  const [status, setStatus] = useState<GenerationStatus>(GENERATION_STATUS.QUEUED);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [totalSteps, setTotalSteps] = useState(0);
@@ -167,7 +166,7 @@ export function useGenerationProgress(generationId: string) {
       if (event.progressMessage !== null) setProgressMessage(event.progressMessage);
       if (event.step) setStep(event.step);
       if (event.totalSteps) setTotalSteps(event.totalSteps);
-      if (event.status === "COMPLETED" || event.status === "FAILED") {
+      if (event.status === GENERATION_STATUS.COMPLETED || event.status === GENERATION_STATUS.FAILED) {
         completedRef.current = true;
       }
     },

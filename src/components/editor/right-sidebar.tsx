@@ -18,14 +18,17 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import type { CanvasNode, TextNodeConfig, ImageNodeConfig } from "./cover-canvas";
+import { NODE_TYPE } from "./cover-canvas";
 import { TextLayerControls } from "./text-layer-controls";
 import { ImageLayerControls } from "./image-layer-controls";
 import type { CustomFont } from "./types";
 
+const BG_LAYER = "bg" as const;
+
 interface LayerItem {
   id: string;
   name: string;
-  type: "image" | "text" | "bg";
+  type: "image" | "text" | typeof BG_LAYER;
   visible: boolean;
   locked: boolean;
   nodeIndex: number; // index in the nodes array (-1 for bg)
@@ -51,7 +54,7 @@ interface RightSidebarProps {
 }
 
 function getNodeLabel(node: CanvasNode) {
-  if (node.type === "text") return node.name || node.text || "Text Layer";
+  if (node.type === NODE_TYPE.TEXT) return node.name || node.text || "Text Layer";
   return node.name || "Image Layer";
 }
 
@@ -91,7 +94,7 @@ export function RightSidebar({
 
   const layerItems: LayerItem[] = [
     ...nodeLayerItems,
-    { id: "bg", name: "Background Image", type: "bg", visible: true, locked: true, nodeIndex: -1 },
+    { id: BG_LAYER, name: "Background Image", type: BG_LAYER, visible: true, locked: true, nodeIndex: -1 },
   ];
 
   const selectedNode = selectedNodeId
@@ -100,7 +103,7 @@ export function RightSidebar({
 
   function handleDragStart(e: React.DragEvent, visualIndex: number) {
     const layer = layerItems[visualIndex];
-    if (layer.type === "bg") {
+    if (layer.type === BG_LAYER) {
       e.preventDefault();
       return;
     }
@@ -111,7 +114,7 @@ export function RightSidebar({
   function handleDragOver(e: React.DragEvent, visualIndex: number) {
     e.preventDefault();
     const layer = layerItems[visualIndex];
-    if (layer.type === "bg" || draggedIndex === null) return;
+    if (layer.type === BG_LAYER || draggedIndex === null) return;
     e.dataTransfer.dropEffect = "move";
     setDragOverIndex(visualIndex);
   }
@@ -119,7 +122,7 @@ export function RightSidebar({
   function handleDrop(e: React.DragEvent, visualIndex: number) {
     e.preventDefault();
     const layer = layerItems[visualIndex];
-    if (layer.type === "bg" || draggedIndex === null) {
+    if (layer.type === BG_LAYER || draggedIndex === null) {
       setDraggedIndex(null);
       setDragOverIndex(null);
       return;
@@ -183,20 +186,20 @@ export function RightSidebar({
               >
                 <GripVertical
                   className={`size-3 shrink-0 ${
-                    layer.type === "bg"
+                    layer.type === BG_LAYER
                       ? "text-muted-foreground/20"
                       : "text-muted-foreground/50 cursor-grab active:cursor-grabbing"
                   }`}
                 />
                 <div className="flex w-4 items-center justify-center text-xs text-muted-foreground shrink-0">
-                  {layer.type === "image" || layer.type === "bg" ? (
+                  {layer.type === NODE_TYPE.IMAGE || layer.type === BG_LAYER ? (
                     <ImageIcon className="size-3" />
                   ) : (
                     "T"
                   )}
                 </div>
                 <span className="flex-1 text-sm truncate">{layer.name}</span>
-                {layer.type !== "bg" && (
+                {layer.type !== BG_LAYER && (
                   <>
                     <button
                       onClick={(e) => {
@@ -280,11 +283,11 @@ export function RightSidebar({
         {/* Properties section — conditional on selected node type */}
         <div className="p-4">
           <Label className="text-sm text-muted-foreground uppercase tracking-wider">
-            {selectedNode ? (selectedNode.type === "image" ? "Image Properties" : "Text Properties") : "Layer Properties"}
+            {selectedNode ? (selectedNode.type === NODE_TYPE.IMAGE ? "Image Properties" : "Text Properties") : "Layer Properties"}
           </Label>
           <div className="mt-2">
             {selectedNode ? (
-              selectedNode.type === "text" ? (
+              selectedNode.type === NODE_TYPE.TEXT ? (
                 <TextLayerControls
                   node={selectedNode}
                   onUpdate={(attrs) => updateNode(selectedNode.id, attrs)}

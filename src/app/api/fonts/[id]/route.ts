@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { downloadFromStorage, deleteFromStorage } from "@/lib/storage";
+import { DEFAULT_FONT } from "@/lib/fonts";
 
 const MIME_MAP: Record<string, string> = {
   ttf: "font/ttf",
@@ -10,8 +11,6 @@ const MIME_MAP: Record<string, string> = {
   woff: "font/woff",
   woff2: "font/woff2",
 };
-
-const DEFAULT_FALLBACK_FONT = "Playfair Display";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function replaceFontInCanvasState(canvasState: any, oldFamily: string, newFamily: string): { updated: boolean; state: unknown } {
@@ -196,7 +195,7 @@ export async function DELETE(
       select: { defaultFont: true },
     });
     const isDefault = user?.defaultFont === font.family;
-    const replacement = isDefault ? DEFAULT_FALLBACK_FONT : (user?.defaultFont ?? DEFAULT_FALLBACK_FONT);
+    const replacement = isDefault ? DEFAULT_FONT : (user?.defaultFont ?? DEFAULT_FONT);
 
     // Always cascade replacement through canvasState
     const projects = await prisma.coverProject.findMany({
@@ -233,7 +232,7 @@ export async function DELETE(
         prisma.generatedImage.update({ where: { id: img.id }, data: { canvasState: img.canvasState as object } })
       ),
       ...(isDefault
-        ? [prisma.user.update({ where: { id: session.user.id }, data: { defaultFont: DEFAULT_FALLBACK_FONT } })]
+        ? [prisma.user.update({ where: { id: session.user.id }, data: { defaultFont: DEFAULT_FONT } })]
         : []),
     ];
 

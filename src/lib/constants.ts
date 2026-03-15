@@ -63,21 +63,36 @@ export const GENRE_VISUAL_RULES: Record<string, string> = {
     "Understated, moody, artistic composition with symbolic imagery and muted tones",
 };
 
+export const GENERATION_STATUS = {
+  QUEUED: "QUEUED",
+  PROCESSING: "PROCESSING",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+} as const;
+export type GenerationStatus = typeof GENERATION_STATUS[keyof typeof GENERATION_STATUS];
+
+export const JOB_TYPE = {
+  GENERATE: "generate",
+  INPAINT: "inpaint",
+  GENERATE_FROM_REFERENCE: "generate-from-reference",
+} as const;
+export type JobType = typeof JOB_TYPE[keyof typeof JOB_TYPE];
+
 export const AI_MODELS = [
   {
     value: "openai",
     label: "OpenAI (gpt-image-1)",
-    capabilities: ["generate", "inpaint"] as const,
+    capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
   },
   {
     value: "gemini",
     label: "Gemini 2.0 Flash",
-    capabilities: ["generate", "inpaint"] as const,
+    capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
   },
   {
     value: "ideogram",
     label: "Ideogram V3",
-    capabilities: ["generate", "inpaint"] as const,
+    capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
   },
 ] as const;
 

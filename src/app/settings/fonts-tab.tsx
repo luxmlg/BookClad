@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FONTS_BY_CATEGORY, loadCustomFont } from "@/lib/fonts";
+import { DEFAULT_FONT, FONTS_BY_CATEGORY, loadCustomFont } from "@/lib/fonts";
 
 export interface UserFontSettings {
   id: string;
@@ -152,7 +152,7 @@ export function FontsTab({
       const res = await fetch(`/api/fonts/${deleteFont.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       setFonts((prev) => prev.filter((f) => f.id !== deleteFont.id));
-      if (isDefault) setDefaultFont("Playfair Display");
+      if (isDefault) setDefaultFont(DEFAULT_FONT);
       toast.success("Font deleted");
     } catch {
       toast.error("Failed to delete font");
@@ -343,7 +343,7 @@ export function FontsTab({
               <p className="text-sm text-muted-foreground">
                 Any covers using this font will fall back to{" "}
                 {defaultFont === deleteFont?.family
-                  ? "Playfair Display (since this is your current default font, it will also be reset)."
+                  ? `${DEFAULT_FONT} (since this is your current default font, it will also be reset).`
                   : `your default font (${defaultFont}).`}
               </p>
               <DialogFooter>

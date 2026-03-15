@@ -13,9 +13,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode, CanvasState } from "./cover-canvas";
-import { getDefaultCanvasState, parseCanvasState, CANVAS_WIDTH, CANVAS_HEIGHT, SCALE } from "./cover-canvas";
-import { KDP } from "@/lib/constants";
-import { ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
+import { getDefaultCanvasState, parseCanvasState, CANVAS_WIDTH, CANVAS_HEIGHT, SCALE, NODE_TYPE } from "./cover-canvas";
+import { KDP, GENERATION_STATUS } from "@/lib/constants";
+import { DEFAULT_FONT, ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
 import { TextFloatingToolbar } from "./text-floating-toolbar";
@@ -136,7 +136,7 @@ export function EditorShell({ project }: { project: Project }) {
   // Asset and font state
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
-  const [defaultFont, setDefaultFont] = useState("Playfair Display");
+  const [defaultFont, setDefaultFont] = useState(DEFAULT_FONT);
 
   // Prevent page-level scroll while editor is mounted
   useEffect(() => {
@@ -186,11 +186,11 @@ export function EditorShell({ project }: { project: Project }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const completedGenerations = project.generations.filter(
-    (g) => g.status === "COMPLETED"
+    (g) => g.status === GENERATION_STATUS.COMPLETED
   );
   const allImages = completedGenerations.flatMap((g) => g.images);
   const pendingGenerations = project.generations.filter(
-    (g) => g.status === "QUEUED" || g.status === "PROCESSING"
+    (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING
   );
   const allActiveIds = useMemo(
     () => [
@@ -203,12 +203,12 @@ export function EditorShell({ project }: { project: Project }) {
   );
   const activeGenerations = useMemo(() => {
     const fromProject = project.generations.filter(
-      (g) => g.status === "QUEUED" || g.status === "PROCESSING"
+      (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING
     );
     const projectIds = new Set(fromProject.map((g) => g.id));
     const localOnly = activeGenerationIds
       .filter((id) => !projectIds.has(id))
-      .map((id) => ({ id, status: "QUEUED" as const, createdAt: new Date(), images: [] as never[] }));
+      .map((id) => ({ id, status: GENERATION_STATUS.QUEUED, createdAt: new Date(), images: [] as never[] }));
     return [...fromProject, ...localOnly];
   }, [project.generations, activeGenerationIds]);
   const hasActiveGeneration = allActiveIds.length > 0;
@@ -221,7 +221,7 @@ export function EditorShell({ project }: { project: Project }) {
           !project.generations.some(
             (g) =>
               g.id === id &&
-              (g.status === "COMPLETED" || g.status === "FAILED")
+              (g.status === GENERATION_STATUS.COMPLETED || g.status === GENERATION_STATUS.FAILED)
           )
       )
     );
@@ -232,7 +232,7 @@ export function EditorShell({ project }: { project: Project }) {
     : undefined;
 
   const selectedTextNode = selectedNodeId
-    ? nodes.find((n): n is TextNodeConfig => n.id === selectedNodeId && n.type === "text")
+    ? nodes.find((n): n is TextNodeConfig => n.id === selectedNodeId && n.type === NODE_TYPE.TEXT)
     : undefined;
 
   // Track canvas position for fixed-positioned toolbars (text above, inpaint below)
@@ -269,7 +269,7 @@ export function EditorShell({ project }: { project: Project }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Helper: extract text nodes from a CanvasNode array
-  const textNodes = nodes.filter((n): n is TextNodeConfig => n.type === "text");
+  const textNodes = nodes.filter((n): n is TextNodeConfig => n.type === NODE_TYPE.TEXT);
 
   // Resolve layers for an image: cache → DB persisted → project template
   const getLayersForImage = useCallback((imageId: string): CanvasNode[] => {
@@ -321,7 +321,7 @@ export function EditorShell({ project }: { project: Project }) {
       const layers = getLayersForImage(initialId);
       // Pre-load fonts used in initial layers for Konva canvas
       const uniqueFonts = [...new Set(
-        layers.filter((n): n is TextNodeConfig => n.type === "text").map((n) => n.fontFamily)
+        layers.filter((n): n is TextNodeConfig => n.type === NODE_TYPE.TEXT).map((n) => n.fontFamily)
       )];
       Promise.all(uniqueFonts.map(ensureFontLoaded));
       setSelectedImageId(initialId);
@@ -513,7 +513,7 @@ export function EditorShell({ project }: { project: Project }) {
 
     // Ensure fonts used in the new layers are loaded for Konva
     const uniqueFonts = [...new Set(
-      newLayers.filter((n): n is TextNodeConfig => n.type === "text").map((n) => n.fontFamily)
+      newLayers.filter((n): n is TextNodeConfig => n.type === NODE_TYPE.TEXT).map((n) => n.fontFamily)
     )];
     await Promise.all(uniqueFonts.map(ensureFontLoaded));
 
@@ -764,9 +764,9 @@ export function EditorShell({ project }: { project: Project }) {
     if (!node) return;
 
     // For text nodes: rotation center adjustment when only rotation changes from sidebar
-    if (node.type === "text" && attrs.rotation !== undefined && attrs.x === undefined && attrs.y === undefined) {
+    if (node.type === NODE_TYPE.TEXT && attrs.rotation !== undefined && attrs.x === undefined && attrs.y === undefined) {
       setNodes(prev => prev.map(n => {
-        if (n.id !== id || n.type !== "text") return n;
+        if (n.id !== id || n.type !== NODE_TYPE.TEXT) return n;
         const oldRot = (n.rotation ?? 0) * Math.PI / 180;
         const newRot = attrs.rotation! * Math.PI / 180;
         const konvaNode = stageRef.current?.findOne(`#${id}`);
@@ -793,7 +793,7 @@ export function EditorShell({ project }: { project: Project }) {
   function addTextNode() {
     const id = crypto.randomUUID();
     const newNode: TextNodeConfig = {
-      type: "text",
+      type: NODE_TYPE.TEXT,
       id,
       name: "Text Layer",
       text: "New Text",
@@ -818,7 +818,7 @@ export function EditorShell({ project }: { project: Project }) {
     const maxW = 800;
     const scale = Math.min(1, maxW / (asset.width || 400));
     const newNode: ImageNodeConfig = {
-      type: "image",
+      type: NODE_TYPE.IMAGE,
       id,
       name: "Image Layer",
       assetId: asset.id,
@@ -863,12 +863,12 @@ export function EditorShell({ project }: { project: Project }) {
     if (attrs.width !== undefined) mapped.width = attrs.width / SCALE;
     if (attrs.rotation !== undefined) mapped.rotation = attrs.rotation;
 
-    if (node.type === "text") {
+    if (node.type === NODE_TYPE.TEXT) {
       const textAttrs = attrs as Partial<TextNodeConfig>;
       if (textAttrs.fontSize !== undefined) (mapped as Partial<TextNodeConfig>).fontSize = textAttrs.fontSize / SCALE;
       if (textAttrs.autoWidth !== undefined) (mapped as Partial<TextNodeConfig>).autoWidth = textAttrs.autoWidth;
     }
-    if (node.type === "image") {
+    if (node.type === NODE_TYPE.IMAGE) {
       const imgAttrs = attrs as Partial<ImageNodeConfig>;
       if (imgAttrs.height !== undefined) (mapped as Partial<ImageNodeConfig>).height = imgAttrs.height / SCALE;
     }

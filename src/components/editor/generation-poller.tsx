@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useGenerationProgress } from "@/lib/use-generation-ws";
+import { GENERATION_STATUS, type GenerationStatus } from "@/lib/constants";
 
 interface UseGenerationPollerOptions {
   generationId: string;
@@ -12,7 +13,7 @@ interface UseGenerationPollerOptions {
 }
 
 export interface GenerationPollerState {
-  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  status: GenerationStatus;
   progressMessage: string | null;
   step: number;
   totalSteps: number;
@@ -32,9 +33,9 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
         const res = await fetch(`/api/generations/${generationId}`);
         if (!res.ok) return;
         const data = await res.json();
-        if (data.status === "COMPLETED") {
+        if (data.status === GENERATION_STATUS.COMPLETED) {
           handleComplete();
-        } else if (data.status === "FAILED") {
+        } else if (data.status === GENERATION_STATUS.FAILED) {
           handleComplete("Generation failed. Please try again.");
         }
       } catch {
@@ -48,9 +49,9 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
   // React to WebSocket status changes
   useEffect(() => {
     if (completedRef.current) return;
-    if (status === "COMPLETED") {
+    if (status === GENERATION_STATUS.COMPLETED) {
       handleComplete();
-    } else if (status === "FAILED") {
+    } else if (status === GENERATION_STATUS.FAILED) {
       handleComplete("Generation failed. Please try again.");
     }
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -60,10 +61,10 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
     completedRef.current = true;
     if (failed) {
       toast.error(failed);
-      onComplete?.(generationId, "FAILED");
+      onComplete?.(generationId, GENERATION_STATUS.FAILED);
     } else {
       toast.success("Cover generation complete!");
-      onComplete?.(generationId, "COMPLETED");
+      onComplete?.(generationId, GENERATION_STATUS.COMPLETED);
     }
     router.refresh();
   }
@@ -83,7 +84,7 @@ export function GenerationPoller({ generationId, onComplete }: GenerationPollerP
   const { status, progressMessage, step, totalSteps, progressPercent } = useGenerationPoller({ generationId, onComplete });
 
   // Full-size layout
-  if (status === "COMPLETED") {
+  if (status === GENERATION_STATUS.COMPLETED) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -92,11 +93,11 @@ export function GenerationPoller({ generationId, onComplete }: GenerationPollerP
     );
   }
 
-  if (status === "FAILED") return null;
+  if (status === GENERATION_STATUS.FAILED) return null;
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-      {status === "QUEUED" ? (
+      {status === GENERATION_STATUS.QUEUED ? (
         <>
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <div>

@@ -7,10 +7,12 @@ export interface GeneratedImage {
   canvasState?: unknown;
 }
 
+import type { GenerationStatus } from "@/lib/constants";
+
 export interface Generation {
   id: string;
   name?: string | null;
-  status: string;
+  status: GenerationStatus;
   createdAt: string | Date;
   imageCount?: number;
   jobType?: string;

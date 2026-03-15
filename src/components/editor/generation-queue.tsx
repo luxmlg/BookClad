@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { GENERATION_STATUS } from "@/lib/constants";
 import { useGenerationPoller, type GenerationPollerState } from "./generation-poller";
 import type { Generation } from "./types";
 import { PANEL_MAX_HEIGHT } from "./types";
@@ -79,7 +80,7 @@ function QueueEntry({
   const attrs = asAttributeSnapshot(generation.attributeSnapshot);
   const imageCount = generation.imageCount ?? generation.images.length;
 
-  const isActive = poller.status === "QUEUED" || poller.status === "PROCESSING";
+  const isActive = poller.status === GENERATION_STATUS.QUEUED || poller.status === GENERATION_STATUS.PROCESSING;
 
   return (
     <div className="rounded-lg border bg-muted/30 px-3 py-2.5 space-y-2">
@@ -134,7 +135,7 @@ function QueueEntry({
 }
 
 function QueueProgress({ poller }: { poller: GenerationPollerState }) {
-  if (poller.status === "QUEUED") {
+  if (poller.status === GENERATION_STATUS.QUEUED) {
     return (
       <div className="flex items-center gap-2">
         <div className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -143,7 +144,7 @@ function QueueProgress({ poller }: { poller: GenerationPollerState }) {
     );
   }
 
-  if (poller.status === "PROCESSING") {
+  if (poller.status === GENERATION_STATUS.PROCESSING) {
     return (
       <div className="space-y-1">
         <Progress value={poller.progressPercent} className="h-1.5" />
@@ -159,7 +160,7 @@ function QueueProgress({ poller }: { poller: GenerationPollerState }) {
     );
   }
 
-  if (poller.status === "COMPLETED") {
+  if (poller.status === GENERATION_STATUS.COMPLETED) {
     return (
       <div className="flex items-center gap-2">
         <div className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />

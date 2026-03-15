@@ -10,7 +10,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { AI_MODELS } from "@/lib/constants";
+import { AI_MODELS, JOB_TYPE } from "@/lib/constants";
 import {
   formatAttributes,
   computeAttributeDiff,
@@ -95,9 +95,9 @@ export function GenerationHistory({
 }
 
 export const JOB_TYPE_ICON: Record<string, typeof Sparkles> = {
-  generate: Sparkles,
-  "generate-from-reference": Copy,
-  inpaint: Wand2,
+  [JOB_TYPE.GENERATE]: Sparkles,
+  [JOB_TYPE.GENERATE_FROM_REFERENCE]: Copy,
+  [JOB_TYPE.INPAINT]: Wand2,
 };
 
 export function getModelLabel(modelValue?: string) {
@@ -429,7 +429,7 @@ function GenerationGroup({
               }
             }}
           >
-            {jobType === "inpaint" ? "edit on" : "from"}{" "}
+            {jobType === JOB_TYPE.INPAINT ? "edit on" : "from"}{" "}
             {(() => {
               const parentGen = allGenerations.find((g) =>
                 g.images.some(
@@ -519,7 +519,7 @@ function GenerationGroup({
             {generation.prompt ? (
               <div>
                 <span className="font-medium text-muted-foreground">
-                  {jobType === "inpaint" ? "Edit prompt: " : "Prompt: "}
+                  {jobType === JOB_TYPE.INPAINT ? "Edit prompt: " : "Prompt: "}
                 </span>
                 <span className={!promptExpanded ? "line-clamp-2" : ""}>
                   {generation.prompt}

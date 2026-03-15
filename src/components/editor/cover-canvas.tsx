@@ -11,6 +11,7 @@ import {
 } from "react-konva";
 import type Konva from "konva";
 import { KDP } from "@/lib/constants";
+import { DEFAULT_FONT } from "@/lib/fonts";
 
 const CANVAS_SCALE_DIVISOR = 4;
 export const CANVAS_WIDTH = KDP.width / CANVAS_SCALE_DIVISOR;   // 400
@@ -19,8 +20,14 @@ export const SCALE = 1 / CANVAS_SCALE_DIVISOR;
 
 // ── Node Types ──────────────────────────────────────────
 
+export const NODE_TYPE = {
+  TEXT: "text",
+  IMAGE: "image",
+} as const;
+export type NodeType = typeof NODE_TYPE[keyof typeof NODE_TYPE];
+
 export interface TextNodeConfig {
-  type: "text";
+  type: typeof NODE_TYPE.TEXT;
   id: string;
   name?: string;
   text: string;
@@ -50,7 +57,7 @@ export interface TextNodeConfig {
 }
 
 export interface ImageNodeConfig {
-  type: "image";
+  type: typeof NODE_TYPE.IMAGE;
   id: string;
   name?: string;
   assetId: string;
@@ -512,14 +519,14 @@ export function getDefaultCanvasState(
   return {
     nodes: [
       {
-        type: "text",
+        type: NODE_TYPE.TEXT,
         id: "title",
         name: "Title",
         text: title,
         x: 800,
         y: 200,
         fontSize: 96,
-        fontFamily: "Playfair Display",
+        fontFamily: DEFAULT_FONT,
         fill: "#ffffff",
         align: "center",
         fontStyle: "bold",
@@ -529,7 +536,7 @@ export function getDefaultCanvasState(
         autoWidth: true,
       },
       {
-        type: "text",
+        type: NODE_TYPE.TEXT,
         id: "author",
         name: "Author",
         text: author,
