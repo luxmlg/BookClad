@@ -45,6 +45,7 @@ export function useInpaintState(
   attributes: AttributeSelection,
   textNodes: TextNodeConfig[],
   router: ReturnType<typeof useRouter>,
+  layerIncludedIdsRef: React.RefObject<Set<string>>,
 ): UseInpaintStateResult {
   const [brushMode, setBrushMode] = useState(false);
   const [inpaintPrompt, setInpaintPrompt] = useState("");
@@ -113,6 +114,9 @@ export function useInpaintState(
           text: n.text ?? "",
         })),
       });
+      if (includeLayers) {
+        layerIncludedIdsRef.current.add(data.generationId);
+      }
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setActiveTab(1);
       setPanelOpen(true);

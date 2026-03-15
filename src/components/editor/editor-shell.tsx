@@ -133,6 +133,7 @@ export function EditorShell({ project }: { project: Project }) {
     genActions.setPanelOpen,
     genActions.model,
     attributes, textNodes, router,
+    genActions.layerIncludedIdsRef,
   );
 
   // Keep inpaint ref in sync
@@ -227,10 +228,14 @@ export function EditorShell({ project }: { project: Project }) {
     if (allImages.length > prevCount && completedGenerations.length > 0) {
       const newestGen = completedGenerations[0];
       if (newestGen?.images?.length > 0) {
-        if (!keepLayersRef.current) {
+        const layersWereBakedIn = genActions.layerIncludedIdsRef.current.has(newestGen.id);
+        if (!keepLayersRef.current || layersWereBakedIn) {
           for (const img of newestGen.images) {
             layersCacheRef.current.set(img.id, []);
           }
+        }
+        if (layersWereBakedIn) {
+          genActions.layerIncludedIdsRef.current.delete(newestGen.id);
         }
         pendingAutoSelectRef.current = newestGen.images[0].id;
       }
