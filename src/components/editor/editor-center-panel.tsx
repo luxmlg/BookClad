@@ -282,19 +282,20 @@ export function EditorCenterPanel({
           </Tabs>
         </div>
         <CollapsibleContent>
-          {activeTab === 0 ? (
+          <div className={activeTab !== 0 ? "hidden" : undefined}>
             <GenerationHistory
               generations={completedGenerations}
               imageUrls={imageUrls}
               selectedImageId={selectedImageId}
               onSelect={selectImage}
             />
-          ) : (
+          </div>
+          <div className={activeTab !== 1 ? "hidden" : undefined}>
             <GenerationQueue
               generations={activeGenerations}
               onComplete={handleGenerationComplete}
             />
-          )}
+          </div>
         </CollapsibleContent>
       </Collapsible>
     </div>
