@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { TextNodeConfig } from "./canvas-types";
@@ -32,7 +32,6 @@ export interface UseGenerationActionsResult {
   refPrompt: string;
   setRefPrompt: React.Dispatch<React.SetStateAction<string>>;
   refSubmitting: boolean;
-  layerIncludedIdsRef: React.RefObject<Set<string>>;
 }
 
 export function useGenerationActions(
@@ -56,8 +55,6 @@ export function useGenerationActions(
   const [refDialogOpen, setRefDialogOpen] = useState(false);
   const [refPrompt, setRefPrompt] = useState("");
   const [refSubmitting, setRefSubmitting] = useState(false);
-  const layerIncludedIdsRef = useRef<Set<string>>(new Set());
-
   useEffect(() => {
     localStorage.setItem(`${IMAGE_COUNT_KEY_PREFIX}:${projectId}`, String(imageCount));
   }, [imageCount, projectId]);
@@ -138,9 +135,6 @@ export function useGenerationActions(
           text: n.text ?? "",
         })),
       });
-      if (inpaintRef.current.includeLayers) {
-        layerIncludedIdsRef.current.add(data.generationId);
-      }
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setActiveTab(1);
       setPanelOpen(true);
@@ -181,6 +175,5 @@ export function useGenerationActions(
     refDialogOpen, setRefDialogOpen,
     refPrompt, setRefPrompt,
     refSubmitting,
-    layerIncludedIdsRef,
   };
 }

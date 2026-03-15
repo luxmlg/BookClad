@@ -54,6 +54,7 @@ export async function POST(request: Request) {
         model,
         referenceImage: image.storageKey,
         parentImageId: imageId,
+        includeLayers: !!flattenedImageDataUrl,
         attributeSnapshot: attributeSnapshot ?? undefined,
         textLayerSnapshot: textLayerSnapshot ?? undefined,
       },

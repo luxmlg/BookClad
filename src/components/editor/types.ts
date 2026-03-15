@@ -21,6 +21,7 @@ export interface Generation {
   images: GeneratedImage[];
   parentImageId?: string | null;
   parentImage?: { id: string; storageKey: string } | null;
+  includeLayers?: boolean;
   attributeSnapshot?: unknown;
   textLayerSnapshot?: unknown;
 }

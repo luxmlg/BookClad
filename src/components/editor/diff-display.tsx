@@ -37,6 +37,9 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
     current.jobType != null &&
     current.jobType !== target.jobType;
 
+  const includeLayersChanged =
+    current.includeLayers !== target.includeLayers;
+
   const prevLayers = asTextLayerSnapshot(target.textLayerSnapshot);
   const prevTexts = (prevLayers ?? []).map((l) => l.text || l.name);
   const curTexts = (curTextLayers ?? []).map((l) => l.text || l.name);
@@ -85,6 +88,15 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
           → <span>{current.jobType}</span>
         </div>
       )}
+      {includeLayersChanged && (
+        <div>
+          <span className="font-medium text-muted-foreground">Layers baked in: </span>
+          <span className="text-muted-foreground mr-1">
+            {target.includeLayers ? "yes" : "no"}
+          </span>
+          → <span>{current.includeLayers ? "yes" : "no"}</span>
+        </div>
+      )}
       {attrDiff && (
         <div className="space-y-0.5">
           {attrDiff.map((d) => (
@@ -123,6 +135,7 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
         !attrDiff &&
         !imageCountChanged &&
         !jobTypeChanged &&
+        !includeLayersChanged &&
         !textLayersChanged && (
           <div className="text-muted-foreground/60 italic">No changes</div>
         )}

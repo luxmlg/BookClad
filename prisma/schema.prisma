@@ -127,6 +127,7 @@ model Generation {
   jobType           String    @default("generate")
   model             String    @default("openai")
   parentImageId     String?
+  includeLayers     Boolean   @default(false)
   attributeSnapshot Json?
   textLayerSnapshot Json?
 

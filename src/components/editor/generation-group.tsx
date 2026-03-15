@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ChevronRight, Sparkles, Pencil } from "lucide-react";
+import { ChevronRight, Sparkles, Pencil, Layers } from "lucide-react";
 import { updateGenerationName } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -216,6 +216,12 @@ export function GenerationGroup({
           {generation.images.length === 1 ? "image" : "images"}
         </span>
         <span className="ml-auto text-xs text-muted-foreground" title={date.toLocaleString()}>{timeStr}</span>
+        {generation.includeLayers && (
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+            <Layers className="size-2.5" />
+            Layers
+          </Badge>
+        )}
         {modelLabel && (
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {modelLabel}
