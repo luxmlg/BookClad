@@ -232,6 +232,16 @@ export function EditorShell({ project }: { project: Project }) {
     ],
     [pendingGenerations, activeGenerationIds]
   );
+  const activeGenerations = useMemo(() => {
+    const fromProject = project.generations.filter(
+      (g) => g.status === "QUEUED" || g.status === "PROCESSING"
+    );
+    const projectIds = new Set(fromProject.map((g) => g.id));
+    const localOnly = activeGenerationIds
+      .filter((id) => !projectIds.has(id))
+      .map((id) => ({ id, status: "QUEUED" as const, createdAt: new Date(), images: [] as never[] }));
+    return [...fromProject, ...localOnly];
+  }, [project.generations, activeGenerationIds]);
   const hasActiveGeneration = allActiveIds.length > 0;
 
   // Clear local tracking once project data confirms generation is done
@@ -1231,7 +1241,7 @@ export function EditorShell({ project }: { project: Project }) {
               />
             ) : (
               <GenerationQueue
-                activeGenerationIds={allActiveIds}
+                generations={activeGenerations}
                 onComplete={handleGenerationComplete}
               />
             )}

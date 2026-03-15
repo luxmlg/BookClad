@@ -6,13 +6,20 @@ import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useGenerationProgress } from "@/lib/use-generation-ws";
 
-interface GenerationPollerProps {
+interface UseGenerationPollerOptions {
   generationId: string;
   onComplete?: (generationId: string, status: "COMPLETED" | "FAILED") => void;
-  compact?: boolean;
 }
 
-export function GenerationPoller({ generationId, onComplete, compact }: GenerationPollerProps) {
+export interface GenerationPollerState {
+  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  progressMessage: string | null;
+  step: number;
+  totalSteps: number;
+  progressPercent: number;
+}
+
+export function useGenerationPoller({ generationId, onComplete }: UseGenerationPollerOptions): GenerationPollerState {
   const router = useRouter();
   const { status, progressMessage, step, totalSteps } = useGenerationProgress(generationId);
   const completedRef = useRef(false);
@@ -64,42 +71,16 @@ export function GenerationPoller({ generationId, onComplete, compact }: Generati
   const progressPercent =
     totalSteps > 0 ? Math.round((step / totalSteps) * 100) : 0;
 
-  if (compact) {
-    if (status === "COMPLETED") {
-      return (
-        <div className="flex items-center gap-3 p-3">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm font-medium">Loading results...</p>
-        </div>
-      );
-    }
-    if (status === "FAILED") return null;
+  return { status, progressMessage, step, totalSteps, progressPercent };
+}
 
-    return (
-      <div className="flex items-center gap-3 p-3">
-        {status === "QUEUED" ? (
-          <>
-            <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="text-sm font-medium">Waiting in queue...</p>
-          </>
-        ) : (
-          <>
-            <div className="w-full max-w-[200px]">
-              <Progress value={progressPercent} className="h-2" />
-            </div>
-            <p className="shrink-0 text-sm font-medium">
-              {progressMessage || "Starting..."}
-            </p>
-            {totalSteps > 0 && (
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {step}/{totalSteps}
-              </span>
-            )}
-          </>
-        )}
-      </div>
-    );
-  }
+interface GenerationPollerProps {
+  generationId: string;
+  onComplete?: (generationId: string, status: "COMPLETED" | "FAILED") => void;
+}
+
+export function GenerationPoller({ generationId, onComplete }: GenerationPollerProps) {
+  const { status, progressMessage, step, totalSteps, progressPercent } = useGenerationPoller({ generationId, onComplete });
 
   // Full-size layout
   if (status === "COMPLETED") {

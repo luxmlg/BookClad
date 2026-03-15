@@ -21,10 +21,10 @@ interface GeneratedImage {
   selected: boolean;
 }
 
-type AttributeSnapshot = Record<string, string | string[]>;
-type TextLayerSnapshot = Array<{ name: string; text: string }>;
+export type AttributeSnapshot = Record<string, string | string[]>;
+export type TextLayerSnapshot = Array<{ name: string; text: string }>;
 
-interface Generation {
+export interface Generation {
   id: string;
   name?: string | null;
   status: string;
@@ -40,14 +40,14 @@ interface Generation {
   textLayerSnapshot?: unknown;
 }
 
-function asAttributeSnapshot(val: unknown): AttributeSnapshot | null {
+export function asAttributeSnapshot(val: unknown): AttributeSnapshot | null {
   if (val && typeof val === "object" && !Array.isArray(val)) {
     return val as AttributeSnapshot;
   }
   return null;
 }
 
-function asTextLayerSnapshot(val: unknown): TextLayerSnapshot | null {
+export function asTextLayerSnapshot(val: unknown): TextLayerSnapshot | null {
   if (Array.isArray(val)) return val as TextLayerSnapshot;
   return null;
 }
@@ -125,13 +125,13 @@ export function GenerationHistory({
   );
 }
 
-const JOB_TYPE_ICON: Record<string, typeof Sparkles> = {
+export const JOB_TYPE_ICON: Record<string, typeof Sparkles> = {
   generate: Sparkles,
   "generate-from-reference": Copy,
   inpaint: Wand2,
 };
 
-function getModelLabel(modelValue?: string) {
+export function getModelLabel(modelValue?: string) {
   if (!modelValue) return null;
   const found = AI_MODELS.find((m) => m.value === modelValue);
   return found ? found.label : modelValue;
@@ -150,7 +150,7 @@ function findParentGenerationIndex(
   return null;
 }
 
-function formatAttributes(
+export function formatAttributes(
   snapshot: Record<string, string | string[]>
 ): string {
   return Object.entries(snapshot)
@@ -214,7 +214,7 @@ function computeAttributeDiff(
   return diffs.length > 0 ? diffs : null;
 }
 
-function formatRelativeTime(date: Date): string {
+export function formatRelativeTime(date: Date): string {
   const diff = Date.now() - date.getTime();
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
