@@ -143,7 +143,14 @@ export function EditorShell({ project }: { project: Project }) {
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState(false);
-  const [imageCount, setImageCount] = useState(4);
+  const [imageCount, setImageCount] = useState(() => {
+    if (typeof window === "undefined") return 4;
+    const saved = localStorage.getItem(`imageCount:${project.id}`);
+    return saved ? Number(saved) : 4;
+  });
+  useEffect(() => {
+    localStorage.setItem(`imageCount:${project.id}`, String(imageCount));
+  }, [imageCount, project.id]);
   const [refDialogOpen, setRefDialogOpen] = useState(false);
   const [refPrompt, setRefPrompt] = useState("");
   const [refSubmitting, setRefSubmitting] = useState(false);

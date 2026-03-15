@@ -28,6 +28,7 @@ export function DeleteProjectButton({ projectId }: { projectId: string }) {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to delete");
+      localStorage.removeItem(`imageCount:${projectId}`);
       toast.success("Project deleted");
       router.refresh();
     } catch {
