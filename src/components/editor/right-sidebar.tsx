@@ -280,7 +280,7 @@ export function RightSidebar({
         {/* Properties section — conditional on selected node type */}
         <div className="p-4">
           <Label className="text-sm text-muted-foreground uppercase tracking-wider">
-            {selectedNode?.type === "image" ? "Image Properties" : "Text Properties"}
+            {selectedNode ? (selectedNode.type === "image" ? "Image Properties" : "Text Properties") : "Layer Properties"}
           </Label>
           <div className="mt-2">
             {selectedNode ? (
