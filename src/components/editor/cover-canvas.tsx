@@ -10,87 +10,9 @@ import {
   Line,
 } from "react-konva";
 import type Konva from "konva";
-import { KDP } from "@/lib/constants";
-import { DEFAULT_FONT } from "@/lib/fonts";
-
-const CANVAS_SCALE_DIVISOR = 4;
-export const CANVAS_WIDTH = KDP.width / CANVAS_SCALE_DIVISOR;   // 400
-export const CANVAS_HEIGHT = KDP.height / CANVAS_SCALE_DIVISOR; // 640
-export const SCALE = 1 / CANVAS_SCALE_DIVISOR;
-
-// ── Node Types ──────────────────────────────────────────
-
-export const NODE_TYPE = {
-  TEXT: "text",
-  IMAGE: "image",
-} as const;
-export type NodeType = typeof NODE_TYPE[keyof typeof NODE_TYPE];
-
-export interface TextNodeConfig {
-  type: typeof NODE_TYPE.TEXT;
-  id: string;
-  name?: string;
-  text: string;
-  x: number;
-  y: number;
-  fontSize: number;
-  fontFamily: string;
-  fill: string;
-  align: "left" | "center" | "right";
-  fontStyle: string;
-  width: number;
-  visible: boolean;
-  draggable: boolean;
-  shadowColor?: string;
-  shadowBlur?: number;
-  shadowOffsetX?: number;
-  shadowOffsetY?: number;
-  shadowOpacity?: number;
-  stroke?: string;
-  strokeWidth?: number;
-  rotation?: number;
-  autoWidth?: boolean;
-  letterSpacing?: number;
-  lineHeight?: number;
-  textDecoration?: string;
-  textTransform?: "none" | "uppercase" | "lowercase";
-}
-
-export interface ImageNodeConfig {
-  type: typeof NODE_TYPE.IMAGE;
-  id: string;
-  name?: string;
-  assetId: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation?: number;
-  visible: boolean;
-  draggable: boolean;
-  opacity?: number;
-}
-
-export type CanvasNode = TextNodeConfig | ImageNodeConfig;
-
-export interface CanvasState {
-  nodes: CanvasNode[];
-}
-
-export function parseCanvasState(raw: unknown): CanvasState | null {
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
-  if (Array.isArray(obj.nodes)) return { nodes: obj.nodes as CanvasNode[] };
-  return null;
-}
-
-// ── Snap Guide ──────────────────────────────────────────
-
-interface Guide {
-  x?: number;
-  y?: number;
-  type?: "grid" | "element";
-}
+import type { TextNodeConfig, ImageNodeConfig, CanvasNode } from "./canvas-types";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, SCALE, NODE_TYPE } from "./canvas-types";
+import { type Guide, computeSnapGuides, type ElementRect } from "@/lib/canvas";
 
 // ── Hook: load asset images ─────────────────────────────
 
@@ -132,10 +54,6 @@ interface CoverCanvasProps {
   onImageLoad?: () => void;
   hideCursor?: boolean;
 }
-
-const SNAP_THRESHOLD = 5;
-const GRID_LINES_X = [0, 0.25, 0.5, 0.75, 1].map((p) => p * CANVAS_WIDTH);
-const GRID_LINES_Y = [0, 0.25, 0.5, 0.75, 1].map((p) => p * CANVAS_HEIGHT);
 
 export function CoverCanvas({
   imageUrl,
@@ -234,86 +152,36 @@ export function CoverCanvas({
 
   function handleDragMove(e: Konva.KonvaEventObject<DragEvent>) {
     const node = e.target;
-    const newGuides: Guide[] = [];
-
-    // Dragged node edges and center (account for offsetX/Y on auto-width text nodes)
     const ox = node.offsetX();
     const oy = node.offsetY();
-    const nodeLeft = node.x() - ox;
-    const nodeRight = node.x() - ox + node.width();
-    const nodeCenterX = node.x() - ox + node.width() / 2;
-    const nodeTop = node.y() - oy;
-    const nodeBottom = node.y() - oy + node.height();
-    const nodeCenterY = node.y() - oy + node.height() / 2;
 
-    // Collect snap targets per axis
-    const xTargets: { pos: number; type: "grid" | "element" }[] =
-      GRID_LINES_X.map((pos) => ({ pos, type: "grid" }));
-    const yTargets: { pos: number; type: "grid" | "element" }[] =
-      GRID_LINES_Y.map((pos) => ({ pos, type: "grid" }));
-
-    // Add other visible elements' edges and centers
+    const otherElements: ElementRect[] = [];
     for (const config of nodes) {
       if (config.id === node.id() || !config.visible) continue;
       const ref = nodeRefs.current[config.id];
       if (!ref) continue;
-      const rox = ref.offsetX();
-      const roy = ref.offsetY();
-      xTargets.push(
-        { pos: ref.x() - rox, type: "element" },
-        { pos: ref.x() - rox + ref.width() / 2, type: "element" },
-        { pos: ref.x() - rox + ref.width(), type: "element" },
-      );
-      yTargets.push(
-        { pos: ref.y() - roy, type: "element" },
-        { pos: ref.y() - roy + ref.height() / 2, type: "element" },
-        { pos: ref.y() - roy + ref.height(), type: "element" },
-      );
+      otherElements.push({
+        x: ref.x(), y: ref.y(),
+        width: ref.width(), height: ref.height(),
+        offsetX: ref.offsetX(), offsetY: ref.offsetY(),
+      });
     }
 
-    // Find best X snap
-    let bestDx: number | null = null;
-    let bestSnapX: number | null = null;
-    let bestAbsDx = SNAP_THRESHOLD;
-    let bestTypeX: "grid" | "element" = "grid";
-    for (const target of xTargets) {
-      for (const edge of [nodeLeft, nodeCenterX, nodeRight]) {
-        const dx = target.pos - edge;
-        if (Math.abs(dx) < bestAbsDx) {
-          bestAbsDx = Math.abs(dx);
-          bestDx = dx;
-          bestSnapX = target.pos;
-          bestTypeX = target.type;
-        }
-      }
-    }
-    if (bestDx !== null && bestSnapX !== null) {
-      node.x(node.x() + bestDx);
-      newGuides.push({ x: bestSnapX, type: bestTypeX });
-    }
+    const result = computeSnapGuides(
+      {
+        left: node.x() - ox,
+        right: node.x() - ox + node.width(),
+        centerX: node.x() - ox + node.width() / 2,
+        top: node.y() - oy,
+        bottom: node.y() - oy + node.height(),
+        centerY: node.y() - oy + node.height() / 2,
+      },
+      otherElements,
+    );
 
-    // Find best Y snap
-    let bestDy: number | null = null;
-    let bestSnapY: number | null = null;
-    let bestAbsDy = SNAP_THRESHOLD;
-    let bestTypeY: "grid" | "element" = "grid";
-    for (const target of yTargets) {
-      for (const edge of [nodeTop, nodeCenterY, nodeBottom]) {
-        const dy = target.pos - edge;
-        if (Math.abs(dy) < bestAbsDy) {
-          bestAbsDy = Math.abs(dy);
-          bestDy = dy;
-          bestSnapY = target.pos;
-          bestTypeY = target.type;
-        }
-      }
-    }
-    if (bestDy !== null && bestSnapY !== null) {
-      node.y(node.y() + bestDy);
-      newGuides.push({ y: bestSnapY, type: bestTypeY });
-    }
-
-    setGuides(newGuides);
+    if (result.dx !== null) node.x(node.x() + result.dx);
+    if (result.dy !== null) node.y(node.y() + result.dy);
+    setGuides(result.guides);
   }
 
   function handleDragEnd(id: string, e: Konva.KonvaEventObject<DragEvent>) {
@@ -512,46 +380,3 @@ export function CoverCanvas({
   );
 }
 
-export function getDefaultCanvasState(
-  title: string,
-  author: string,
-): CanvasState {
-  return {
-    nodes: [
-      {
-        type: NODE_TYPE.TEXT,
-        id: "title",
-        name: "Title",
-        text: title,
-        x: 800,
-        y: 200,
-        fontSize: 96,
-        fontFamily: DEFAULT_FONT,
-        fill: "#ffffff",
-        align: "center",
-        fontStyle: "bold",
-        width: 1280,
-        visible: true,
-        draggable: true,
-        autoWidth: true,
-      },
-      {
-        type: NODE_TYPE.TEXT,
-        id: "author",
-        name: "Author",
-        text: author,
-        x: 800,
-        y: 2200,
-        fontSize: 56,
-        fontFamily: "Montserrat",
-        fill: "rgba(255,255,255,0.9)",
-        align: "center",
-        fontStyle: "normal",
-        width: 1280,
-        visible: true,
-        draggable: true,
-        autoWidth: true,
-      },
-    ],
-  };
-}

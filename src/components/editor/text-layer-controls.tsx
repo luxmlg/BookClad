@@ -15,7 +15,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { TextNodeConfig } from "./cover-canvas";
+import type { TextNodeConfig } from "./canvas-types";
 
 interface TextLayerControlsProps {
   node: TextNodeConfig;

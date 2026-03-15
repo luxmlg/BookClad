@@ -12,7 +12,7 @@ import {
   JOB_TYPE_ICON,
   getModelLabel,
   formatRelativeTime,
-} from "./generation-history";
+} from "./generation-helpers";
 import { asAttributeSnapshot } from "./types";
 import { formatAttributes } from "@/lib/attributes";
 
