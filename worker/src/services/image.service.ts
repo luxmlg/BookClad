@@ -1,15 +1,12 @@
 import sharp from "sharp";
-
-const KDP_WIDTH = 1600;
-const KDP_HEIGHT = 2560;
-const KDP_DPI = 300;
+import { KDP } from "../lib/constants.js";
 
 export async function cropToKDP(imageBuffer: Buffer): Promise<Buffer> {
   const metadata = await sharp(imageBuffer).metadata();
   const srcWidth = metadata.width ?? 2048;
   const srcHeight = metadata.height ?? 3072;
 
-  const targetAspect = KDP_WIDTH / KDP_HEIGHT;
+  const targetAspect = KDP.width / KDP.height;
   const srcAspect = srcWidth / srcHeight;
 
   let cropWidth = srcWidth;
@@ -28,8 +25,8 @@ export async function cropToKDP(imageBuffer: Buffer): Promise<Buffer> {
       width: cropWidth,
       height: cropHeight,
     })
-    .resize(KDP_WIDTH, KDP_HEIGHT, { fit: "fill" })
-    .withMetadata({ density: KDP_DPI })
-    .jpeg({ quality: 92 })
+    .resize(KDP.width, KDP.height, { fit: "fill" })
+    .withMetadata({ density: KDP.dpi })
+    .jpeg({ quality: KDP.jpegQuality })
     .toBuffer();
 }

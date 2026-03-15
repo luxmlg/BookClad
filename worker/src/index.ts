@@ -6,6 +6,7 @@ import { processGeneration } from "./processors/generation.processor.js";
 import { processInpaint } from "./processors/inpaint.processor.js";
 import type { GenerationJobData } from "./queues/generation.queue.js";
 import { setupWebSocket } from "./lib/websocket.js";
+import { QUEUE_NAME, JOB_TYPE } from "./lib/constants.js";
 
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
@@ -18,10 +19,10 @@ const connection = {
 };
 
 const worker = new Worker<GenerationJobData>(
-  "cover-generation",
+  QUEUE_NAME,
   async (job) => {
     console.log(`[worker] Processing job ${job.id} (${job.name}): generation ${job.data.generationId}`);
-    if (job.name === "inpaint") {
+    if (job.name === JOB_TYPE.INPAINT) {
       await processInpaint(job as any); // eslint-disable-line @typescript-eslint/no-explicit-any
     } else {
       await processGeneration(job);
@@ -53,7 +54,7 @@ app.use((_req, res, next) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", queue: "cover-generation" });
+  res.json({ status: "ok", queue: QUEUE_NAME });
 });
 
 const server = createServer(app);

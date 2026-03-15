@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generationQueue } from "@/lib/queue";
 import { createInpaintSchema } from "@/lib/validations";
+import { JOB_TYPE, GENERATION_STATUS } from "@/lib/constants";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -47,9 +48,9 @@ export async function POST(request: Request) {
       data: {
         projectId: image.generation.projectId,
         prompt,
-        status: "QUEUED",
+        status: GENERATION_STATUS.QUEUED,
         imageCount: 1,
-        jobType: "inpaint",
+        jobType: JOB_TYPE.INPAINT,
         model,
         referenceImage: image.storageKey,
         parentImageId: imageId,
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
       },
     });
 
-    await generationQueue.add("inpaint", {
+    await generationQueue.add(JOB_TYPE.INPAINT, {
       generationId: generation.id,
       projectId: image.generation.projectId,
       userId: session.user.id,

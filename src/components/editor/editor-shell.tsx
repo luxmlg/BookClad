@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode, CanvasState } from "./cover-canvas";
 import { getDefaultCanvasState, parseCanvasState, CANVAS_WIDTH, CANVAS_HEIGHT, SCALE, NODE_TYPE } from "./cover-canvas";
-import { KDP, GENERATION_STATUS } from "@/lib/constants";
+import { KDP, GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX } from "@/lib/constants";
 import { DEFAULT_FONT, ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
@@ -110,11 +110,11 @@ export function EditorShell({ project }: { project: Project }) {
   const [loadingUrls, setLoadingUrls] = useState(false);
   const [imageCount, setImageCount] = useState(() => {
     if (typeof window === "undefined") return 4;
-    const saved = localStorage.getItem(`imageCount:${project.id}`);
+    const saved = localStorage.getItem(`${IMAGE_COUNT_KEY_PREFIX}:${project.id}`);
     return saved ? Number(saved) : 4;
   });
   useEffect(() => {
-    localStorage.setItem(`imageCount:${project.id}`, String(imageCount));
+    localStorage.setItem(`${IMAGE_COUNT_KEY_PREFIX}:${project.id}`, String(imageCount));
   }, [imageCount, project.id]);
   const [refDialogOpen, setRefDialogOpen] = useState(false);
   const [refPrompt, setRefPrompt] = useState("");

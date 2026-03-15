@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { DEFAULT_BUCKET } from "@/lib/constants";
 
 const useLocalStorage = !process.env.R2_ENDPOINT;
 
@@ -20,7 +21,7 @@ const s3 = useLocalStorage
           : undefined,
     });
 
-const bucket = process.env.R2_BUCKET ?? "covergen";
+const bucket = process.env.R2_BUCKET ?? DEFAULT_BUCKET;
 
 export async function GET(
   _request: Request,

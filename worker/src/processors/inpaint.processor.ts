@@ -7,7 +7,7 @@ import { inpaintImage as geminiInpaint } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
-import { KDP } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS } from "../lib/constants.js";
 
 export interface InpaintJobData {
   generationId: string;
@@ -45,9 +45,9 @@ export async function processInpaint(job: Job<InpaintJobData>) {
 
   await prisma.generation.update({
     where: { id: generationId },
-    data: { status: "PROCESSING" },
+    data: { status: GENERATION_STATUS.PROCESSING },
   });
-  await publishProgress(job, generationId, { type: "status", status: "PROCESSING" });
+  await publishProgress(job, generationId, { type: "status", status: GENERATION_STATUS.PROCESSING });
 
   try {
     await publishProgress(job, generationId, { type: "progress", message: "Downloading source image...", step: 1, totalSteps });
@@ -84,14 +84,14 @@ export async function processInpaint(job: Job<InpaintJobData>) {
 
     await prisma.generation.update({
       where: { id: generationId },
-      data: { status: "COMPLETED" },
+      data: { status: GENERATION_STATUS.COMPLETED },
     });
 
     await publishProgress(job, generationId, { type: "completed" });
   } catch (error) {
     await prisma.generation.update({
       where: { id: generationId },
-      data: { status: "FAILED" },
+      data: { status: GENERATION_STATUS.FAILED },
     });
     await publishProgress(job, generationId, {
       type: "failed",

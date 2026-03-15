@@ -1,8 +1,9 @@
 import type { Job } from "bullmq";
 import { redisPublisher } from "./redis.js";
+import type { GenerationStatus } from "./constants.js";
 
 export type GenerationEvent =
-  | { type: "status"; status: "QUEUED" | "PROCESSING" }
+  | { type: "status"; status: GenerationStatus }
   | { type: "progress"; message: string; step: number; totalSteps: number }
   | { type: "completed" }
   | { type: "failed"; error?: string };

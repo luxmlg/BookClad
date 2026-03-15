@@ -104,3 +104,16 @@ export const KDP = {
   maxFileSize: 50 * 1024 * 1024,
   format: "jpeg" as const,
 } as const;
+
+export const QUEUE_NAME = "cover-generation";
+
+export const DEFAULT_BUCKET = "covergen";
+
+export const DEFAULT_WS_URL = "ws://localhost:4000/ws/progress";
+
+export const WS_RECONNECT_INITIAL_MS = 1000;
+export const WS_RECONNECT_MAX_MS = 10000;
+
+export const POLL_INTERVAL_MS = 5000;
+
+export const IMAGE_COUNT_KEY_PREFIX = "imageCount";

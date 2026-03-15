@@ -3,9 +3,7 @@
 import { useRef, useState, useCallback, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Stage, Layer, Line, Rect, Circle } from "react-konva";
 import type Konva from "konva";
-
-const CANVAS_WIDTH = 400;
-const CANVAS_HEIGHT = 640;
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./cover-canvas";
 
 interface BrushLine {
   points: number[];

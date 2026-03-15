@@ -6,6 +6,7 @@ import {
 import { randomUUID } from "crypto";
 import { writeFile, mkdir, readFile } from "fs/promises";
 import { join, dirname } from "path";
+import { DEFAULT_BUCKET } from "../lib/constants.js";
 
 const useLocalStorage = !process.env.R2_ENDPOINT;
 
@@ -24,7 +25,7 @@ const s3 = useLocalStorage
       },
     });
 
-const bucket = process.env.R2_BUCKET ?? "covergen";
+const bucket = process.env.R2_BUCKET ?? DEFAULT_BUCKET;
 
 export async function uploadImage(
   imageBuffer: Buffer,

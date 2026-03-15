@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { GENERATION_STATUS } from "@/lib/constants";
 
 export async function POST(
   _request: Request,
@@ -18,7 +19,7 @@ export async function POST(
       where: { id, userId: session.user.id },
       include: {
         generations: {
-          where: { status: "COMPLETED" },
+          where: { status: GENERATION_STATUS.COMPLETED },
           include: {
             images: { where: { selected: true }, take: 1 },
           },

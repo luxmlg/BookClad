@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { GENERATION_STATUS, type GenerationStatus } from "@/lib/constants";
+import { GENERATION_STATUS, DEFAULT_WS_URL, WS_RECONNECT_INITIAL_MS, WS_RECONNECT_MAX_MS, type GenerationStatus } from "@/lib/constants";
 
 interface GenerationProgress {
   status: GenerationStatus;
@@ -15,13 +15,13 @@ type Listener = (event: GenerationProgress & { generationId: string }) => void;
 // Singleton WebSocket manager shared across all hook instances
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let reconnectDelay = 1000;
+let reconnectDelay = WS_RECONNECT_INITIAL_MS;
 const listeners = new Map<string, Set<Listener>>();
 const subscriptions = new Set<string>();
 
 const WS_URL =
   typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:4000/ws/progress")
+    ? (process.env.NEXT_PUBLIC_WS_URL ?? DEFAULT_WS_URL)
     : "";
 
 function getSocket(): WebSocket | null {
@@ -42,7 +42,7 @@ function getSocket(): WebSocket | null {
     ws = socket;
 
     socket.onopen = () => {
-      reconnectDelay = 1000;
+      reconnectDelay = WS_RECONNECT_INITIAL_MS;
       // Re-subscribe all active subscriptions
       for (const generationId of subscriptions) {
         socket.send(JSON.stringify({ type: "subscribe", generationId }));
@@ -98,7 +98,7 @@ function getSocket(): WebSocket | null {
           reconnectTimer = null;
           getSocket();
         }, reconnectDelay);
-        reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+        reconnectDelay = Math.min(reconnectDelay * 2, WS_RECONNECT_MAX_MS);
       }
     };
 

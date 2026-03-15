@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createProjectSchema } from "@/lib/validations";
+import { GENERATION_STATUS } from "@/lib/constants";
 
 export async function GET() {
   const session = await auth();
@@ -15,7 +16,7 @@ export async function GET() {
       orderBy: { updatedAt: "desc" },
       include: {
         generations: {
-          where: { status: "COMPLETED" },
+          where: { status: GENERATION_STATUS.COMPLETED },
           include: { images: { where: { selected: true }, take: 1 } },
           take: 1,
           orderBy: { createdAt: "desc" },

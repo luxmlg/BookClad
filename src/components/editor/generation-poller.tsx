@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useGenerationProgress } from "@/lib/use-generation-ws";
-import { GENERATION_STATUS, type GenerationStatus } from "@/lib/constants";
+import { GENERATION_STATUS, POLL_INTERVAL_MS, type GenerationStatus } from "@/lib/constants";
 import { getGeneration } from "@/lib/api";
 
 interface UseGenerationPollerOptions {
@@ -40,7 +40,7 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
       } catch {
         // Ignore fetch errors
       }
-    }, 5000);
+    }, POLL_INTERVAL_MS);
 
     return () => clearInterval(pollTimer);
   }, [generationId]); // eslint-disable-line react-hooks/exhaustive-deps

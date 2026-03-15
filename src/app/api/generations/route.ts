@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generationQueue } from "@/lib/queue";
 import { createGenerationSchema } from "@/lib/validations";
+import { JOB_TYPE, GENERATION_STATUS } from "@/lib/constants";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -60,13 +61,13 @@ export async function POST(request: Request) {
       if (refImage) referenceImageKey = refImage.storageKey;
     }
 
-    const jobType = referenceImageKey ? "generate-from-reference" : "generate";
+    const jobType = referenceImageKey ? JOB_TYPE.GENERATE_FROM_REFERENCE : JOB_TYPE.GENERATE;
 
     const generation = await prisma.generation.create({
       data: {
         projectId: project.id,
         prompt: "",
-        status: "QUEUED",
+        status: GENERATION_STATUS.QUEUED,
         imageCount,
         jobType,
         model,

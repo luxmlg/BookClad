@@ -7,6 +7,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { readFile, writeFile, mkdir, unlink } from "fs/promises";
 import { join, dirname } from "path";
+import { DEFAULT_BUCKET } from "@/lib/constants";
 
 export const useLocalStorage = !process.env.R2_ENDPOINT;
 
@@ -24,7 +25,7 @@ export const s3 = useLocalStorage
           : undefined,
     });
 
-export const bucket = process.env.R2_BUCKET ?? "covergen";
+export const bucket = process.env.R2_BUCKET ?? DEFAULT_BUCKET;
 
 /**
  * Returns a URL for downloading the given storage key.

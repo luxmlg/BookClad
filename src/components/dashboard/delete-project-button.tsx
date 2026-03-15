@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { deleteProject } from "@/lib/api";
+import { IMAGE_COUNT_KEY_PREFIX } from "@/lib/constants";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
@@ -26,7 +27,7 @@ export function DeleteProjectButton({ projectId }: { projectId: string }) {
     setDeleting(true);
     try {
       await deleteProject(projectId);
-      localStorage.removeItem(`imageCount:${projectId}`);
+      localStorage.removeItem(`${IMAGE_COUNT_KEY_PREFIX}:${projectId}`);
       toast.success("Project deleted");
       router.refresh();
     } catch {

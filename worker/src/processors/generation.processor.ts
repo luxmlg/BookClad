@@ -9,7 +9,7 @@ import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
 import { buildPrompt, buildReferencePrompt } from "../lib/prompt.js";
-import { KDP } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS } from "../lib/constants.js";
 
 async function dispatchGenerate(
   model: string,
@@ -39,9 +39,9 @@ export async function processGeneration(job: Job<GenerationJobData>) {
 
   await prisma.generation.update({
     where: { id: generationId },
-    data: { status: "PROCESSING" },
+    data: { status: GENERATION_STATUS.PROCESSING },
   });
-  await publishProgress(job, generationId, { type: "status", status: "PROCESSING" });
+  await publishProgress(job, generationId, { type: "status", status: GENERATION_STATUS.PROCESSING });
 
   try {
     const project = await prisma.coverProject.findUniqueOrThrow({
@@ -99,7 +99,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
 
     await prisma.generation.update({
       where: { id: generationId },
-      data: { status: "COMPLETED" },
+      data: { status: GENERATION_STATUS.COMPLETED },
     });
 
     await prisma.user.update({
@@ -111,7 +111,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
   } catch (error) {
     await prisma.generation.update({
       where: { id: generationId },
-      data: { status: "FAILED" },
+      data: { status: GENERATION_STATUS.FAILED },
     });
     await publishProgress(job, generationId, {
       type: "failed",

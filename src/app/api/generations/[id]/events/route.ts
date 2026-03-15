@@ -1,6 +1,7 @@
 import IORedis from "ioredis";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { GENERATION_STATUS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +34,9 @@ export async function GET(
   }
 
   // If already terminal, send the event immediately and close
-  if (generation.status === "COMPLETED" || generation.status === "FAILED") {
+  if (generation.status === GENERATION_STATUS.COMPLETED || generation.status === GENERATION_STATUS.FAILED) {
     const event =
-      generation.status === "COMPLETED"
+      generation.status === GENERATION_STATUS.COMPLETED
         ? { type: "completed" }
         : { type: "failed" };
     const body = `data: ${JSON.stringify(event)}\n\n`;
@@ -86,10 +87,10 @@ export async function GET(
         .then((gen) => {
           if (
             gen &&
-            (gen.status === "COMPLETED" || gen.status === "FAILED")
+            (gen.status === GENERATION_STATUS.COMPLETED || gen.status === GENERATION_STATUS.FAILED)
           ) {
             const event =
-              gen.status === "COMPLETED"
+              gen.status === GENERATION_STATUS.COMPLETED
                 ? { type: "completed" }
                 : { type: "failed" };
             controller.enqueue(

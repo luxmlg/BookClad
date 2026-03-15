@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Plus, BookOpen, MoreHorizontal, Pencil } from "lucide-react";
-import { GENRES } from "@/lib/constants";
+import { GENRES, GENERATION_STATUS } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
 import {
   DropdownMenu,
@@ -23,7 +23,7 @@ export default async function DashboardPage() {
     orderBy: { updatedAt: "desc" },
     include: {
       generations: {
-        where: { status: "COMPLETED" },
+        where: { status: GENERATION_STATUS.COMPLETED },
         include: { images: { where: { selected: true }, take: 1 } },
         take: 1,
         orderBy: { createdAt: "desc" },

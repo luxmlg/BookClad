@@ -3,6 +3,10 @@ import { toFile } from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+const OPENAI_MODEL = "gpt-image-1";
+const OPENAI_IMAGE_SIZE = "1024x1536" as const;
+const OPENAI_QUALITY = "medium" as const;
+
 export interface GenerateImagesParams {
   prompt: string;
   count: number;
@@ -36,11 +40,11 @@ export async function generateImages({
         type: "image/png",
       });
       const response = await openai.images.edit({
-        model: "gpt-image-1",
+        model: OPENAI_MODEL,
         image: [imageFile],
         prompt,
         n: 1,
-        size: "1024x1536",
+        size: OPENAI_IMAGE_SIZE,
       });
       const data = response.data;
       if (!data || data.length === 0) {
@@ -49,11 +53,11 @@ export async function generateImages({
       results.push(await imageDataToBuffer(data[0]));
     } else {
       const response = await openai.images.generate({
-        model: "gpt-image-1",
+        model: OPENAI_MODEL,
         prompt,
         n: 1,
-        size: "1024x1536",
-        quality: "medium",
+        size: OPENAI_IMAGE_SIZE,
+        quality: OPENAI_QUALITY,
       });
       const data = response.data;
       if (!data || data.length === 0) {
@@ -85,12 +89,12 @@ export async function inpaintImage({
   });
 
   const response = await openai.images.edit({
-    model: "gpt-image-1",
+    model: OPENAI_MODEL,
     image: imageFile,
     mask: maskFile,
     prompt,
     n: 1,
-    size: "1024x1536",
+    size: OPENAI_IMAGE_SIZE,
   });
 
   const data = response.data;

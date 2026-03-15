@@ -1,5 +1,12 @@
 const IDEOGRAM_API_KEY = process.env.IDEOGRAM_API_KEY;
 
+const IDEOGRAM_GENERATE_URL = "https://api.ideogram.ai/v1/ideogram-v3/generate";
+const IDEOGRAM_EDIT_URL = "https://api.ideogram.ai/edit";
+const IDEOGRAM_ASPECT_RATIO = "10x16";
+const IDEOGRAM_RENDERING_SPEED = "DEFAULT";
+const IDEOGRAM_MODEL_VERSION = "V_3";
+const IDEOGRAM_NEGATIVE_PROMPT = "text, letters, words, watermark, borders, frames";
+
 export function isIdeogramAvailable(): boolean {
   return !!IDEOGRAM_API_KEY;
 }
@@ -36,12 +43,12 @@ export async function ideogramGenerate({
   for (let i = 0; i < count; i++) {
     const formData = new FormData();
     formData.append("prompt", prompt);
-    formData.append("aspect_ratio", "10x16");
-    formData.append("rendering_speed", "DEFAULT");
+    formData.append("aspect_ratio", IDEOGRAM_ASPECT_RATIO);
+    formData.append("rendering_speed", IDEOGRAM_RENDERING_SPEED);
     formData.append("num_images", "1");
-    formData.append("negative_prompt", "text, letters, words, watermark, borders, frames");
+    formData.append("negative_prompt", IDEOGRAM_NEGATIVE_PROMPT);
 
-    const response = await fetch("https://api.ideogram.ai/v1/ideogram-v3/generate", {
+    const response = await fetch(IDEOGRAM_GENERATE_URL, {
       method: "POST",
       headers: { "Api-Key": IDEOGRAM_API_KEY },
       body: formData,
@@ -86,9 +93,9 @@ export async function ideogramInpaint({
     "mask.png"
   );
   formData.append("prompt", prompt);
-  formData.append("model", "V_3");
+  formData.append("model", IDEOGRAM_MODEL_VERSION);
 
-  const response = await fetch("https://api.ideogram.ai/edit", {
+  const response = await fetch(IDEOGRAM_EDIT_URL, {
     method: "POST",
     headers: { "Api-Key": IDEOGRAM_API_KEY },
     body: formData,
