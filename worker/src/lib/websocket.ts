@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
 import IORedis from "ioredis";
+import { WS_MESSAGE_TYPE } from "./constants.js";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
@@ -33,14 +34,14 @@ export function setupWebSocket(server: Server) {
       try {
         const msg = JSON.parse(raw.toString());
 
-        if (msg.type === "subscribe" && msg.generationId) {
+        if (msg.type === WS_MESSAGE_TYPE.SUBSCRIBE && msg.generationId) {
           const channel = `generation:${msg.generationId}`;
           if (subscribedChannels.has(channel)) return;
           subscribedChannels.add(channel);
           await subscriber.subscribe(channel);
         }
 
-        if (msg.type === "unsubscribe" && msg.generationId) {
+        if (msg.type === WS_MESSAGE_TYPE.UNSUBSCRIBE && msg.generationId) {
           const channel = `generation:${msg.generationId}`;
           if (!subscribedChannels.has(channel)) return;
           subscribedChannels.delete(channel);

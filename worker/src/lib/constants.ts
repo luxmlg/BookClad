@@ -24,3 +24,16 @@ export const JOB_TYPE = {
 export type JobType = typeof JOB_TYPE[keyof typeof JOB_TYPE];
 
 export const DEFAULT_BUCKET = "covergen";
+
+export const EVENT_TYPE = {
+  STATUS: "status",
+  PROGRESS: "progress",
+  COMPLETED: "completed",
+  FAILED: "failed",
+} as const;
+export type EventType = typeof EVENT_TYPE[keyof typeof EVENT_TYPE];
+
+export const WS_MESSAGE_TYPE = {
+  SUBSCRIBE: "subscribe",
+  UNSUBSCRIBE: "unsubscribe",
+} as const;

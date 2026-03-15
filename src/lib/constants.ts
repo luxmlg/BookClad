@@ -117,3 +117,16 @@ export const WS_RECONNECT_MAX_MS = 10000;
 export const POLL_INTERVAL_MS = 5000;
 
 export const IMAGE_COUNT_KEY_PREFIX = "imageCount";
+
+export const EVENT_TYPE = {
+  STATUS: "status",
+  PROGRESS: "progress",
+  COMPLETED: "completed",
+  FAILED: "failed",
+} as const;
+export type EventType = typeof EVENT_TYPE[keyof typeof EVENT_TYPE];
+
+export const WS_MESSAGE_TYPE = {
+  SUBSCRIBE: "subscribe",
+  UNSUBSCRIBE: "unsubscribe",
+} as const;

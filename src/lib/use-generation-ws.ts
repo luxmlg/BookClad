@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { GENERATION_STATUS, DEFAULT_WS_URL, WS_RECONNECT_INITIAL_MS, WS_RECONNECT_MAX_MS, type GenerationStatus } from "@/lib/constants";
+import { GENERATION_STATUS, EVENT_TYPE, WS_MESSAGE_TYPE, DEFAULT_WS_URL, WS_RECONNECT_INITIAL_MS, WS_RECONNECT_MAX_MS, type GenerationStatus } from "@/lib/constants";
 
 interface GenerationProgress {
   status: GenerationStatus;
@@ -45,7 +45,7 @@ function getSocket(): WebSocket | null {
       reconnectDelay = WS_RECONNECT_INITIAL_MS;
       // Re-subscribe all active subscriptions
       for (const generationId of subscriptions) {
-        socket.send(JSON.stringify({ type: "subscribe", generationId }));
+        socket.send(JSON.stringify({ type: WS_MESSAGE_TYPE.SUBSCRIBE, generationId }));
       }
     };
 
@@ -64,19 +64,19 @@ function getSocket(): WebSocket | null {
         let totalSteps = 0;
 
         switch (rest.type) {
-          case "status":
+          case EVENT_TYPE.STATUS:
             status = rest.status;
             break;
-          case "progress":
+          case EVENT_TYPE.PROGRESS:
             status = GENERATION_STATUS.PROCESSING;
             progressMessage = rest.message;
             step = rest.step;
             totalSteps = rest.totalSteps;
             break;
-          case "completed":
+          case EVENT_TYPE.COMPLETED:
             status = GENERATION_STATUS.COMPLETED;
             break;
-          case "failed":
+          case EVENT_TYPE.FAILED:
             status = GENERATION_STATUS.FAILED;
             break;
           default:
@@ -124,7 +124,7 @@ function subscribe(generationId: string, listener: Listener) {
   if (isNew) {
     const socket = getSocket();
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: "subscribe", generationId }));
+      socket.send(JSON.stringify({ type: WS_MESSAGE_TYPE.SUBSCRIBE, generationId }));
     }
   }
 
@@ -136,7 +136,7 @@ function subscribe(generationId: string, listener: Listener) {
         listeners.delete(generationId);
         subscriptions.delete(generationId);
         if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "unsubscribe", generationId }));
+          ws.send(JSON.stringify({ type: WS_MESSAGE_TYPE.UNSUBSCRIBE, generationId }));
         }
         // If no subscriptions left, clean up connection
         if (subscriptions.size === 0 && ws) {

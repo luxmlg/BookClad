@@ -1,7 +1,7 @@
 import IORedis from "ioredis";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { GENERATION_STATUS } from "@/lib/constants";
+import { GENERATION_STATUS, EVENT_TYPE } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -37,8 +37,8 @@ export async function GET(
   if (generation.status === GENERATION_STATUS.COMPLETED || generation.status === GENERATION_STATUS.FAILED) {
     const event =
       generation.status === GENERATION_STATUS.COMPLETED
-        ? { type: "completed" }
-        : { type: "failed" };
+        ? { type: EVENT_TYPE.COMPLETED }
+        : { type: EVENT_TYPE.FAILED };
     const body = `data: ${JSON.stringify(event)}\n\n`;
     return new Response(body, {
       headers: {
@@ -61,7 +61,7 @@ export async function GET(
       // Send initial status
       controller.enqueue(
         encoder.encode(
-          `data: ${JSON.stringify({ type: "status", status: generation.status })}\n\n`
+          `data: ${JSON.stringify({ type: EVENT_TYPE.STATUS, status: generation.status })}\n\n`
         )
       );
 
@@ -72,7 +72,7 @@ export async function GET(
           controller.enqueue(encoder.encode(`data: ${message}\n\n`));
 
           const event = JSON.parse(message);
-          if (event.type === "completed" || event.type === "failed") {
+          if (event.type === EVENT_TYPE.COMPLETED || event.type === EVENT_TYPE.FAILED) {
             cleanup();
             controller.close();
           }
@@ -91,8 +91,8 @@ export async function GET(
           ) {
             const event =
               gen.status === GENERATION_STATUS.COMPLETED
-                ? { type: "completed" }
-                : { type: "failed" };
+                ? { type: EVENT_TYPE.COMPLETED }
+                : { type: EVENT_TYPE.FAILED };
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
             );

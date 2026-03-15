@@ -1,12 +1,13 @@
 import type { Job } from "bullmq";
 import { redisPublisher } from "./redis.js";
 import type { GenerationStatus } from "./constants.js";
+import { EVENT_TYPE } from "./constants.js";
 
 export type GenerationEvent =
-  | { type: "status"; status: GenerationStatus }
-  | { type: "progress"; message: string; step: number; totalSteps: number }
-  | { type: "completed" }
-  | { type: "failed"; error?: string };
+  | { type: typeof EVENT_TYPE.STATUS; status: GenerationStatus }
+  | { type: typeof EVENT_TYPE.PROGRESS; message: string; step: number; totalSteps: number }
+  | { type: typeof EVENT_TYPE.COMPLETED }
+  | { type: typeof EVENT_TYPE.FAILED; error?: string };
 
 export async function publishProgress(
   job: Job,
@@ -14,7 +15,7 @@ export async function publishProgress(
   event: GenerationEvent
 ) {
   const logMessage =
-    event.type === "progress" ? event.message : event.type.toUpperCase();
+    event.type === EVENT_TYPE.PROGRESS ? event.message : event.type.toUpperCase();
   job.log(logMessage);
   await redisPublisher.publish(
     `generation:${generationId}`,

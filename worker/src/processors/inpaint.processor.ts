@@ -7,7 +7,7 @@ import { inpaintImage as geminiInpaint } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
-import { KDP, GENERATION_STATUS } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS, EVENT_TYPE } from "../lib/constants.js";
 
 export interface InpaintJobData {
   generationId: string;
@@ -47,10 +47,10 @@ export async function processInpaint(job: Job<InpaintJobData>) {
     where: { id: generationId },
     data: { status: GENERATION_STATUS.PROCESSING },
   });
-  await publishProgress(job, generationId, { type: "status", status: GENERATION_STATUS.PROCESSING });
+  await publishProgress(job, generationId, { type: EVENT_TYPE.STATUS, status: GENERATION_STATUS.PROCESSING });
 
   try {
-    await publishProgress(job, generationId, { type: "progress", message: "Downloading source image...", step: 1, totalSteps });
+    await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Downloading source image...", step: 1, totalSteps });
     const imageBuffer = job.data.flattenedImageDataUrl
       ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
       : await downloadImage(sourceImageKey);
@@ -60,16 +60,16 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       "base64"
     );
 
-    await publishProgress(job, generationId, { type: "progress", message: `Inpainting with ${model}...`, step: 2, totalSteps });
+    await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Inpainting with ${model}...`, step: 2, totalSteps });
     const result = await dispatchInpaint(model, imageBuffer, maskBuffer, prompt);
 
-    await publishProgress(job, generationId, { type: "progress", message: "Upscaling inpainted image...", step: 3, totalSteps });
+    await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Upscaling inpainted image...", step: 3, totalSteps });
     const upscaled = await upscaleImage(result);
 
-    await publishProgress(job, generationId, { type: "progress", message: "Cropping to KDP dimensions...", step: 4, totalSteps });
+    await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Cropping to KDP dimensions...", step: 4, totalSteps });
     const final = await cropToKDP(upscaled);
 
-    await publishProgress(job, generationId, { type: "progress", message: "Uploading result...", step: 5, totalSteps });
+    await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Uploading result...", step: 5, totalSteps });
     const storageKey = await uploadImage(final, `projects/${projectId}`);
 
     await prisma.generatedImage.create({
@@ -87,14 +87,14 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       data: { status: GENERATION_STATUS.COMPLETED },
     });
 
-    await publishProgress(job, generationId, { type: "completed" });
+    await publishProgress(job, generationId, { type: EVENT_TYPE.COMPLETED });
   } catch (error) {
     await prisma.generation.update({
       where: { id: generationId },
       data: { status: GENERATION_STATUS.FAILED },
     });
     await publishProgress(job, generationId, {
-      type: "failed",
+      type: EVENT_TYPE.FAILED,
       error: error instanceof Error ? error.message : "Unknown error",
     });
     throw error;
