@@ -71,7 +71,7 @@ export function EditorShell({ project }: { project: Project }) {
     selectedImageIdRef.current = selectedImageId;
   }, [selectedImageId, selectedImageIdRef]);
 
-  const { imageUrls, setImageUrls, loadingUrls } = useImageUrls(allImages);
+  const { imageUrls, loadingUrls } = useImageUrls(allImages);
   const toolbarPos = useToolbarPosition(canvasContainerRef);
 
   const [attributes, setAttributes] = useState<AttributeSelection>(
@@ -235,7 +235,7 @@ export function EditorShell({ project }: { project: Project }) {
         pendingAutoSelectRef.current = newestGen.images[0].id;
       }
     }
-  }, [allImages.length, completedGenerations]);
+  }, [allImages.length, completedGenerations, layersCacheRef]);
 
   // Auto-select once URL becomes available
   useEffect(() => {
@@ -590,7 +590,6 @@ export function EditorShell({ project }: { project: Project }) {
         <RightSidebar
           nodes={nodes}
           assetUrls={assetUrls}
-          customFonts={customFonts}
           selectedNodeId={selectedNodeId}
           setSelectedNodeId={setSelectedNodeId}
           updateNode={updateNode}
@@ -598,7 +597,6 @@ export function EditorShell({ project }: { project: Project }) {
           removeNode={removeNode}
           reorderNode={reorderNode}
           onImageUpload={handleImageUpload}
-          onFontUpload={handleFontUpload}
           hasSelectedImage={!!selectedImageUrl}
           onExportJpeg={() => handleExport("jpeg")}
           onExportPng={() => handleExport("png")}

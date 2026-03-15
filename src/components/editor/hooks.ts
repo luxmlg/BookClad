@@ -105,7 +105,6 @@ export function useToolbarPosition(
 
   useEffect(() => {
     if (!canvasContainerRef.current) {
-      setToolbarPos(null);
       return;
     }
     const scrollParent = canvasContainerRef.current.closest(".overflow-auto");
@@ -198,6 +197,7 @@ export function useImageUrls(allImages: GeneratedImage[]): UseImageUrlsResult {
 
     let cancelled = false;
     const isInitialLoad = Object.keys(imageUrls).length === 0;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronous loading flag before async fetch is intentional
     if (isInitialLoad) setLoadingUrls(true);
 
     async function fetchUrls() {

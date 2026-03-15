@@ -7,7 +7,6 @@ export default function EditorLayout({
 }) {
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <link href={GOOGLE_FONTS_URL} rel="stylesheet" />
       {children}
     </>

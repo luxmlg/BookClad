@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { GENERATION_STATUS } from "@/lib/constants";
+import { GENERATION_STATUS, JOB_TYPE, type GenerationStatus } from "@/lib/constants";
 import { useGenerationPoller, type GenerationPollerState } from "./generation-poller";
 import type { Generation } from "./types";
 import { PANEL_MAX_HEIGHT } from "./types";
@@ -18,7 +18,7 @@ import { formatAttributes } from "@/lib/attributes";
 
 interface GenerationQueueProps {
   generations: Generation[];
-  onComplete: (generationId: string, status: "COMPLETED" | "FAILED") => void;
+  onComplete: (generationId: string, status: GenerationStatus) => void;
 }
 
 export function GenerationQueue({
@@ -61,7 +61,7 @@ function QueueEntry({
   onComplete,
 }: {
   generation: Generation;
-  onComplete: (generationId: string, status: "COMPLETED" | "FAILED") => void;
+  onComplete: (generationId: string, status: GenerationStatus) => void;
 }) {
   const poller = useGenerationPoller({
     generationId: generation.id,
@@ -74,7 +74,7 @@ function QueueEntry({
       : generation.createdAt;
   const timeStr = formatRelativeTime(date);
 
-  const jobType = generation.jobType ?? "generate";
+  const jobType = generation.jobType ?? JOB_TYPE.GENERATE;
   const Icon = JOB_TYPE_ICON[jobType] ?? Sparkles;
   const modelLabel = getModelLabel(generation.model);
   const attrs = asAttributeSnapshot(generation.attributeSnapshot);
@@ -113,7 +113,7 @@ function QueueEntry({
         {generation.prompt ? (
           <div>
             <span className="font-medium text-muted-foreground">
-              {jobType === "inpaint" ? "Edit prompt: " : "Prompt: "}
+              {jobType === JOB_TYPE.INPAINT ? "Edit prompt: " : "Prompt: "}
             </span>
             <span className="line-clamp-2">{generation.prompt}</span>
           </div>

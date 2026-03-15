@@ -17,12 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import type { CanvasNode, TextNodeConfig, ImageNodeConfig } from "./canvas-types";
+import type { CanvasNode, ImageNodeConfig } from "./canvas-types";
 import { NODE_TYPE } from "./canvas-types";
 import { TextLayerControls } from "./text-layer-controls";
 import { ImageLayerControls } from "./image-layer-controls";
-import type { CustomFont } from "./types";
-
 const BG_LAYER = "bg" as const;
 
 interface LayerItem {
@@ -37,7 +35,6 @@ interface LayerItem {
 interface RightSidebarProps {
   nodes: CanvasNode[];
   assetUrls: Record<string, string>;
-  customFonts: CustomFont[];
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
   updateNode: (id: string, attrs: Partial<CanvasNode>) => void;
@@ -45,7 +42,6 @@ interface RightSidebarProps {
   removeNode: (id: string) => void;
   reorderNode: (fromIndex: number, toIndex: number) => void;
   onImageUpload: (file: File) => void;
-  onFontUpload: (file: File) => void;
   hasSelectedImage: boolean;
   onExportJpeg: () => void;
   onExportPng: () => void;
@@ -61,7 +57,6 @@ function getNodeLabel(node: CanvasNode) {
 export function RightSidebar({
   nodes,
   assetUrls,
-  customFonts,
   selectedNodeId,
   setSelectedNodeId,
   updateNode,
@@ -69,7 +64,6 @@ export function RightSidebar({
   removeNode,
   reorderNode,
   onImageUpload,
-  onFontUpload,
   hasSelectedImage,
   onExportJpeg,
   onExportPng,

@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { TextNodeConfig } from "./canvas-types";
-import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX } from "@/lib/constants";
+import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, DEFAULT_MODEL } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
 import { createGeneration } from "@/lib/api";
 import type { Generation } from "./types";
@@ -44,7 +44,7 @@ export function useGenerationActions(
   router: ReturnType<typeof useRouter>,
 ): UseGenerationActionsResult {
   const [activeGenerationIds, setActiveGenerationIds] = useState<string[]>([]);
-  const [model, setModel] = useState("openai");
+  const [model, setModel] = useState<string>(DEFAULT_MODEL);
   const [imageCount, setImageCount] = useState(() => {
     if (typeof window === "undefined") return 4;
     const saved = localStorage.getItem(`${IMAGE_COUNT_KEY_PREFIX}:${projectId}`);

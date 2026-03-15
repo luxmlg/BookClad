@@ -96,6 +96,8 @@ export const AI_MODELS = [
   },
 ] as const;
 
+export const DEFAULT_MODEL = AI_MODELS[0].value;
+
 export const KDP = {
   width: 1600,
   height: 2560,

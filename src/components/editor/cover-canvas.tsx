@@ -11,7 +11,7 @@ import {
 } from "react-konva";
 import type Konva from "konva";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode } from "./canvas-types";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, SCALE, NODE_TYPE } from "./canvas-types";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, SCALE } from "./canvas-types";
 import { type Guide, computeSnapGuides, type ElementRect } from "@/lib/canvas";
 
 // ── Hook: load asset images ─────────────────────────────
@@ -75,7 +75,10 @@ export function CoverCanvas({
   const [guides, setGuides] = useState<Guide[]>([]);
   const [measuredWidths, setMeasuredWidths] = useState<Record<string, number>>({});
   const onImageLoadRef = useRef(onImageLoad);
-  onImageLoadRef.current = onImageLoad;
+
+  useEffect(() => {
+    onImageLoadRef.current = onImageLoad;
+  }, [onImageLoad]);
 
   // When hideCursor is true, set pointer-events:none on Konva's inner <canvas>
   // elements so Chrome's compositor can't source a cursor from them.
@@ -94,11 +97,17 @@ export function CoverCanvas({
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
   const isImageSelected = selectedNode?.type === "image";
 
-  useEffect(() => {
+  // Render-time state adjustment: clear background when imageUrl is removed
+  const [prevImageUrl, setPrevImageUrl] = useState(imageUrl);
+  if (imageUrl !== prevImageUrl) {
+    setPrevImageUrl(imageUrl);
     if (!imageUrl) {
       setBgImage(null);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!imageUrl) return;
     let cancelled = false;
     const img = new window.Image();
     img.crossOrigin = "anonymous";
@@ -114,19 +123,21 @@ export function CoverCanvas({
   // Measure auto-width text nodes after render for offsetX calculation
   useEffect(() => {
     const updates: Record<string, number> = {};
-    let changed = false;
     for (const config of nodes) {
       if (config.type !== "text" || config.autoWidth === false) continue;
       const node = nodeRefs.current[config.id];
       if (!node) continue;
-      const w = node.width();
-      if (measuredWidths[config.id] !== w) {
-        updates[config.id] = w;
-        changed = true;
-      }
+      updates[config.id] = node.width();
     }
-    if (changed) setMeasuredWidths((prev) => ({ ...prev, ...updates }));
-  });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- updates state from DOM measurements (Konva node widths)
+    setMeasuredWidths((prev) => {
+      let changed = false;
+      for (const [id, w] of Object.entries(updates)) {
+        if (prev[id] !== w) { changed = true; break; }
+      }
+      return changed ? { ...prev, ...updates } : prev;
+    });
+  }, [nodes]);
 
   useEffect(() => {
     const tr = transformerRef.current;

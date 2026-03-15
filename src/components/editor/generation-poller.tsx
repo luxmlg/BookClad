@@ -10,7 +10,7 @@ import { getGeneration } from "@/lib/api";
 
 interface UseGenerationPollerOptions {
   generationId: string;
-  onComplete?: (generationId: string, status: "COMPLETED" | "FAILED") => void;
+  onComplete?: (generationId: string, status: GenerationStatus) => void;
 }
 
 export interface GenerationPollerState {
@@ -25,6 +25,19 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
   const router = useRouter();
   const { status, progressMessage, step, totalSteps } = useGenerationProgress(generationId);
   const completedRef = useRef(false);
+
+  const handleComplete = (failed?: string) => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    if (failed) {
+      toast.error(failed);
+      onComplete?.(generationId, GENERATION_STATUS.FAILED);
+    } else {
+      toast.success("Cover generation complete!");
+      onComplete?.(generationId, GENERATION_STATUS.COMPLETED);
+    }
+    router.refresh();
+  };
 
   // Polling fallback: check DB every 5s in case WebSocket is broken
   useEffect(() => {
@@ -55,19 +68,6 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
     }
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleComplete(failed?: string) {
-    if (completedRef.current) return;
-    completedRef.current = true;
-    if (failed) {
-      toast.error(failed);
-      onComplete?.(generationId, GENERATION_STATUS.FAILED);
-    } else {
-      toast.success("Cover generation complete!");
-      onComplete?.(generationId, GENERATION_STATUS.COMPLETED);
-    }
-    router.refresh();
-  }
-
   const progressPercent =
     totalSteps > 0 ? Math.round((step / totalSteps) * 100) : 0;
 
@@ -76,7 +76,7 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
 
 interface GenerationPollerProps {
   generationId: string;
-  onComplete?: (generationId: string, status: "COMPLETED" | "FAILED") => void;
+  onComplete?: (generationId: string, status: GenerationStatus) => void;
 }
 
 export function GenerationPoller({ generationId, onComplete }: GenerationPollerProps) {

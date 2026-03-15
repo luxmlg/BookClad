@@ -79,22 +79,27 @@ export function GenerationGroup({
     }
   }, [editing]);
 
-  useEffect(() => {
-    if (
-      selectedImageId &&
-      generation.images.some((img) => img.id === selectedImageId)
-    ) {
+  // Render-time state adjustment: auto-expand when selected image is in this group
+  const [prevSelectedImageId, setPrevSelectedImageId] = useState(selectedImageId);
+  if (selectedImageId !== prevSelectedImageId) {
+    setPrevSelectedImageId(selectedImageId);
+    if (generation.images.some((img) => img.id === selectedImageId)) {
       setOpen(true);
     }
-  }, [selectedImageId, generation.images]);
+  }
 
-  useEffect(() => {
-    if (
-      expandRequest &&
-      generation.images.some((img) => img.id === expandRequest.imageId)
-    ) {
+  // Render-time state adjustment: auto-expand on expandRequest
+  const [prevExpandRequest, setPrevExpandRequest] = useState(expandRequest);
+  if (expandRequest !== prevExpandRequest) {
+    setPrevExpandRequest(expandRequest);
+    if (expandRequest && generation.images.some((img) => img.id === expandRequest.imageId)) {
       setOpen(true);
-      // Wait for collapsible animation (200ms) to fully complete, then scroll
+    }
+  }
+
+  // Scroll to group after expand animation completes (DOM side-effect)
+  useEffect(() => {
+    if (expandRequest && generation.images.some((img) => img.id === expandRequest.imageId)) {
       setTimeout(() => {
         const container = scrollContainerRef.current;
         const el = groupRef.current;
@@ -105,7 +110,7 @@ export function GenerationGroup({
         container.scrollTo({ top: scrollTarget, behavior: "smooth" });
       }, 250);
     }
-  }, [expandRequest, generation.images]);
+  }, [expandRequest, generation.images, scrollContainerRef]);
 
   async function saveName(value: string) {
     const trimmed = value.trim();
@@ -124,7 +129,7 @@ export function GenerationGroup({
       : generation.createdAt;
   const timeStr = formatRelativeTime(date);
 
-  const jobType = generation.jobType ?? "generate";
+  const jobType = generation.jobType ?? JOB_TYPE.GENERATE;
   const Icon = JOB_TYPE_ICON[jobType] ?? Sparkles;
   const parentGenIndex = findParentGenerationIndex(
     generation.parentImageId,

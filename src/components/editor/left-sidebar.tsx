@@ -100,7 +100,8 @@ export function LeftSidebar({
         (c) => c.id !== categoryId,
       ),
     });
-    const { [categoryId]: _removed, ...rest } = attributes;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { [categoryId]: _, ...rest } = attributes;
     setAttributes(rest);
   }
 
