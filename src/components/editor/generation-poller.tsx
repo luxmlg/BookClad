@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useGenerationProgress } from "@/lib/use-generation-ws";
 import { GENERATION_STATUS, type GenerationStatus } from "@/lib/constants";
+import { getGeneration } from "@/lib/api";
 
 interface UseGenerationPollerOptions {
   generationId: string;
@@ -30,9 +31,7 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
     const pollTimer = setInterval(async () => {
       if (completedRef.current) return;
       try {
-        const res = await fetch(`/api/generations/${generationId}`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await getGeneration(generationId);
         if (data.status === GENERATION_STATUS.COMPLETED) {
           handleComplete();
         } else if (data.status === GENERATION_STATUS.FAILED) {

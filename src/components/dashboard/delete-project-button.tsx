@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { deleteProject } from "@/lib/api";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
@@ -24,10 +25,7 @@ export function DeleteProjectButton({ projectId }: { projectId: string }) {
   async function handleDelete() {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed to delete");
+      await deleteProject(projectId);
       localStorage.removeItem(`imageCount:${projectId}`);
       toast.success("Project deleted");
       router.refresh();

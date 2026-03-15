@@ -8,56 +8,65 @@ import {
   type AttributeConfigJson,
 } from "@/lib/attributes";
 import { DEFAULT_FONT, loadCustomFont } from "@/lib/fonts";
+import {
+  getAttributeConfig,
+  saveAttributeConfig,
+  getPresets,
+  deletePreset,
+  listFonts,
+  getPreferences,
+  type FontDetail,
+} from "@/lib/api";
 import { CategoriesTab } from "./categories-tab";
 import { PresetsTab, type StylePreset } from "./presets-tab";
-import { FontsTab, type UserFontSettings } from "./fonts-tab";
+import { FontsTab } from "./fonts-tab";
 
 export function SettingsClient() {
   const [config, setConfig] = useState<AttributeConfigJson>(
     buildDefaultConfig()
   );
   const [presets, setPresets] = useState<StylePreset[]>([]);
-  const [fonts, setFonts] = useState<UserFontSettings[]>([]);
+  const [fonts, setFonts] = useState<FontDetail[]>([]);
   const [defaultFont, setDefaultFont] = useState(DEFAULT_FONT);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/attributes").then((r) => r.json()),
-      fetch("/api/presets").then((r) => r.json()),
-      fetch("/api/fonts").then((r) => r.json()),
-      fetch("/api/user/preferences").then((r) => r.json()),
-    ])
-      .then(([configData, presetsData, fontsData, prefs]) => {
+    async function init() {
+      try {
+        const [configData, presetsData, fontsData, prefs] = await Promise.all([
+          getAttributeConfig(),
+          getPresets(),
+          listFonts(),
+          getPreferences(),
+        ]);
         setConfig(configData);
         setPresets(presetsData);
         setFonts(fontsData);
         if (prefs.defaultFont) setDefaultFont(prefs.defaultFont);
-        // Load custom fonts for preview
-        for (const f of fontsData as UserFontSettings[]) {
+        for (const f of fontsData) {
           loadCustomFont(f.family, f.url);
         }
-      })
-      .catch(() => toast.error("Failed to load settings"))
-      .finally(() => setLoading(false));
+      } catch {
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
+    init();
   }, []);
 
   async function saveConfig(updated: AttributeConfigJson) {
     setConfig(updated);
     try {
-      await fetch("/api/attributes", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
-      });
+      await saveAttributeConfig(updated);
     } catch {
       toast.error("Failed to save");
     }
   }
 
-  async function deletePreset(id: string) {
+  async function handleDeletePreset(id: string) {
     try {
-      await fetch(`/api/presets/${id}`, { method: "DELETE" });
+      await deletePreset(id);
       setPresets((prev) => prev.filter((p) => p.id !== id));
       toast.success("Preset deleted");
     } catch {
@@ -86,7 +95,7 @@ export function SettingsClient() {
       </TabsContent>
 
       <TabsContent value="presets">
-        <PresetsTab presets={presets} onDelete={deletePreset} />
+        <PresetsTab presets={presets} onDelete={handleDeletePreset} />
       </TabsContent>
 
       <TabsContent value="fonts">

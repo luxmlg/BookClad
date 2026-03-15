@@ -30,16 +30,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DEFAULT_FONT, FONTS_BY_CATEGORY, loadCustomFont } from "@/lib/fonts";
-
-export interface UserFontSettings {
-  id: string;
-  family: string;
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
-  createdAt: string;
-  url: string;
-}
+import {
+  uploadFont,
+  renameFont as renameFontApi,
+  deleteFont as deleteFontApi,
+  type FontDetail,
+} from "@/lib/api";
+import { updatePreferences } from "@/lib/api";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -48,8 +45,8 @@ function formatFileSize(bytes: number): string {
 }
 
 interface FontsTabProps {
-  fonts: UserFontSettings[];
-  setFonts: React.Dispatch<React.SetStateAction<UserFontSettings[]>>;
+  fonts: FontDetail[];
+  setFonts: React.Dispatch<React.SetStateAction<FontDetail[]>>;
   defaultFont: string;
   setDefaultFont: React.Dispatch<React.SetStateAction<string>>;
 }
@@ -62,18 +59,14 @@ export function FontsTab({
 }: FontsTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [renameFont, setRenameFont] = useState<UserFontSettings | null>(null);
+  const [renameFont, setRenameFont] = useState<FontDetail | null>(null);
   const [renameName, setRenameName] = useState("");
-  const [deleteFont, setDeleteFont] = useState<UserFontSettings | null>(null);
+  const [deleteFont, setDeleteFont] = useState<FontDetail | null>(null);
 
   async function handleDefaultFontChange(family: string) {
     setDefaultFont(family);
     try {
-      await fetch("/api/user/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ defaultFont: family }),
-      });
+      await updatePreferences({ defaultFont: family });
     } catch {
       toast.error("Failed to save default font");
     }
@@ -82,14 +75,7 @@ export function FontsTab({
   async function handleUpload(file: File) {
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/fonts/upload", { method: "POST", body: form });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Upload failed");
-      }
-      const data = await res.json();
+      const data = await uploadFont(file);
       await loadCustomFont(data.family, data.url);
       setFonts((prev) => {
         const idx = prev.findIndex((f) => f.family === data.family);
@@ -116,16 +102,7 @@ export function FontsTab({
       return;
     }
     try {
-      const res = await fetch(`/api/fonts/${renameFont.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ family: newName }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Rename failed");
-      }
-      const { projectsUpdated } = await res.json();
+      const { projectsUpdated } = await renameFontApi(renameFont.id, newName);
       await loadCustomFont(newName, renameFont.url);
       setFonts((prev) =>
         prev.map((f) => (f.id === renameFont.id ? { ...f, family: newName } : f))
@@ -149,8 +126,7 @@ export function FontsTab({
     if (!deleteFont) return;
     const isDefault = defaultFont === deleteFont.family;
     try {
-      const res = await fetch(`/api/fonts/${deleteFont.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
+      await deleteFontApi(deleteFont.id);
       setFonts((prev) => prev.filter((f) => f.id !== deleteFont.id));
       if (isDefault) setDefaultFont(DEFAULT_FONT);
       toast.success("Font deleted");

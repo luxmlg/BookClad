@@ -34,6 +34,23 @@ import {
 } from "@/components/ui/collapsible";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import { buildDefaultConfig } from "@/lib/attributes";
+import {
+  getAttributeConfig,
+  saveAttributeConfig,
+  getPresets,
+  getProjectAssets,
+  listFonts,
+  getPreferences,
+  getImageUrl,
+  updateImage,
+  updateProject,
+  uploadAsset,
+  uploadFont,
+  createGeneration,
+  createInpaint,
+  createPreset,
+  fireAndForget,
+} from "@/lib/api";
 import type Konva from "konva";
 const BrushTool = dynamic(
   () => import("./brush-tool").then((m) => m.BrushTool),
@@ -148,41 +165,32 @@ export function EditorShell({ project }: { project: Project }) {
 
   // Fetch attribute config, presets, project assets, and custom fonts
   useEffect(() => {
-    fetch("/api/attributes")
-      .then((r) => r.json())
-      .then((config) => setAttributeConfig(config))
-      .catch(() => {});
-    fetch("/api/presets")
-      .then((r) => r.json())
-      .then((data) => setPresets(data))
-      .catch(() => {});
-
-    // Fetch project assets
-    fetch(`/api/projects/${project.id}/assets`)
-      .then((r) => r.json())
-      .then((assets: Array<{ id: string; url: string }>) => {
+    async function init() {
+      const results = await Promise.allSettled([
+        getAttributeConfig(),
+        getPresets(),
+        getProjectAssets(project.id),
+        listFonts(),
+        getPreferences(),
+      ]);
+      if (results[0].status === "fulfilled") setAttributeConfig(results[0].value);
+      if (results[1].status === "fulfilled") setPresets(results[1].value);
+      if (results[2].status === "fulfilled") {
         const urls: Record<string, string> = {};
-        for (const a of assets) urls[a.id] = a.url;
+        for (const a of results[2].value) urls[a.id] = a.url;
         setAssetUrls(urls);
-      })
-      .catch(() => {});
-
-    // Fetch user's custom fonts
-    fetch("/api/fonts")
-      .then((r) => r.json())
-      .then(async (fonts: CustomFont[]) => {
+      }
+      if (results[3].status === "fulfilled") {
+        const fonts = results[3].value;
         setCustomFonts(fonts);
         await Promise.all(fonts.map((f) => loadCustomFont(f.family, f.url)));
-      })
-      .catch(() => {});
-
-    // Fetch user's default font preference
-    fetch("/api/user/preferences")
-      .then((r) => r.json())
-      .then((prefs: { defaultFont: string }) => {
+      }
+      if (results[4].status === "fulfilled") {
+        const prefs = results[4].value;
         if (prefs.defaultFont) setDefaultFont(prefs.defaultFont);
-      })
-      .catch(() => {});
+      }
+    }
+    init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const completedGenerations = project.generations.filter(
@@ -266,7 +274,7 @@ export function EditorShell({ project }: { project: Project }) {
       window.removeEventListener("resize", update);
       ro?.disconnect();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Helper: extract text nodes from a CanvasNode array
   const textNodes = nodes.filter((n): n is TextNodeConfig => n.type === NODE_TYPE.TEXT);
@@ -341,17 +349,14 @@ export function EditorShell({ project }: { project: Project }) {
 
     async function fetchUrls() {
       const newUrls: Record<string, string> = {};
-      await Promise.all(
-        unfetched.map(async (img) => {
-          try {
-            const res = await fetch(`/api/images/${img.id}`);
-            if (res.ok) {
-              const data = await res.json();
-              newUrls[img.id] = data.url;
-            }
-          } catch { /* skip */ }
-        })
+      const results = await Promise.allSettled(
+        unfetched.map((img) => getImageUrl(img.id))
       );
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].status === "fulfilled") {
+          newUrls[unfetched[i].id] = (results[i] as PromiseFulfilledResult<{ url: string }>).value.url;
+        }
+      }
       if (!cancelled) {
         setImageUrls((prev) => ({ ...prev, ...newUrls }));
         if (isInitialLoad) setLoadingUrls(false);
@@ -400,19 +405,11 @@ export function EditorShell({ project }: { project: Project }) {
 
       // Save to current image
       if (imageIdToSave) {
-        fetch(`/api/images/${imageIdToSave}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ canvasState }),
-        }).catch(() => {});
+        fireAndForget(updateImage(imageIdToSave, { canvasState }));
       }
 
       // Also update project-level template (default for new images)
-      fetch(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canvasState }),
-      }).catch(() => {});
+      fireAndForget(updateProject(project.id, { canvasState }));
     }, 3000);
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -455,18 +452,13 @@ export function EditorShell({ project }: { project: Project }) {
       const titleNode = textNodes.find(n => n.id === "title") ?? textNodes[0];
       const titleText = titleNode?.text ?? project.title;
       const authorText = textNodes.find(n => n.id === "author")?.text ?? project.author;
-      const res = await fetch(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: titleText,
-          author: authorText,
-          attributes,
-          brief: brief || null,
-          canvasState,
-        }),
+      await updateProject(project.id, {
+        title: titleText,
+        author: authorText,
+        attributes,
+        brief: brief || null,
+        canvasState,
       });
-      if (!res.ok) throw new Error("Save failed");
       toast.success("Saved");
     } catch {
       toast.error("Failed to save");
@@ -482,11 +474,7 @@ export function EditorShell({ project }: { project: Project }) {
     if (selectedImageId) {
       layersCacheRef.current.set(selectedImageId, nodes);
       const canvasState: CanvasState = { nodes };
-      fetch(`/api/images/${selectedImageId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canvasState }),
-      }).catch(() => {});
+      fireAndForget(updateImage(selectedImageId, { canvasState }));
     }
 
     // Load layers for the new image
@@ -522,33 +510,21 @@ export function EditorShell({ project }: { project: Project }) {
     setSelectedImageId(imageId);
 
     // Persist selection
-    fetch(`/api/images/${imageId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selected: true }),
-    }).catch(() => {});
+    fireAndForget(updateImage(imageId, { selected: true }));
   }
 
   async function handleRegenerate() {
     try {
-      const res = await fetch("/api/generations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: project.id,
-          imageCount,
-          model,
-          attributeSnapshot: attributes,
-          textLayerSnapshot: textNodes.map((n) => ({
-            name: n.name ?? n.id,
-            text: n.text ?? "",
-          })),
-        }),
+      const data = await createGeneration({
+        projectId: project.id,
+        imageCount,
+        model,
+        attributeSnapshot: attributes,
+        textLayerSnapshot: textNodes.map((n) => ({
+          name: n.name ?? n.id,
+          text: n.text ?? "",
+        })),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to regenerate");
-      }
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setActiveTab(1);
       setPanelOpen(true);
@@ -600,26 +576,18 @@ export function EditorShell({ project }: { project: Project }) {
     setRefSubmitting(true);
     try {
       const flattenedImageDataUrl = includeLayers ? await flattenCanvasToDataUrl() : undefined;
-      const res = await fetch("/api/generations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: project.id,
-          imageCount,
-          model,
-          referenceImageId: selectedImageId,
-          flattenedImageDataUrl,
-          attributeSnapshot: attributes,
-          textLayerSnapshot: textNodes.map((n) => ({
-            name: n.name ?? n.id,
-            text: n.text ?? "",
-          })),
-        }),
+      const data = await createGeneration({
+        projectId: project.id,
+        imageCount,
+        model,
+        referenceImageId: selectedImageId,
+        flattenedImageDataUrl,
+        attributeSnapshot: attributes,
+        textLayerSnapshot: textNodes.map((n) => ({
+          name: n.name ?? n.id,
+          text: n.text ?? "",
+        })),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to generate");
-      }
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setActiveTab(1);
       setPanelOpen(true);
@@ -642,26 +610,18 @@ export function EditorShell({ project }: { project: Project }) {
     setInpaintSubmitting(true);
     try {
       const flattenedImageDataUrl = includeLayers ? await flattenCanvasToDataUrl() : undefined;
-      const res = await fetch("/api/inpaint", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageId: selectedImageId,
-          maskDataUrl: inpaintMask,
-          prompt: inpaintPrompt,
-          model,
-          flattenedImageDataUrl,
-          attributeSnapshot: attributes,
-          textLayerSnapshot: textNodes.map((n) => ({
-            name: n.name ?? n.id,
-            text: n.text ?? "",
-          })),
-        }),
+      const data = await createInpaint({
+        imageId: selectedImageId,
+        maskDataUrl: inpaintMask,
+        prompt: inpaintPrompt,
+        model,
+        flattenedImageDataUrl,
+        attributeSnapshot: attributes,
+        textLayerSnapshot: textNodes.map((n) => ({
+          name: n.name ?? n.id,
+          text: n.text ?? "",
+        })),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Inpaint failed");
-      }
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setActiveTab(1);
       setPanelOpen(true);
@@ -724,26 +684,15 @@ export function EditorShell({ project }: { project: Project }) {
 
   function handleConfigChange(config: AttributeConfigJson) {
     setAttributeConfig(config);
-    fetch("/api/attributes", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
-    }).catch(() => {});
+    fireAndForget(saveAttributeConfig(config));
   }
 
   async function handleSavePreset(name: string) {
     try {
-      const res = await fetch("/api/presets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, attributes }),
-      });
-      if (res.ok) {
-        const preset = await res.json();
-        setPresets((prev) => [preset, ...prev]);
-        setActivePresetId(preset.id);
-        toast.success(`Preset "${name}" saved`);
-      }
+      const preset = await createPreset(name, attributes);
+      setPresets((prev) => [preset, ...prev]);
+      setActivePresetId(preset.id);
+      toast.success(`Preset "${name}" saved`);
     } catch {
       toast.error("Failed to save preset");
     }
@@ -877,20 +826,8 @@ export function EditorShell({ project }: { project: Project }) {
   }
 
   async function handleImageUpload(file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("projectId", project.id);
-
     try {
-      const res = await fetch("/api/assets/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Upload failed");
-      }
-      const asset = await res.json();
+      const asset = await uploadAsset(file, project.id);
 
       // Get dimensions from browser Image API if server didn't provide them
       let { width, height } = asset;
@@ -915,19 +852,8 @@ export function EditorShell({ project }: { project: Project }) {
   }
 
   async function handleFontUpload(file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const res = await fetch("/api/fonts/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Upload failed");
-      }
-      const font = await res.json();
+      const font = await uploadFont(file);
       await loadCustomFont(font.family, font.url);
       setCustomFonts(prev => {
         const existing = prev.findIndex(f => f.family === font.family);

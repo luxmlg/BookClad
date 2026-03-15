@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { ChevronRight, Sparkles, Copy, Wand2, Pencil } from "lucide-react";
+import { updateGenerationName } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -14,7 +15,6 @@ import { AI_MODELS, JOB_TYPE } from "@/lib/constants";
 import {
   formatAttributes,
   computeAttributeDiff,
-  type AttributeDiff,
 } from "@/lib/attributes";
 
 
@@ -347,11 +347,7 @@ function GenerationGroup({
     onNameChange(generation.id, trimmed);
     setEditing(false);
     try {
-      await fetch(`/api/generations/${generation.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
+      await updateGenerationName(generation.id, trimmed);
     } catch {
       onNameChange(generation.id, generation.name ?? "");
     }

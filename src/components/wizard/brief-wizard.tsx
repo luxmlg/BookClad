@@ -20,6 +20,13 @@ import {
   getDefaultValue,
   addValueToCategory,
 } from "@/lib/attributes";
+import {
+  getAttributeConfig,
+  saveAttributeConfig,
+  createProject,
+  createGeneration,
+  fireAndForget,
+} from "@/lib/api";
 
 const STEPS = [
   { label: "Book Info", icon: BookText },
@@ -45,16 +52,17 @@ export function BriefWizard() {
 
   // Fetch user's attribute config
   useEffect(() => {
-    fetch("/api/attributes")
-      .then((r) => r.json())
-      .then((config: AttributeConfigJson) => {
+    async function init() {
+      try {
+        const config = await getAttributeConfig();
         setAttributeConfig(config);
         setAttributes(buildDefaultSelection(config));
-      })
-      .catch(() => {
+      } catch {
         const def = buildDefaultConfig();
         setAttributes(buildDefaultSelection(def));
-      });
+      }
+    }
+    init();
   }, []);
 
   const enabledCategories = attributeConfig.categories.filter(
@@ -64,44 +72,20 @@ export function BriefWizard() {
   function addCustomValue(categoryId: string, value: string, label: string) {
     const updated = addValueToCategory(attributeConfig, categoryId, value, label);
     setAttributeConfig(updated);
-    fetch("/api/attributes", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updated),
-    }).catch(() => {});
+    fireAndForget(saveAttributeConfig(updated));
   }
 
   async function handleSubmit() {
     setSubmitting(true);
     try {
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          author,
-          attributes,
-          brief: [subtitle, brief].filter(Boolean).join(". "),
-        }),
+      const project = await createProject({
+        title,
+        author,
+        attributes,
+        brief: [subtitle, brief].filter(Boolean).join(". "),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to create project");
-      }
-
-      const project = await res.json();
-
-      const genRes = await fetch("/api/generations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id, imageCount }),
-      });
-
-      if (!genRes.ok) {
-        const data = await genRes.json();
-        throw new Error(data.error || "Failed to start generation");
-      }
+      await createGeneration({ projectId: project.id, imageCount });
 
       toast.success("Cover generation started!");
       router.push(`/editor/${project.id}`);
