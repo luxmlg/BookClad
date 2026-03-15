@@ -1,3 +1,6 @@
+// Intentional duplication of GENRE_VISUAL_RULES from src/lib/constants.ts and
+// formatAttrValue from src/lib/attributes.ts — the worker is a separate package
+// and cannot import from src/.
 export const GENRE_VISUAL_RULES: Record<string, string> = {
   thriller:
     "High contrast, desaturated palette, single dominant silhouette or object, dramatic shadow",

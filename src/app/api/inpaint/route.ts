@@ -1,17 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Queue } from "bullmq";
+import { generationQueue } from "@/lib/queue";
 import { createInpaintSchema } from "@/lib/validations";
-
-const generationQueue = new Queue("cover-generation", {
-  connection: {
-    host: new URL(process.env.REDIS_URL ?? "redis://localhost:6379").hostname,
-    port: parseInt(
-      new URL(process.env.REDIS_URL ?? "redis://localhost:6379").port || "6379"
-    ),
-  },
-});
 
 export async function POST(request: Request) {
   const session = await auth();

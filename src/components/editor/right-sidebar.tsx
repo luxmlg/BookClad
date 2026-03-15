@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import type { CanvasNode, TextNodeConfig, ImageNodeConfig } from "./cover-canvas";
 import { TextLayerControls } from "./text-layer-controls";
 import { ImageLayerControls } from "./image-layer-controls";
-import type { CustomFont } from "./editor-shell";
+import type { CustomFont } from "./types";
 
 interface LayerItem {
   id: string;

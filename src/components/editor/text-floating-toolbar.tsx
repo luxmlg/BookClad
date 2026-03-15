@@ -32,7 +32,7 @@ import {
 import { SelectWithAction } from "@/components/ui/select-with-action";
 import { FONTS_BY_CATEGORY } from "@/lib/fonts";
 import type { TextNodeConfig } from "./cover-canvas";
-import type { CustomFont } from "./editor-shell";
+import type { CustomFont } from "./types";
 
 interface TextFloatingToolbarProps {
   node: TextNodeConfig;

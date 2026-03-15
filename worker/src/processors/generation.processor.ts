@@ -9,9 +9,7 @@ import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
 import { buildPrompt, buildReferencePrompt } from "../lib/prompt.js";
-
-const KDP_WIDTH = 1600;
-const KDP_HEIGHT = 2560;
+import { KDP } from "../lib/constants.js";
 
 async function dispatchGenerate(
   model: string,
@@ -92,8 +90,8 @@ export async function processGeneration(job: Job<GenerationJobData>) {
         data: {
           generationId,
           storageKey,
-          width: KDP_WIDTH,
-          height: KDP_HEIGHT,
+          width: KDP.width,
+          height: KDP.height,
           selected: false,
         },
       });

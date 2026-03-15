@@ -11,12 +11,12 @@ import {
 } from "react-konva";
 import type Konva from "konva";
 import { migrateFont } from "@/lib/fonts";
+import { KDP } from "@/lib/constants";
 
-const CANVAS_WIDTH = 400;
-const CANVAS_HEIGHT = 640;
-const EXPORT_WIDTH = 1600;
-const EXPORT_HEIGHT = 2560;
-const SCALE = CANVAS_WIDTH / EXPORT_WIDTH;
+const CANVAS_SCALE_DIVISOR = 4;
+export const CANVAS_WIDTH = KDP.width / CANVAS_SCALE_DIVISOR;   // 400
+export const CANVAS_HEIGHT = KDP.height / CANVAS_SCALE_DIVISOR; // 640
+export const SCALE = 1 / CANVAS_SCALE_DIVISOR;
 
 // ── Node Types ──────────────────────────────────────────
 

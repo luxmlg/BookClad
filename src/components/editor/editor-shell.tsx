@@ -2,35 +2,19 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
   Loader2,
   ImageIcon,
   ChevronRight,
-  Paintbrush,
   RefreshCw,
-  Sparkles,
-  Tablet,
-  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode, CanvasState } from "./cover-canvas";
-import { getDefaultCanvasState, migrateCanvasState } from "./cover-canvas";
+import { getDefaultCanvasState, migrateCanvasState, CANVAS_WIDTH, CANVAS_HEIGHT, SCALE } from "./cover-canvas";
+import { KDP } from "@/lib/constants";
 import { ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
@@ -38,6 +22,9 @@ import { TextFloatingToolbar } from "./text-floating-toolbar";
 import { InpaintToolbar } from "./inpaint-toolbar";
 import { GenerationHistory } from "./generation-history";
 import { GenerationQueue } from "./generation-queue";
+import { GenerateSimilarDialog } from "./generate-similar-dialog";
+import { InpaintDialog } from "./inpaint-dialog";
+import { KindlePreview } from "./kindle-preview";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -58,45 +45,7 @@ const CoverCanvas = dynamic(
   { ssr: false }
 );
 
-interface GeneratedImage {
-  id: string;
-  storageKey: string;
-  width: number;
-  height: number;
-  selected: boolean;
-  canvasState: unknown;
-}
-
-interface Generation {
-  id: string;
-  status: string;
-  createdAt: string | Date;
-  imageCount?: number;
-  jobType?: string;
-  model?: string;
-  prompt?: string;
-  images: GeneratedImage[];
-  parentImageId?: string | null;
-  parentImage?: { id: string; storageKey: string } | null;
-  attributeSnapshot?: unknown;
-  textLayerSnapshot?: unknown;
-}
-
-interface Project {
-  id: string;
-  title: string;
-  author: string;
-  attributes: unknown;
-  brief: string | null;
-  canvasState: unknown;
-  generations: Generation[];
-}
-
-export interface CustomFont {
-  id: string;
-  family: string;
-  url: string;
-}
+import type { Project, CustomFont } from "./types";
 
 export function EditorShell({ project }: { project: Project }) {
   const router = useRouter();
@@ -688,7 +637,7 @@ export function EditorShell({ project }: { project: Project }) {
       }
     }
     const dataUrl = stage.toDataURL({
-      pixelRatio: 1600 / 400,
+      pixelRatio: KDP.width / CANVAS_WIDTH,
       mimeType: "image/jpeg",
       quality: 0.9,
     });
@@ -806,7 +755,7 @@ export function EditorShell({ project }: { project: Project }) {
       await document.fonts.ready;
 
       const dataUrl = stageRef.current.toDataURL({
-        pixelRatio: 1600 / 400, // exports at full 1600x2560
+        pixelRatio: KDP.width / CANVAS_WIDTH,
         mimeType: format === "jpeg" ? "image/jpeg" : "image/png",
         quality: format === "jpeg" ? 0.95 : undefined,
       });
@@ -872,7 +821,6 @@ export function EditorShell({ project }: { project: Project }) {
         if (n.id !== id || n.type !== "text") return n;
         const oldRot = (n.rotation ?? 0) * Math.PI / 180;
         const newRot = attrs.rotation! * Math.PI / 180;
-        const SCALE = 400 / 1600;
         const konvaNode = stageRef.current?.findOne(`#${id}`);
         const h = konvaNode ? (konvaNode as unknown as { height(): number }).height() / SCALE : 0;
         const w = konvaNode ? (konvaNode as unknown as { width(): number }).width() / SCALE : n.width;
@@ -955,14 +903,12 @@ export function EditorShell({ project }: { project: Project }) {
   }
 
   function handleNodeDragEnd(id: string, x: number, y: number) {
-    const SCALE = 400 / 1600;
     updateNode(id, { x: x / SCALE, y: y / SCALE });
   }
 
   function handleNodeTransformEnd(id: string, attrs: Partial<CanvasNode>) {
     const node = nodes.find(n => n.id === id);
     if (!node) return;
-    const SCALE = 400 / 1600;
     const mapped: Partial<CanvasNode> = {};
     if (attrs.x !== undefined) mapped.x = attrs.x / SCALE;
     if (attrs.y !== undefined) mapped.y = attrs.y / SCALE;
@@ -1082,7 +1028,7 @@ export function EditorShell({ project }: { project: Project }) {
           {/* Canvas + preview wrapper */}
           <div className="relative shrink-0">
           {/* Canvas */}
-          <div ref={canvasContainerRef} className="relative shrink-0" style={{ width: 400, height: 640 }}>
+          <div ref={canvasContainerRef} className="relative shrink-0" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
             <div
               className="relative h-full w-full overflow-hidden rounded-xl border bg-background shadow-xl"
               style={brushMode && !inpaintMask ? { cursor: 'none' } : undefined}
@@ -1167,54 +1113,15 @@ export function EditorShell({ project }: { project: Project }) {
           </div>
 
           {/* Kindle preview — positioned to the right of canvas */}
-          {showKindlePreview ? (
-            <div className="absolute left-full ml-3 bottom-0 flex w-[75px] flex-col items-center justify-end">
-              <p className="mb-1 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                Kindle ~120px
-              </p>
-              <button
-                onClick={() => setShowKindlePreview(false)}
-                className="group relative overflow-hidden rounded-lg border bg-muted/50 shadow-sm"
-                style={{ width: 75, aspectRatio: "1600/2560" }}
-                title="Hide preview"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={kindlePreview ?? selectedImageUrl ?? undefined}
-                  alt="Kindle preview"
-                  className="h-full w-full object-cover transition-[filter] group-hover:blur-sm"
-                />
-                {kindleCrossfadeSnapshot && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={kindleCrossfadeSnapshot}
-                    alt=""
-                    className={`absolute inset-0 z-10 h-full w-full object-cover transition-opacity duration-300 ease-in-out ${
-                      kindlePreview || (bgLoaded && selectedImageUrl)
-                        ? "opacity-0"
-                        : "opacity-100"
-                    }`}
-                    onTransitionEnd={() => {
-                      if (kindlePreview || (bgLoaded && selectedImageUrl)) {
-                        setKindleCrossfadeSnapshot(null);
-                      }
-                    }}
-                  />
-                )}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-                  <EyeOff className="size-5 text-white drop-shadow-md" />
-                </div>
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowKindlePreview(true)}
-              className="absolute left-full ml-3 bottom-0 flex flex-col items-center justify-end gap-1 pb-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Tablet className="size-3.5" />
-              <span>Preview</span>
-            </button>
-          )}
+          <KindlePreview
+            show={showKindlePreview}
+            onToggle={setShowKindlePreview}
+            kindlePreview={kindlePreview}
+            selectedImageUrl={selectedImageUrl}
+            kindleCrossfadeSnapshot={kindleCrossfadeSnapshot}
+            bgLoaded={bgLoaded}
+            onCrossfadeEnd={() => setKindleCrossfadeSnapshot(null)}
+          />
           </div>
         </div>
 
@@ -1298,193 +1205,52 @@ export function EditorShell({ project }: { project: Project }) {
       </div>
 
       {/* Generate Similar Dialog */}
-      <Dialog open={refDialogOpen} onOpenChange={setRefDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Generate Similar Covers</DialogTitle>
-            <DialogDescription>
-              Create new covers inspired by the selected image. Optionally add a
-              prompt to guide the variation.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {selectedImageUrl && (
-              <div className="flex justify-center">
-                <div
-                  className="overflow-hidden rounded-lg border"
-                  style={{ width: 120, aspectRatio: "1600/2560" }}
-                >
-                  {includeLayers && layerPreviewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={layerPreviewUrl}
-                      alt="Reference with layers"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <Image
-                      src={selectedImageUrl}
-                      alt="Reference"
-                      width={120}
-                      height={192}
-                      className="h-full w-full object-cover"
-                      unoptimized
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Additional instructions (optional)</Label>
-              <Textarea
-                value={refPrompt}
-                onChange={(e) => setRefPrompt(e.target.value)}
-                placeholder="e.g. Make it more dramatic, change the color palette to warm tones..."
-                rows={3}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Number of variations: {imageCount}</Label>
-              <Slider
-                value={[imageCount]}
-                onValueChange={(v) =>
-                  setImageCount(Array.isArray(v) ? v[0] : v)
-                }
-                min={1}
-                max={8}
-                step={1}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="include-layers-ref">Include canvas layers</Label>
-              <Switch id="include-layers-ref" checked={includeLayers} onCheckedChange={handleIncludeLayersChange} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRefDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleGenerateSimilar}
-              disabled={refSubmitting}
-              className="gap-2"
-            >
-              {refSubmitting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Sparkles className="size-4" />
-              )}
-              Generate
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <GenerateSimilarDialog
+        open={refDialogOpen}
+        onOpenChange={setRefDialogOpen}
+        selectedImageUrl={selectedImageUrl}
+        includeLayers={includeLayers}
+        layerPreviewUrl={layerPreviewUrl}
+        imageCount={imageCount}
+        setImageCount={setImageCount}
+        onIncludeLayersChange={handleIncludeLayersChange}
+        refPrompt={refPrompt}
+        setRefPrompt={setRefPrompt}
+        submitting={refSubmitting}
+        onSubmit={handleGenerateSimilar}
+      />
 
       {/* Inpaint Dialog */}
-      <Dialog open={inpaintDialogOpen} onOpenChange={(open) => {
-        if (!open) {
+      <InpaintDialog
+        open={inpaintDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setInpaintDialogOpen(false);
+            setBrushMode(false);
+            setInpaintMask(null);
+            setInpaintPrompt("");
+          }
+        }}
+        selectedImageUrl={selectedImageUrl}
+        includeLayers={includeLayers}
+        layerPreviewUrl={layerPreviewUrl}
+        inpaintMask={inpaintMask}
+        inpaintPrompt={inpaintPrompt}
+        setInpaintPrompt={setInpaintPrompt}
+        onIncludeLayersChange={handleIncludeLayersChange}
+        submitting={inpaintSubmitting}
+        onSubmit={handleInpaintSubmit}
+        onRepaint={() => {
+          setInpaintMask(null);
+          setInpaintDialogOpen(false);
+        }}
+        onCancel={() => {
           setInpaintDialogOpen(false);
           setBrushMode(false);
           setInpaintMask(null);
           setInpaintPrompt("");
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Region</DialogTitle>
-            <DialogDescription>
-              Describe what should replace the painted region. The AI will
-              regenerate only the selected area.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {selectedImageUrl && (
-              <div className="flex justify-center">
-                <div
-                  className="relative overflow-hidden rounded-lg border"
-                  style={{ width: 120, aspectRatio: "1600/2560" }}
-                >
-                  {includeLayers && layerPreviewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={layerPreviewUrl}
-                      alt="With layers"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <Image
-                      src={selectedImageUrl}
-                      alt="Selected cover"
-                      width={120}
-                      height={192}
-                      className="h-full w-full object-cover"
-                      unoptimized
-                    />
-                  )}
-                  {inpaintMask && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={inpaintMask}
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover opacity-50"
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Describe the replacement</Label>
-              <Textarea
-                value={inpaintPrompt}
-                onChange={(e) => setInpaintPrompt(e.target.value)}
-                placeholder="e.g. Replace with a starry night sky, add a golden border..."
-                rows={3}
-                autoFocus
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="include-layers-inpaint">Include canvas layers</Label>
-              <Switch id="include-layers-inpaint" checked={includeLayers} onCheckedChange={handleIncludeLayersChange} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setInpaintMask(null);
-                setInpaintDialogOpen(false);
-              }}
-              className="gap-1.5"
-            >
-              <Paintbrush className="size-4" />
-              Re-paint
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setInpaintDialogOpen(false);
-                setBrushMode(false);
-                setInpaintMask(null);
-                setInpaintPrompt("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleInpaintSubmit}
-              disabled={inpaintSubmitting || !inpaintPrompt.trim()}
-              className="gap-2"
-            >
-              {inpaintSubmitting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Sparkles className="size-4" />
-              )}
-              Apply
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        }}
+      />
 
       {/* Fixed-position floating toolbar — rendered outside scroll container so it's never clipped */}
       {selectedTextNode && toolbarPos && (
@@ -1512,7 +1278,7 @@ export function EditorShell({ project }: { project: Project }) {
         <div
           className="pointer-events-none fixed z-50"
           style={{
-            top: Math.min(toolbarPos.top + 640 + 8, toolbarPos.maxBottom - 44),
+            top: Math.min(toolbarPos.top + CANVAS_HEIGHT + 8, toolbarPos.maxBottom - 44),
             left: toolbarPos.left,
             width: toolbarPos.width,
           }}

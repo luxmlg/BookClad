@@ -1,25 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { mkdir, writeFile } from "fs/promises";
-import { join } from "path";
-
-const useLocalStorage = !process.env.R2_ENDPOINT;
-const s3 = useLocalStorage
-  ? null
-  : new S3Client({
-      region: "auto",
-      endpoint: process.env.R2_ENDPOINT,
-      credentials:
-        process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY
-          ? {
-              accessKeyId: process.env.R2_ACCESS_KEY_ID,
-              secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-            }
-          : undefined,
-    });
-const bucket = process.env.R2_BUCKET ?? "covergen";
+import { useLocalStorage, uploadToStorage } from "@/lib/storage";
 
 const ALLOWED_EXTENSIONS = ["ttf", "otf", "woff", "woff2"];
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
@@ -82,20 +64,7 @@ export async function POST(request: Request) {
     const storageKey = `fonts/${session.user.id}/${uuid}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    if (useLocalStorage) {
-      const dir = join(process.cwd(), "uploads", "fonts", session.user.id);
-      await mkdir(dir, { recursive: true });
-      await writeFile(join(process.cwd(), "uploads", storageKey), buffer);
-    } else {
-      await s3!.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: storageKey,
-          Body: buffer,
-          ContentType: mimeType,
-        })
-      );
-    }
+    await uploadToStorage(storageKey, buffer, mimeType);
 
     const userFont = await prisma.userFont.upsert({
       where: {

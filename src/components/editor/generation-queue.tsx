@@ -5,8 +5,9 @@ import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useGenerationPoller, type GenerationPollerState } from "./generation-poller";
+import type { Generation } from "./types";
+import { PANEL_MAX_HEIGHT } from "./types";
 import {
-  type Generation,
   JOB_TYPE_ICON,
   getModelLabel,
   formatRelativeTime,
@@ -14,20 +15,8 @@ import {
 } from "./generation-history";
 import { formatAttributes } from "@/lib/attributes";
 
-interface QueueGeneration {
-  id: string;
-  status: string;
-  createdAt: string | Date;
-  jobType?: string;
-  model?: string;
-  prompt?: string;
-  imageCount?: number;
-  attributeSnapshot?: unknown;
-  images: { id: string }[];
-}
-
 interface GenerationQueueProps {
-  generations: QueueGeneration[];
+  generations: Generation[];
   onComplete: (generationId: string, status: "COMPLETED" | "FAILED") => void;
 }
 
@@ -52,7 +41,7 @@ export function GenerationQueue({
   }
 
   return (
-    <div className="overflow-y-auto px-4 pb-3" style={{ maxHeight: 320 }}>
+    <div className="overflow-y-auto px-4 pb-3" style={{ maxHeight: PANEL_MAX_HEIGHT }}>
       <div className="space-y-2">
         {generations.map((gen) => (
           <QueueEntry
@@ -70,7 +59,7 @@ function QueueEntry({
   generation,
   onComplete,
 }: {
-  generation: QueueGeneration;
+  generation: Generation;
   onComplete: (generationId: string, status: "COMPLETED" | "FAILED") => void;
 }) {
   const poller = useGenerationPoller({

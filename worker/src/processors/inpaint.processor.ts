@@ -7,9 +7,7 @@ import { inpaintImage as geminiInpaint } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
-
-const KDP_WIDTH = 1600;
-const KDP_HEIGHT = 2560;
+import { KDP } from "../lib/constants.js";
 
 export interface InpaintJobData {
   generationId: string;
@@ -78,8 +76,8 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       data: {
         generationId,
         storageKey,
-        width: KDP_WIDTH,
-        height: KDP_HEIGHT,
+        width: KDP.width,
+        height: KDP.height,
         selected: false,
       },
     });

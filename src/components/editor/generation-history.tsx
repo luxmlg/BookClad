@@ -18,44 +18,15 @@ import {
 } from "@/lib/attributes";
 
 
-interface GeneratedImage {
-  id: string;
-  storageKey: string;
-  width: number;
-  height: number;
-  selected: boolean;
-}
-
-export type AttributeSnapshot = Record<string, string | string[]>;
-export type TextLayerSnapshot = Array<{ name: string; text: string }>;
-
-export interface Generation {
-  id: string;
-  name?: string | null;
-  status: string;
-  createdAt: string | Date;
-  imageCount?: number;
-  jobType?: string;
-  model?: string;
-  prompt?: string;
-  images: GeneratedImage[];
-  parentImageId?: string | null;
-  parentImage?: { id: string; storageKey: string } | null;
-  attributeSnapshot?: unknown;
-  textLayerSnapshot?: unknown;
-}
-
-export function asAttributeSnapshot(val: unknown): AttributeSnapshot | null {
-  if (val && typeof val === "object" && !Array.isArray(val)) {
-    return val as AttributeSnapshot;
-  }
-  return null;
-}
-
-export function asTextLayerSnapshot(val: unknown): TextLayerSnapshot | null {
-  if (Array.isArray(val)) return val as TextLayerSnapshot;
-  return null;
-}
+export type {
+  GeneratedImage,
+  Generation,
+  AttributeSnapshot,
+  TextLayerSnapshot,
+} from "./types";
+export { asAttributeSnapshot, asTextLayerSnapshot } from "./types";
+import type { Generation } from "./types";
+import { PANEL_MAX_HEIGHT, asAttributeSnapshot, asTextLayerSnapshot } from "./types";
 
 interface GenerationHistoryProps {
   generations: Generation[];
@@ -105,7 +76,7 @@ export function GenerationHistory({
     <div
       ref={scrollContainerRef}
       className="overflow-y-auto px-4 pb-3"
-      style={{ maxHeight: 320 }}
+      style={{ maxHeight: PANEL_MAX_HEIGHT }}
     >
       <div className="space-y-1">
         {generations.map((gen, idx) => (

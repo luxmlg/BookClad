@@ -1,27 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
-
-const useLocalStorage = !process.env.R2_ENDPOINT;
-
-const s3 = useLocalStorage
-  ? null
-  : new S3Client({
-      region: "auto",
-      endpoint: process.env.R2_ENDPOINT,
-      credentials:
-        process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY
-          ? {
-              accessKeyId: process.env.R2_ACCESS_KEY_ID,
-              secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-            }
-          : undefined,
-    });
-
-const bucket = process.env.R2_BUCKET ?? "covergen";
+import { useLocalStorage, uploadToStorage } from "@/lib/storage";
 
 const ALLOWED_TYPES = new Set([
   "image/png",
@@ -87,22 +67,7 @@ export async function POST(request: Request) {
     const fileId = crypto.randomUUID();
     const storageKey = `assets/${session.user.id}/${fileId}.${ext}`;
 
-    if (useLocalStorage || !s3) {
-      const filePath = join(process.cwd(), "uploads", storageKey);
-      await mkdir(join(process.cwd(), "uploads", "assets", session.user.id), {
-        recursive: true,
-      });
-      await writeFile(filePath, buffer);
-    } else {
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: storageKey,
-          Body: buffer,
-          ContentType: file.type,
-        })
-      );
-    }
+    await uploadToStorage(storageKey, buffer, file.type);
 
     const asset = await prisma.userAsset.create({
       data: {
