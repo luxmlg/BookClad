@@ -65,14 +65,22 @@ No test framework is configured.
 
 ## Editor Architecture
 
-`EditorShell` (`src/components/editor/editor-shell.tsx`) is the main client-side state hub. It manages:
-- **Canvas state**: TextNodeConfig/ImageNodeConfig arrays, loaded from project DB record. Uses `migrateCanvasState()` for legacy format compatibility.
+`EditorShell` (`src/components/editor/editor-shell.tsx`) is the main client-side state orchestrator. It wires together extracted hooks and sub-components:
+
+- **Canvas types & constants** (`canvas-types.ts`): `TextNodeConfig`, `ImageNodeConfig`, `CanvasNode`, `CanvasState`, `NODE_TYPE`, `CANVAS_WIDTH`/`CANVAS_HEIGHT`/`SCALE`, `parseCanvasState`, `getDefaultCanvasState`. All editor files import types from here, not from `cover-canvas.tsx`.
+- **Canvas snap-guide logic** (`src/lib/canvas.ts`): Pure `computeSnapGuides()` function, `Guide` interface, `SNAP_THRESHOLD`, grid line arrays.
+- **Extracted hooks** (`hooks.ts`, `use-inpaint-state.ts`, `use-generation-actions.ts`):
+  - `useLayerCache` — per-image layer caching with `layersCacheRef`
+  - `useAutoSave` — debounced canvas + project persistence
+  - `useToolbarPosition` — ResizeObserver/scroll tracking for fixed toolbars
+  - `useKindlePreview` — debounced Konva-to-dataURL for Kindle preview
+  - `useImageUrls` — fetches signed URLs for generated images
+  - `useInpaintState` — brush mode, mask, inpaint submission
+  - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking
 - **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's category configuration, fetched from `/api/attributes`)
 - **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot` and `textLayerSnapshot` with each generation for diff tracking
-- **Layer caching**: `layersCacheRef` stores canvas snapshots per generated image so switching between images restores the right canvas state
-- **Auto-save**: periodic persistence of canvas state, attributes, and brief to DB
 
-Key sub-components: `LeftSidebar` (attribute inputs, presets, brief), `PresetPicker` (preset dropdown/preview/save), `AddCategoryForm` (new category creation), `CoverCanvas` (Konva canvas), `GenerationHistory` (past generations with diffs), `GenerationQueue` (active jobs with WebSocket progress).
+Key sub-components: `EditorCenterPanel` (canvas viewport + bottom panel), `LeftSidebar` (attribute inputs, presets, brief), `RightSidebar` (layers, properties, export), `CoverCanvas` (Konva canvas), `GenerationHistory` → `GenerationGroup` (past generations with diffs via `DiffDisplay`), `GenerationQueue` (active jobs with WebSocket progress). Shared generation helpers (`getModelLabel`, `formatRelativeTime`, `JOB_TYPE_ICON`) live in `generation-helpers.ts`.
 
 ### Canvas scale
 
