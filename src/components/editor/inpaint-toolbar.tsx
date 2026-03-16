@@ -150,7 +150,7 @@ export function InpaintToolbar({
       >
         <RefreshCw className="size-3.5" />
         Generate
-        <span className="text-[10px] opacity-70">{creditCost}cr</span>
+        <span className="inline-block min-w-[4ch] tabular-nums text-[10px] text-right opacity-70">{creditCost}cr</span>
         {activeGenerationCount > 0 && (
           <span className="ml-0.5 inline-flex size-4 items-center justify-center rounded-full bg-primary-foreground/20 text-[10px] font-bold">
             {activeGenerationCount}
@@ -207,7 +207,7 @@ export function InpaintToolbar({
         <span className="text-[10px] text-muted-foreground w-3 text-right">{imageCount}</span>
       </div>
       <div className="mx-1 h-5 w-px bg-border" />
-      <span className={`text-[10px] font-medium ${insufficientCredits ? "text-destructive" : "text-muted-foreground"}`}>
+      <span className={`inline-block min-w-[4ch] tabular-nums text-[10px] text-right font-medium ${insufficientCredits ? "text-destructive" : "text-muted-foreground"}`}>
         {creditBalance}cr
       </span>
     </div>
