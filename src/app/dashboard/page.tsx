@@ -84,7 +84,7 @@ export default async function DashboardPage() {
                   </div>
                 </Link>
                 <div className="absolute top-2 right-2 z-10">
-                  <DropdownMenu>
+                  <DropdownMenu modal={false}>
                     <DropdownMenuTrigger className="rounded-md bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/70 group-hover:opacity-100">
                       <MoreHorizontal className="size-4" />
                     </DropdownMenuTrigger>

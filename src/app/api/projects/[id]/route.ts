@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateProjectSchema } from "@/lib/validations";
+import { deleteFromStorage } from "@/lib/storage";
 
 export async function GET(
   _request: Request,
@@ -95,13 +96,31 @@ export async function DELETE(
 
     const project = await prisma.coverProject.findFirst({
       where: { id, userId: session.user.id },
+      include: {
+        generations: { include: { images: { select: { storageKey: true } } } },
+        assets: { select: { storageKey: true } },
+      },
     });
 
     if (!project) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // Collect all storage keys (generated images + user assets)
+    const storageKeys: string[] = [];
+    for (const gen of project.generations) {
+      for (const img of gen.images) {
+        storageKeys.push(img.storageKey);
+      }
+    }
+    for (const asset of project.assets) {
+      storageKeys.push(asset.storageKey);
+    }
+
     await prisma.coverProject.delete({ where: { id } });
+
+    // Clean up storage in background — don't block the response
+    Promise.all(storageKeys.map((key) => deleteFromStorage(key))).catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch {

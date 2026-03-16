@@ -23,7 +23,7 @@ export async function GET() {
       });
     }
 
-    const config = ensureBuiltInCategories(record.config as AttributeConfigJson);
+    const config = ensureBuiltInCategories(record.config as unknown as AttributeConfigJson);
     return NextResponse.json(config);
   } catch {
     return NextResponse.json(
