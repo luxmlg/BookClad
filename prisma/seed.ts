@@ -12,7 +12,7 @@ interface SeedValue {
   disabled?: boolean;
 }
 
-interface SeedCategory {
+interface SeedAttribute {
   id: string;
   name: string;
   type: string;
@@ -22,8 +22,8 @@ interface SeedCategory {
   values: SeedValue[];
 }
 
-const DEFAULT_CONFIG: { categories: SeedCategory[] } = {
-  categories: [
+const DEFAULT_CONFIG: { attributes: SeedAttribute[] } = {
+  attributes: [
     {
       id: "genre",
       name: "Genre",
@@ -95,38 +95,38 @@ const DEFAULT_CONFIG: { categories: SeedCategory[] } = {
   ],
 };
 
-/** Build a lookup of default values by categoryId → value slug */
+/** Build a lookup of default values by attributeId → value slug */
 function buildDefaultLookup(): Map<string, Map<string, SeedValue>> {
   const result = new Map<string, Map<string, SeedValue>>();
-  for (const cat of DEFAULT_CONFIG.categories) {
-    result.set(cat.id, new Map(cat.values.map((v) => [v.value, v])));
+  for (const attr of DEFAULT_CONFIG.attributes) {
+    result.set(attr.id, new Map(attr.values.map((v) => [v.value, v])));
   }
   return result;
 }
 
 /**
- * Ensure a config has all built-in categories, values, and descriptions.
+ * Ensure a config has all built-in attributes, values, and descriptions.
  * Mirrors ensureBuiltInCategories() from src/lib/attributes.ts but
  * operates on plain objects since we can't import app code.
  */
-function ensureDefaults(config: { categories: SeedCategory[] }): {
-  config: { categories: SeedCategory[] };
+function ensureDefaults(config: { attributes: SeedAttribute[] }): {
+  config: { attributes: SeedAttribute[] };
   changed: boolean;
 } {
   const defaultLookup = buildDefaultLookup();
-  const defaultCats = new Map(DEFAULT_CONFIG.categories.map((c) => [c.id, c]));
+  const defaultAttrs = new Map(DEFAULT_CONFIG.attributes.map((c) => [c.id, c]));
   let changed = false;
 
-  const categories = config.categories.map((cat) => {
-    const defaultCat = defaultCats.get(cat.id);
-    let description = cat.description;
-    if (!description && defaultCat?.description) {
-      description = defaultCat.description;
+  const attributes = config.attributes.map((attr) => {
+    const defaultAttr = defaultAttrs.get(attr.id);
+    let description = attr.description;
+    if (!description && defaultAttr?.description) {
+      description = defaultAttr.description;
       changed = true;
     }
 
-    const valLookup = defaultLookup.get(cat.id);
-    let values = cat.values.map((v) => {
+    const valLookup = defaultLookup.get(attr.id);
+    let values = attr.values.map((v) => {
       if (!v.description && v.builtIn && valLookup) {
         const def = valLookup.get(v.value);
         if (def?.description) {
@@ -140,27 +140,27 @@ function ensureDefaults(config: { categories: SeedCategory[] }): {
     // Add missing built-in values
     if (valLookup) {
       const existing = new Set(values.map((v) => v.value));
-      const missing = defaultCat?.values.filter((v) => !existing.has(v.value)) ?? [];
+      const missing = defaultAttr?.values.filter((v) => !existing.has(v.value)) ?? [];
       if (missing.length > 0) {
         changed = true;
         values = [...values, ...missing];
       }
     }
 
-    if (description !== cat.description || values !== cat.values) {
-      return { ...cat, description, values };
+    if (description !== attr.description || values !== attr.values) {
+      return { ...attr, description, values };
     }
-    return cat;
+    return attr;
   });
 
-  // Add missing built-in categories
-  const existingIds = new Set(categories.map((c) => c.id));
-  const missingCats = DEFAULT_CONFIG.categories.filter((c) => !existingIds.has(c.id));
-  if (missingCats.length > 0) changed = true;
+  // Add missing built-in attributes
+  const existingIds = new Set(attributes.map((c) => c.id));
+  const missingAttrs = DEFAULT_CONFIG.attributes.filter((c) => !existingIds.has(c.id));
+  if (missingAttrs.length > 0) changed = true;
 
   return {
     config: {
-      categories: missingCats.length > 0 ? [...categories, ...missingCats] : categories,
+      attributes: missingAttrs.length > 0 ? [...attributes, ...missingAttrs] : attributes,
     },
     changed,
   };
@@ -194,7 +194,7 @@ async function main(): Promise<void> {
 
     for (const record of allConfigs) {
       const { config, changed } = ensureDefaults(
-        record.config as unknown as { categories: SeedCategory[] },
+        record.config as unknown as { attributes: SeedAttribute[] },
       );
       if (changed) {
         await prisma.attributeConfig.update({

@@ -25,7 +25,7 @@ import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import {
   computeAttributeDiff,
   type AttributeSelection,
-  type AttributeCategory,
+  type Attribute,
 } from "@/lib/attributes";
 
 export interface StylePreset {
@@ -38,7 +38,7 @@ interface PresetPickerProps {
   presets: StylePreset[];
   activePresetId: string | null;
   currentAttributes: AttributeSelection;
-  categories: AttributeCategory[];
+  attributes: Attribute[];
   onSavePreset: (name: string) => void;
   onApplyPreset: (preset: StylePreset) => void;
 }
@@ -47,7 +47,7 @@ export function PresetPicker({
   presets,
   activePresetId,
   currentAttributes,
-  categories,
+  attributes,
   onSavePreset,
   onApplyPreset,
 }: PresetPickerProps) {
@@ -113,7 +113,7 @@ export function PresetPicker({
                 <PresetPreview
                   current={currentAttributes}
                   preset={previewPreset}
-                  categories={categories}
+                  attributes={attributes}
                   onApply={() => {
                     onApplyPreset(previewPreset);
                     setPreviewPreset(null);
@@ -171,13 +171,13 @@ export function PresetPicker({
 function PresetPreview({
   current,
   preset,
-  categories,
+  attributes,
   onApply,
   onCancel,
 }: {
   current: AttributeSelection;
   preset: StylePreset;
-  categories: AttributeCategory[];
+  attributes: Attribute[];
   onApply: () => void;
   onCancel: () => void;
 }) {
@@ -185,11 +185,11 @@ function PresetPreview({
   const rawDiffs = computeAttributeDiff(current, preset.attributes);
 
   const diffs = rawDiffs?.map((d) => {
-    const cat = categories.find((c) => c.id === d.key);
+    const attr = attributes.find((c) => c.id === d.key);
     const resolve = (v: string) =>
-      cat?.values.find((cv) => cv.value === v)?.label ?? v;
+      attr?.values.find((cv) => cv.value === v)?.label ?? v;
     return {
-      label: cat?.name ?? d.label,
+      label: attr?.name ?? d.label,
       added: d.added.map(resolve),
       removed: d.removed.map(resolve),
       kept: d.kept.map(resolve),

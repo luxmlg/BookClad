@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { AttributeCategoryInput } from "@/components/editor/attribute-category-input";
+import { AttributeInput } from "@/components/editor/attribute-input";
 import type {
   AttributeConfigJson,
   AttributeSelection,
@@ -18,7 +18,7 @@ import {
   buildDefaultConfig,
   buildDefaultSelection,
   getDefaultValue,
-  addValueToCategory,
+  addValueToAttribute,
   formatAttrValue,
 } from "@/lib/attributes";
 import {
@@ -65,16 +65,16 @@ export function BriefWizard() {
     init();
   }, []);
 
-  const enabledCategories = attributeConfig.categories.filter(
+  const enabledAttributes = attributeConfig.attributes.filter(
     (c) => c.enabled
   );
-  const selectionCategories = enabledCategories.filter(
+  const selectionAttributes = enabledAttributes.filter(
     (c) => c.type !== "text"
   );
-  const textCategories = enabledCategories.filter((c) => c.type === "text");
+  const textAttributes = enabledAttributes.filter((c) => c.type === "text");
 
-  function addCustomValue(categoryId: string, value: string, label: string) {
-    const updated = addValueToCategory(attributeConfig, categoryId, value, label);
+  function addCustomValue(attributeId: string, value: string, label: string) {
+    const updated = addValueToAttribute(attributeConfig, attributeId, value, label);
     setAttributeConfig(updated);
     fireAndForget(saveAttributeConfig(updated));
   }
@@ -84,8 +84,8 @@ export function BriefWizard() {
     try {
       // Prepend subtitle to the first text attribute if present
       let projectAttrs = { ...attributes };
-      if (subtitle && textCategories.length > 0) {
-        const firstTextId = textCategories[0].id;
+      if (subtitle && textAttributes.length > 0) {
+        const firstTextId = textAttributes[0].id;
         const existing = (projectAttrs[firstTextId] as string) || "";
         projectAttrs[firstTextId] = [subtitle, existing]
           .filter(Boolean)
@@ -115,8 +115,8 @@ export function BriefWizard() {
       case 0:
         return title.trim() !== "" && author.trim() !== "";
       case 1: {
-        // At least one selection category has a value
-        return selectionCategories.some((c) => {
+        // At least one selection attribute has a value
+        return selectionAttributes.some((c) => {
           const val = attributes[c.id];
           if (c.type === "single") return typeof val === "string" && val !== "";
           return Array.isArray(val) && val.length > 0;
@@ -224,19 +224,19 @@ export function BriefWizard() {
                   presets or type custom values.
                 </p>
               </div>
-              {selectionCategories.map((category) => (
-                <AttributeCategoryInput
-                  key={category.id}
-                  category={category}
+              {selectionAttributes.map((attribute) => (
+                <AttributeInput
+                  key={attribute.id}
+                  attribute={attribute}
                   value={
-                    attributes[category.id] ??
-                    getDefaultValue(category.type, category.values[0]?.value)
+                    attributes[attribute.id] ??
+                    getDefaultValue(attribute.type, attribute.values[0]?.value)
                   }
                   onChange={(v) =>
-                    setAttributes({ ...attributes, [category.id]: v })
+                    setAttributes({ ...attributes, [attribute.id]: v })
                   }
                   onAddCustomValue={(value, label) =>
-                    addCustomValue(category.id, value, label)
+                    addCustomValue(attribute.id, value, label)
                   }
                 />
               ))}
@@ -252,16 +252,16 @@ export function BriefWizard() {
                   you&apos;d like. The more detail, the better.
                 </p>
               </div>
-              {textCategories.map((category) => (
-                <AttributeCategoryInput
-                  key={category.id}
-                  category={category}
+              {textAttributes.map((attribute) => (
+                <AttributeInput
+                  key={attribute.id}
+                  attribute={attribute}
                   value={
-                    attributes[category.id] ??
-                    getDefaultValue(category.type)
+                    attributes[attribute.id] ??
+                    getDefaultValue(attribute.type)
                   }
                   onChange={(v) =>
-                    setAttributes({ ...attributes, [category.id]: v })
+                    setAttributes({ ...attributes, [attribute.id]: v })
                   }
                 />
               ))}
@@ -289,16 +289,16 @@ export function BriefWizard() {
                   </span>
                   <span className="text-right">{author}</span>
                 </div>
-                {enabledCategories.map((cat) => {
-                  const val = attributes[cat.id];
+                {enabledAttributes.map((attr) => {
+                  const val = attributes[attr.id];
                   if (!val || (Array.isArray(val) && val.length === 0))
                     return null;
                   return (
-                    <div key={cat.id}>
+                    <div key={attr.id}>
                       <span className="font-medium text-muted-foreground">
-                        {cat.name}
+                        {attr.name}
                       </span>
-                      {cat.type === "text" ? (
+                      {attr.type === "text" ? (
                         <p className="mt-1 text-muted-foreground">
                           {val as string}
                         </p>

@@ -1,6 +1,6 @@
 import { REF_PROMPT_KEY } from "./constants.js";
 
-/** Descriptions keyed by category ID, then by value slug. */
+/** Descriptions keyed by attribute ID, then by value slug. */
 export type DescriptionsMap = Record<string, Record<string, string>>;
 
 /**
@@ -11,16 +11,16 @@ export function extractDescriptions(configJson: unknown): DescriptionsMap {
   if (
     !configJson ||
     typeof configJson !== "object" ||
-    !("categories" in configJson) ||
-    !Array.isArray((configJson as { categories: unknown }).categories)
+    !("attributes" in configJson) ||
+    !Array.isArray((configJson as { attributes: unknown }).attributes)
   ) {
     return {};
   }
 
   const result: DescriptionsMap = {};
-  for (const cat of (configJson as { categories: unknown[] }).categories) {
-    if (!cat || typeof cat !== "object" || !("id" in cat) || !("values" in cat)) continue;
-    const { id, values } = cat as { id: string; values: unknown[] };
+  for (const attr of (configJson as { attributes: unknown[] }).attributes) {
+    if (!attr || typeof attr !== "object" || !("id" in attr) || !("values" in attr)) continue;
+    const { id, values } = attr as { id: string; values: unknown[] };
     if (typeof id !== "string" || !Array.isArray(values)) continue;
 
     const descs: Record<string, string> = {};
@@ -57,7 +57,7 @@ function formatAttrValue(val: string | string[]): string {
   return val;
 }
 
-function categoryLabel(key: string): string {
+function attributeLabel(key: string): string {
   return key.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -116,15 +116,15 @@ export function buildAttributePrompt(
   const genreRules = descriptions?.genre?.[genre] ?? "";
 
   const parts: string[] = [];
-  if (genre) parts.push(`Genre: ${categoryLabel(genre)}`);
+  if (genre) parts.push(`Genre: ${attributeLabel(genre)}`);
   if (genreRules) parts.push(`Genre conventions: ${genreRules}`);
-  if (style) parts.push(`Art style: ${categoryLabel(style)}`);
+  if (style) parts.push(`Art style: ${attributeLabel(style)}`);
   if (mood) parts.push(`Mood: ${mood}`);
 
   const extraAttrs = Object.entries(attributes)
     .filter(([key]) => !SPECIAL_KEYS.has(key))
     .filter(([, val]) => val !== "" && !(Array.isArray(val) && val.length === 0))
-    .map(([key, val]) => `${PROMPT_LABELS[key] ?? categoryLabel(key)}: ${formatAttrValue(val)}`);
+    .map(([key, val]) => `${PROMPT_LABELS[key] ?? attributeLabel(key)}: ${formatAttrValue(val)}`);
   parts.push(...extraAttrs);
 
   return parts.join("\n");

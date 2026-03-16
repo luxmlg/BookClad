@@ -221,14 +221,14 @@ export function EditorShell({ project, showPrompt, initialCreditBalance }: Edito
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Hydrate attributes with defaults for all configured categories
+  // Hydrate attributes with defaults for all configured attributes
   useEffect(() => {
     setAttributes(prev => {
       const merged = { ...prev };
       let changed = false;
-      for (const cat of attributeConfig.categories) {
-        if (!(cat.id in merged)) {
-          merged[cat.id] = getDefaultValue(cat.type);
+      for (const attr of attributeConfig.attributes) {
+        if (!(attr.id in merged)) {
+          merged[attr.id] = getDefaultValue(attr.type);
           changed = true;
         }
       }
@@ -391,11 +391,11 @@ export function EditorShell({ project, showPrompt, initialCreditBalance }: Edito
 
   async function handleSavePreset(name: string) {
     try {
-      const textCategoryIds = new Set(
-        attributeConfig.categories.filter((c) => c.type === "text").map((c) => c.id),
+      const textAttributeIds = new Set(
+        attributeConfig.attributes.filter((c) => c.type === "text").map((c) => c.id),
       );
       const presetAttrs = Object.fromEntries(
-        Object.entries(attributes).filter(([key]) => !textCategoryIds.has(key)),
+        Object.entries(attributes).filter(([key]) => !textAttributeIds.has(key)),
       );
       const preset = await createPreset(name, presetAttrs);
       setPresets((prev) => [preset, ...prev]);

@@ -6,15 +6,15 @@ import { Save, Loader2, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   getDefaultValue,
-  addValueToCategory,
-  removeValueFromCategory,
+  addValueToAttribute,
+  removeValueFromAttribute,
   type AttributeConfigJson,
   type AttributeSelection,
-  type AttributeCategory,
+  type Attribute,
 } from "@/lib/attributes";
-import { AttributeCategoryInput } from "./attribute-category-input";
+import { AttributeInput } from "./attribute-input";
 import { PresetPicker, type StylePreset } from "./preset-picker";
-import { AddCategoryForm } from "./add-category-form";
+import { AddAttributeForm } from "./add-attribute-form";
 
 interface LeftSidebarProps {
   attributeConfig: AttributeConfigJson;
@@ -47,48 +47,48 @@ export function LeftSidebar({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const enabledCategories = attributeConfig.categories.filter(
+  const enabledAttributes = attributeConfig.attributes.filter(
     (c) => c.enabled,
   );
 
-  function updateAttribute(categoryId: string, value: string | string[]) {
-    setAttributes({ ...attributes, [categoryId]: value });
+  function updateAttribute(attributeId: string, value: string | string[]) {
+    setAttributes({ ...attributes, [attributeId]: value });
     onClearActivePreset();
   }
 
-  function addCustomValue(categoryId: string, value: string, label: string) {
+  function addCustomValue(attributeId: string, value: string, label: string) {
     onConfigChange(
-      addValueToCategory(attributeConfig, categoryId, value, label),
+      addValueToAttribute(attributeConfig, attributeId, value, label),
     );
   }
 
-  function removeCustomValue(categoryId: string, value: string) {
+  function removeCustomValue(attributeId: string, value: string) {
     onConfigChange(
-      removeValueFromCategory(attributeConfig, categoryId, value),
+      removeValueFromAttribute(attributeConfig, attributeId, value),
     );
   }
 
-  function removeCategory(categoryId: string) {
+  function removeAttribute(attributeId: string) {
     onConfigChange({
       ...attributeConfig,
-      categories: attributeConfig.categories.filter(
-        (c) => c.id !== categoryId,
+      attributes: attributeConfig.attributes.filter(
+        (c) => c.id !== attributeId,
       ),
     });
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { [categoryId]: _, ...rest } = attributes;
+    const { [attributeId]: _, ...rest } = attributes;
     setAttributes(rest);
   }
 
-  function handleAddCategory(
-    category: AttributeCategory,
+  function handleAddAttribute(
+    attribute: Attribute,
     defaultValue: string | string[],
   ) {
     onConfigChange({
       ...attributeConfig,
-      categories: [...attributeConfig.categories, category],
+      attributes: [...attributeConfig.attributes, attribute],
     });
-    setAttributes({ ...attributes, [category.id]: defaultValue });
+    setAttributes({ ...attributes, [attribute.id]: defaultValue });
   }
 
   // ── Drag-and-drop handlers ──────────────────────────────────────
@@ -113,18 +113,18 @@ export function LeftSidebar({
       return;
     }
 
-    const newItems = [...enabledCategories];
+    const newItems = [...enabledAttributes];
     const [moved] = newItems.splice(draggedIndex, 1);
     newItems.splice(toIndex, 0, moved);
 
-    const reorderedCategories = [
+    const reorderedAttributes = [
       ...newItems,
-      ...attributeConfig.categories.filter((c) => !c.enabled),
+      ...attributeConfig.attributes.filter((c) => !c.enabled),
     ];
 
     onConfigChange({
       ...attributeConfig,
-      categories: reorderedCategories,
+      attributes: reorderedAttributes,
     });
 
     setDraggedIndex(null);
@@ -164,20 +164,20 @@ export function LeftSidebar({
             presets={presets}
             activePresetId={activePresetId}
             currentAttributes={attributes}
-            categories={attributeConfig.categories}
+            attributes={attributeConfig.attributes}
             onSavePreset={onSavePreset}
             onApplyPreset={onApplyPreset}
           />
 
-          {/* Draggable attribute categories */}
-          {enabledCategories.map((category, index) => {
+          {/* Draggable attributes */}
+          {enabledAttributes.map((attribute, index) => {
             const isDragged = draggedIndex === index;
             const isDragOver =
               dragOverIndex === index && draggedIndex !== index;
 
             return (
               <div
-                key={category.id}
+                key={attribute.id}
                 draggable
                 onDragStart={(e) => handleItemDragStart(e, index)}
                 onDragOver={(e) => handleItemDragOver(e, index)}
@@ -188,30 +188,30 @@ export function LeftSidebar({
                   isDragOver ? "border-t-2 border-primary" : ""
                 } ${isDragged ? "opacity-40" : ""}`}
               >
-                <AttributeCategoryInput
-                  category={category}
+                <AttributeInput
+                  attribute={attribute}
                   value={
-                    attributes[category.id] ??
+                    attributes[attribute.id] ??
                     getDefaultValue(
-                      category.type,
-                      category.values[0]?.value,
+                      attribute.type,
+                      attribute.values[0]?.value,
                     )
                   }
                   onChange={(v) =>
-                    updateAttribute(category.id, v)
+                    updateAttribute(attribute.id, v)
                   }
                   onAddCustomValue={(value, label) =>
-                    addCustomValue(category.id, value, label)
+                    addCustomValue(attribute.id, value, label)
                   }
                   onRemoveCustomValue={(value) =>
-                    removeCustomValue(category.id, value)
+                    removeCustomValue(attribute.id, value)
                   }
                 />
-                {!category.builtIn && (
+                {!attribute.builtIn && (
                   <button
                     type="button"
                     className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeCategory(category.id)}
+                    onClick={() => removeAttribute(attribute.id)}
                   >
                     <XIcon className="size-3" />
                   </button>
@@ -220,9 +220,9 @@ export function LeftSidebar({
             );
           })}
 
-          <AddCategoryForm
-            existingCategoryIds={attributeConfig.categories.map((c) => c.id)}
-            onAddCategory={handleAddCategory}
+          <AddAttributeForm
+            existingAttributeIds={attributeConfig.attributes.map((c) => c.id)}
+            onAddAttribute={handleAddAttribute}
           />
         </div>
       </div>

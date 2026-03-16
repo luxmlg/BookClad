@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import {
   slugify,
   getDefaultValue,
-  type AttributeCategory,
+  type Attribute,
 } from "@/lib/attributes";
 
-const CATEGORY_TYPES = [
+const ATTRIBUTE_TYPES = [
   "single",
   "multi",
   "text",
@@ -19,21 +19,21 @@ const CATEGORY_TYPES = [
   "color",
 ] as const;
 
-interface AddCategoryFormProps {
-  existingCategoryIds: string[];
-  onAddCategory: (
-    category: AttributeCategory,
+interface AddAttributeFormProps {
+  existingAttributeIds: string[];
+  onAddAttribute: (
+    attribute: Attribute,
     defaultValue: string | string[],
   ) => void;
 }
 
-export function AddCategoryForm({
-  existingCategoryIds,
-  onAddCategory,
-}: AddCategoryFormProps) {
+export function AddAttributeForm({
+  existingAttributeIds,
+  onAddAttribute,
+}: AddAttributeFormProps) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
-  const [type, setType] = useState<AttributeCategory["type"]>("single");
+  const [type, setType] = useState<Attribute["type"]>("single");
   const [scaleMinLabel, setScaleMinLabel] = useState("");
   const [scaleMaxLabel, setScaleMaxLabel] = useState("");
   const [duplicateError, setDuplicateError] = useState("");
@@ -43,12 +43,12 @@ export function AddCategoryForm({
     if (!trimmed) return;
     const id = slugify(trimmed);
 
-    if (existingCategoryIds.includes(id)) {
-      setDuplicateError(`A category named "${trimmed}" already exists`);
+    if (existingAttributeIds.includes(id)) {
+      setDuplicateError(`An attribute named "${trimmed}" already exists`);
       return;
     }
 
-    const newCat: AttributeCategory = {
+    const newAttr: Attribute = {
       id,
       name: trimmed,
       type,
@@ -65,7 +65,7 @@ export function AddCategoryForm({
         }),
     };
 
-    onAddCategory(newCat, getDefaultValue(type));
+    onAddAttribute(newAttr, getDefaultValue(type));
     reset();
   }
 
@@ -112,7 +112,7 @@ export function AddCategoryForm({
         <p className="text-xs text-destructive">{duplicateError}</p>
       )}
       <div className="flex flex-wrap gap-2">
-        {CATEGORY_TYPES.map((t) => (
+        {ATTRIBUTE_TYPES.map((t) => (
           <Button
             key={t}
             variant={type === t ? "default" : "outline"}

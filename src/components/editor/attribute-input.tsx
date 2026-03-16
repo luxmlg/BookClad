@@ -9,27 +9,27 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { slugify, getDefaultValue, getActiveValues, type AttributeCategory } from "@/lib/attributes";
+import { slugify, getDefaultValue, getActiveValues, type Attribute } from "@/lib/attributes";
 
-interface AttributeCategoryInputProps {
-  category: AttributeCategory;
+interface AttributeInputProps {
+  attribute: Attribute;
   value: string | string[];
   onChange: (value: string | string[]) => void;
   onAddCustomValue?: (value: string, label: string) => void;
   onRemoveCustomValue?: (value: string) => void;
 }
 
-export function AttributeCategoryInput({
-  category,
+export function AttributeInput({
+  attribute,
   value,
   onChange,
   onAddCustomValue,
   onRemoveCustomValue,
-}: AttributeCategoryInputProps) {
-  if (category.type === "toggle") {
+}: AttributeInputProps) {
+  if (attribute.type === "toggle") {
     return (
       <div className="flex items-center justify-between">
-        <Label>{category.name}</Label>
+        <Label>{attribute.name}</Label>
         <Switch
           checked={value === "true"}
           onCheckedChange={(c) => onChange(c ? "true" : "false")}
@@ -38,12 +38,12 @@ export function AttributeCategoryInput({
     );
   }
 
-  if (category.type === "scale") {
+  if (attribute.type === "scale") {
     const num = parseInt(value as string, 10) || 5;
     return (
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <Label>{category.name}</Label>
+          <Label>{attribute.name}</Label>
           <span className="text-xs text-muted-foreground tabular-nums">
             {num}/10
           </span>
@@ -55,20 +55,20 @@ export function AttributeCategoryInput({
           value={[num]}
           onValueChange={(vals) => onChange(String(Array.isArray(vals) ? vals[0] : vals))}
         />
-        {category.scaleLabels && (
+        {attribute.scaleLabels && (
           <div className="flex justify-between text-[10px] text-muted-foreground">
-            <span>{category.scaleLabels.min}</span>
-            <span>{category.scaleLabels.max}</span>
+            <span>{attribute.scaleLabels.min}</span>
+            <span>{attribute.scaleLabels.max}</span>
           </div>
         )}
       </div>
     );
   }
 
-  if (category.type === "color") {
+  if (attribute.type === "color") {
     return (
       <div className="space-y-1.5">
-        <Label>{category.name}</Label>
+        <Label>{attribute.name}</Label>
         <div className="flex items-center gap-2">
           <input
             type="color"
@@ -87,13 +87,13 @@ export function AttributeCategoryInput({
     );
   }
 
-  if (category.type === "text") {
+  if (attribute.type === "text") {
     return (
       <div className="space-y-1.5">
-        <Label>{category.name}</Label>
+        <Label>{attribute.name}</Label>
         <Textarea
           rows={3}
-          placeholder={`Enter ${category.name.toLowerCase()}...`}
+          placeholder={`Enter ${attribute.name.toLowerCase()}...`}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -101,10 +101,10 @@ export function AttributeCategoryInput({
     );
   }
 
-  if (category.type === "single") {
+  if (attribute.type === "single") {
     return (
       <SingleSelect
-        category={category}
+        attribute={attribute}
         value={value as string}
         onChange={(v) => onChange(v)}
         onAddCustomValue={onAddCustomValue}
@@ -114,7 +114,7 @@ export function AttributeCategoryInput({
 
   return (
     <MultiSelect
-      category={category}
+      attribute={attribute}
       value={value as string[]}
       onChange={(v) => onChange(v)}
       onAddCustomValue={onAddCustomValue}
@@ -124,29 +124,29 @@ export function AttributeCategoryInput({
 }
 
 function SingleSelect({
-  category,
+  attribute,
   value,
   onChange,
   onAddCustomValue,
 }: {
-  category: AttributeCategory;
+  attribute: Attribute;
   value: string;
   onChange: (value: string) => void;
   onAddCustomValue?: (value: string, label: string) => void;
 }) {
-  const options = getActiveValues(category).map((v) => ({
+  const options = getActiveValues(attribute).map((v) => ({
     value: v.value,
     label: v.label,
   }));
 
   return (
     <div className="space-y-1.5">
-      <Label>{category.name}</Label>
+      <Label>{attribute.name}</Label>
       <Combobox
         options={options}
         value={value}
         onChange={onChange}
-        placeholder={`Select ${category.name.toLowerCase()}...`}
+        placeholder={`Select ${attribute.name.toLowerCase()}...`}
         onCreateOption={
           onAddCustomValue
             ? (label) => {
@@ -162,13 +162,13 @@ function SingleSelect({
 }
 
 function MultiSelect({
-  category,
+  attribute,
   value,
   onChange,
   onAddCustomValue,
   onRemoveCustomValue,
 }: {
-  category: AttributeCategory;
+  attribute: Attribute;
   value: string[];
   onChange: (value: string[]) => void;
   onAddCustomValue?: (value: string, label: string) => void;
@@ -189,7 +189,7 @@ function MultiSelect({
     const label = customInput.trim();
     if (!label) return;
     const slug = slugify(label);
-    if (category.values.some((v) => v.value === slug)) {
+    if (attribute.values.some((v) => v.value === slug)) {
       // Already exists, just select it
       if (!value.includes(slug)) {
         onChange([...value, slug]);
@@ -204,9 +204,9 @@ function MultiSelect({
 
   return (
     <div className="space-y-1.5">
-      <Label>{category.name}</Label>
+      <Label>{attribute.name}</Label>
       <div className="flex flex-wrap gap-1.5">
-        {getActiveValues(category).map((v) => (
+        {getActiveValues(attribute).map((v) => (
           <Badge
             key={v.value}
             variant={value.includes(v.value) ? "default" : "outline"}

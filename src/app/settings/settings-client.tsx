@@ -19,7 +19,7 @@ import {
   type FontDetail,
 } from "@/lib/api";
 import { GeneralTab } from "./general-tab";
-import { CategoriesTab } from "./categories-tab";
+import { AttributesTab } from "./attributes-tab";
 import { PresetsTab, type StylePreset } from "./presets-tab";
 import { FontsTab } from "./fonts-tab";
 import { BillingTab } from "./billing-tab";
@@ -101,7 +101,7 @@ export function SettingsClient() {
     <Tabs defaultValue="general">
       <TabsList className="mb-6">
         <TabsTrigger value="general">General</TabsTrigger>
-        <TabsTrigger value="categories">Attribute Categories</TabsTrigger>
+        <TabsTrigger value="attributes">Attributes</TabsTrigger>
         <TabsTrigger value="presets">Style Presets</TabsTrigger>
         <TabsTrigger value="fonts">Fonts</TabsTrigger>
         <TabsTrigger value="billing">Billing</TabsTrigger>
@@ -114,8 +114,8 @@ export function SettingsClient() {
         />
       </TabsContent>
 
-      <TabsContent value="categories">
-        <CategoriesTab config={config} onSave={saveConfig} />
+      <TabsContent value="attributes">
+        <AttributesTab config={config} onSave={saveConfig} />
       </TabsContent>
 
       <TabsContent value="presets">

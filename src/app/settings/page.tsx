@@ -10,7 +10,7 @@ export default async function SettingsPage() {
     <div className="container mx-auto max-w-3xl px-4 py-10">
       <h1 className="mb-2 text-3xl font-bold">Settings</h1>
       <p className="mb-8 text-muted-foreground">
-        Manage your attribute categories, custom values, and style presets.
+        Manage your attributes, custom values, and style presets.
       </p>
       <SettingsClient />
     </div>

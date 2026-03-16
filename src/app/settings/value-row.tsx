@@ -12,14 +12,14 @@ import {
 } from "@/lib/attributes";
 
 interface ValueRowProps {
-  categoryId: string;
+  attributeId: string;
   value: AttributeValue;
   onUpdateValue: (updates: Partial<Pick<AttributeValue, "description" | "disabled">>) => void;
   onRemoveValue: () => void;
 }
 
 export function ValueRow({
-  categoryId,
+  attributeId,
   value,
   onUpdateValue,
   onRemoveValue,
@@ -28,7 +28,7 @@ export function ValueRow({
   const [draft, setDraft] = useState(value.description ?? "");
 
   const defaultDesc = value.builtIn
-    ? getDefaultDescription(categoryId, value.value)
+    ? getDefaultDescription(attributeId, value.value)
     : undefined;
   const canRestore =
     defaultDesc !== undefined && value.description !== defaultDesc;

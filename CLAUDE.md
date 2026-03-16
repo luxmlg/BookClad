@@ -77,7 +77,7 @@ No test framework is configured.
   - `useImageUrls` — fetches signed URLs for generated images
   - `useInpaintState` — brush mode, mask, inpaint submission
   - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking
-- **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's category configuration, fetched from `/api/attributes`)
+- **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's attribute configuration, fetched from `/api/attributes`)
 - **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot` and `textLayerSnapshot` with each generation for diff tracking
 
 Key sub-components: `EditorCenterPanel` (canvas viewport + bottom panel), `LeftSidebar` (attribute inputs, presets, brief), `RightSidebar` (layers, properties, export), `CoverCanvas` (Konva canvas), `GenerationHistory` → `GenerationGroup` (past generations with diffs via `DiffDisplay`), `GenerationQueue` (active jobs with WebSocket progress). Shared generation helpers (`getModelLabel`, `formatRelativeTime`, `JOB_TYPE_ICON`) live in `generation-helpers.ts`.
@@ -98,7 +98,7 @@ Defined in `src/lib/attributes.ts`. Provides a flexible, user-customizable syste
 
 **Validation**: Zod schemas in `src/lib/attribute-validations.ts`. Attribute selection schema is also in `src/lib/validations.ts` as `attributeSelectionField`.
 
-**Built-in categories**: Genre, Mood, Art Style — defined in `buildDefaultConfig()` with values from `src/lib/constants.ts`. `mergeWithDefaults()` handles adding new built-in values to existing user configs.
+**Built-in attributes**: Genre, Mood, Art Style — defined in `buildDefaultConfig()` with values from `src/lib/constants.ts`. `ensureBuiltInAttributes()` handles adding new built-in values to existing user configs.
 
 **Worker prompt building**: `worker/src/lib/prompt.ts` formats attributes into AI prompts. Genre/mood/style get special treatment; all other attributes appear as extra bullet points. The worker is a separate package and cannot import from `src/lib/`.
 

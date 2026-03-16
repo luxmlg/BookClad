@@ -21,68 +21,68 @@ import {
 } from "@/components/ui/collapsible";
 import {
   slugify,
-  addValueToCategory,
-  removeValueFromCategory,
-  updateValueInCategory,
-  updateCategoryDescription,
-  getDefaultCategoryDescription,
+  addValueToAttribute,
+  removeValueFromAttribute,
+  updateValueInAttribute,
+  updateAttributeDescription,
+  getDefaultAttributeDescription,
   type AttributeConfigJson,
-  type AttributeCategory,
+  type Attribute,
   type AttributeValue,
 } from "@/lib/attributes";
 import { ValueRow } from "./value-row";
 
-interface CategoriesTabProps {
+interface AttributesTabProps {
   config: AttributeConfigJson;
   onSave: (config: AttributeConfigJson) => void;
 }
 
-export function CategoriesTab({ config, onSave }: CategoriesTabProps) {
-  const [addingCategory, setAddingCategory] = useState(false);
+export function AttributesTab({ config, onSave }: AttributesTabProps) {
+  const [addingAttribute, setAddingAttribute] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<AttributeCategory["type"]>("single");
+  const [newType, setNewType] = useState<Attribute["type"]>("single");
 
-  function toggleCategory(categoryId: string, enabled: boolean) {
+  function toggleAttribute(attributeId: string, enabled: boolean) {
     onSave({
       ...config,
-      categories: config.categories.map((c) =>
-        c.id === categoryId ? { ...c, enabled } : c
+      attributes: config.attributes.map((c) =>
+        c.id === attributeId ? { ...c, enabled } : c
       ),
     });
   }
 
-  function addValue(categoryId: string, value: string, label: string) {
-    onSave(addValueToCategory(config, categoryId, value, label));
+  function addValue(attributeId: string, value: string, label: string) {
+    onSave(addValueToAttribute(config, attributeId, value, label));
   }
 
-  function removeValue(categoryId: string, value: string) {
-    onSave(removeValueFromCategory(config, categoryId, value));
+  function removeValue(attributeId: string, value: string) {
+    onSave(removeValueFromAttribute(config, attributeId, value));
   }
 
   function handleUpdateValue(
-    categoryId: string,
+    attributeId: string,
     value: string,
     updates: Partial<Pick<AttributeValue, "description" | "disabled">>,
   ) {
-    onSave(updateValueInCategory(config, categoryId, value, updates));
+    onSave(updateValueInAttribute(config, attributeId, value, updates));
   }
 
-  function handleUpdateCategoryDescription(
-    categoryId: string,
+  function handleUpdateAttributeDescription(
+    attributeId: string,
     description: string,
   ) {
-    onSave(updateCategoryDescription(config, categoryId, description));
+    onSave(updateAttributeDescription(config, attributeId, description));
   }
 
-  function addCategory() {
+  function addAttribute() {
     const name = newName.trim();
     if (!name) return;
     const id = slugify(name);
 
     onSave({
       ...config,
-      categories: [
-        ...config.categories,
+      attributes: [
+        ...config.attributes,
         {
           id,
           name,
@@ -94,38 +94,38 @@ export function CategoriesTab({ config, onSave }: CategoriesTabProps) {
       ],
     });
     setNewName("");
-    setAddingCategory(false);
-    toast.success(`Category "${name}" added`);
+    setAddingAttribute(false);
+    toast.success(`Attribute "${name}" added`);
   }
 
-  function removeCategory(categoryId: string) {
+  function removeAttribute(attributeId: string) {
     onSave({
       ...config,
-      categories: config.categories.filter((c) => c.id !== categoryId),
+      attributes: config.attributes.filter((c) => c.id !== attributeId),
     });
-    toast.success("Category removed");
+    toast.success("Attribute removed");
   }
 
   return (
     <div className="space-y-4">
-      {config.categories.map((cat) => (
-        <CategoryCard
-          key={cat.id}
-          category={cat}
-          onToggle={(enabled) => toggleCategory(cat.id, enabled)}
-          onAddValue={(value, label) => addValue(cat.id, value, label)}
-          onRemoveValue={(value) => removeValue(cat.id, value)}
+      {config.attributes.map((attr) => (
+        <AttributeCard
+          key={attr.id}
+          attribute={attr}
+          onToggle={(enabled) => toggleAttribute(attr.id, enabled)}
+          onAddValue={(value, label) => addValue(attr.id, value, label)}
+          onRemoveValue={(value) => removeValue(attr.id, value)}
           onUpdateValue={(value, updates) =>
-            handleUpdateValue(cat.id, value, updates)
+            handleUpdateValue(attr.id, value, updates)
           }
-          onUpdateCategoryDescription={(desc) =>
-            handleUpdateCategoryDescription(cat.id, desc)
+          onUpdateAttributeDescription={(desc) =>
+            handleUpdateAttributeDescription(attr.id, desc)
           }
-          onRemoveCategory={() => removeCategory(cat.id)}
+          onRemoveAttribute={() => removeAttribute(attr.id)}
         />
       ))}
 
-      {addingCategory ? (
+      {addingAttribute ? (
         <Card className="border-dashed">
           <CardContent className="space-y-3 p-4">
             <Input
@@ -134,8 +134,8 @@ export function CategoriesTab({ config, onSave }: CategoriesTabProps) {
               placeholder="Attribute name (e.g. Color Palette, Era)"
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === "Enter") addCategory();
-                if (e.key === "Escape") setAddingCategory(false);
+                if (e.key === "Enter") addAttribute();
+                if (e.key === "Escape") setAddingAttribute(false);
               }}
             />
             <div className="flex flex-wrap gap-2">
@@ -153,13 +153,13 @@ export function CategoriesTab({ config, onSave }: CategoriesTabProps) {
               ))}
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={addCategory}>
+              <Button size="sm" onClick={addAttribute}>
                 Add Attribute
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setAddingCategory(false)}
+                onClick={() => setAddingAttribute(false)}
               >
                 Cancel
               </Button>
@@ -170,7 +170,7 @@ export function CategoriesTab({ config, onSave }: CategoriesTabProps) {
         <Button
           variant="outline"
           className="w-full gap-2"
-          onClick={() => setAddingCategory(true)}
+          onClick={() => setAddingAttribute(true)}
         >
           <PlusIcon className="size-4" />
           Add Attribute
@@ -180,8 +180,8 @@ export function CategoriesTab({ config, onSave }: CategoriesTabProps) {
   );
 }
 
-interface CategoryCardProps {
-  category: AttributeCategory;
+interface AttributeCardProps {
+  attribute: Attribute;
   onToggle: (enabled: boolean) => void;
   onAddValue: (value: string, label: string) => void;
   onRemoveValue: (value: string) => void;
@@ -189,31 +189,31 @@ interface CategoryCardProps {
     value: string,
     updates: Partial<Pick<AttributeValue, "description" | "disabled">>,
   ) => void;
-  onUpdateCategoryDescription: (description: string) => void;
-  onRemoveCategory: () => void;
+  onUpdateAttributeDescription: (description: string) => void;
+  onRemoveAttribute: () => void;
 }
 
-function CategoryCard({
-  category,
+function AttributeCard({
+  attribute,
   onToggle,
   onAddValue,
   onRemoveValue,
   onUpdateValue,
-  onUpdateCategoryDescription,
-  onRemoveCategory,
-}: CategoryCardProps) {
+  onUpdateAttributeDescription,
+  onRemoveAttribute,
+}: AttributeCardProps) {
   const [open, setOpen] = useState(false);
   const [addingValue, setAddingValue] = useState(false);
   const [newValue, setNewValue] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
-  const [descDraft, setDescDraft] = useState(category.description ?? "");
+  const [descDraft, setDescDraft] = useState(attribute.description ?? "");
 
-  const disabledCount = category.values.filter((v) => v.disabled).length;
-  const defaultCatDesc = category.builtIn
-    ? getDefaultCategoryDescription(category.id)
+  const disabledCount = attribute.values.filter((v) => v.disabled).length;
+  const defaultAttrDesc = attribute.builtIn
+    ? getDefaultAttributeDescription(attribute.id)
     : undefined;
-  const canRestoreCatDesc =
-    defaultCatDesc !== undefined && category.description !== defaultCatDesc;
+  const canRestoreAttrDesc =
+    defaultAttrDesc !== undefined && attribute.description !== defaultAttrDesc;
 
   function handleAddValue() {
     const label = newValue.trim();
@@ -226,16 +226,16 @@ function CategoryCard({
 
   function handleDescBlur() {
     const trimmed = descDraft.trim();
-    if (trimmed !== (category.description ?? "")) {
-      onUpdateCategoryDescription(trimmed);
+    if (trimmed !== (attribute.description ?? "")) {
+      onUpdateAttributeDescription(trimmed);
     }
     setEditingDesc(false);
   }
 
-  function handleRestoreCatDesc() {
-    if (defaultCatDesc !== undefined) {
-      setDescDraft(defaultCatDesc);
-      onUpdateCategoryDescription(defaultCatDesc);
+  function handleRestoreAttrDesc() {
+    if (defaultAttrDesc !== undefined) {
+      setDescDraft(defaultAttrDesc);
+      onUpdateAttributeDescription(defaultAttrDesc);
     }
   }
 
@@ -248,26 +248,26 @@ function CategoryCard({
               <ChevronRightIcon
                 className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
               />
-              <CardTitle className="text-base">{category.name}</CardTitle>
+              <CardTitle className="text-base">{attribute.name}</CardTitle>
               <Badge variant="secondary" className="text-xs">
-                {category.type.charAt(0).toUpperCase() + category.type.slice(1)}
+                {attribute.type.charAt(0).toUpperCase() + attribute.type.slice(1)}
               </Badge>
               <span className="text-xs text-muted-foreground">
-                {category.values.length} values
+                {attribute.values.length} values
                 {disabledCount > 0 && ` (${disabledCount} disabled)`}
               </span>
             </CollapsibleTrigger>
             <div className="flex items-center gap-2">
               <Switch
-                checked={category.enabled}
+                checked={attribute.enabled}
                 onCheckedChange={onToggle}
               />
-              {!category.builtIn && (
+              {!attribute.builtIn && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   className="text-muted-foreground hover:text-destructive"
-                  onClick={onRemoveCategory}
+                  onClick={onRemoveAttribute}
                 >
                   <Trash2Icon className="size-3.5" />
                 </Button>
@@ -278,7 +278,7 @@ function CategoryCard({
         <CollapsibleContent>
           <CardContent className="px-4 pb-4 pt-0">
             <div className="space-y-2">
-              {/* Category description */}
+              {/* Attribute description */}
               {editingDesc ? (
                 <div className="space-y-1.5">
                   <Textarea
@@ -286,16 +286,16 @@ function CategoryCard({
                     value={descDraft}
                     onChange={(e) => setDescDraft(e.target.value)}
                     onBlur={handleDescBlur}
-                    placeholder="Add a category description..."
+                    placeholder="Add an attribute description..."
                     className="text-xs"
                     autoFocus
                   />
-                  {canRestoreCatDesc && (
+                  {canRestoreAttrDesc && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 gap-1 text-xs"
-                      onClick={handleRestoreCatDesc}
+                      onClick={handleRestoreAttrDesc}
                     >
                       <RotateCcwIcon className="size-3" />
                       Restore default
@@ -307,19 +307,19 @@ function CategoryCard({
                   type="button"
                   className="w-full text-left text-xs text-muted-foreground hover:text-foreground"
                   onClick={() => {
-                    setDescDraft(category.description ?? "");
+                    setDescDraft(attribute.description ?? "");
                     setEditingDesc(true);
                   }}
                 >
-                  {category.description || "Click to add description..."}
+                  {attribute.description || "Click to add description..."}
                 </button>
               )}
 
               {/* Value rows */}
-              {category.values.map((v) => (
+              {attribute.values.map((v) => (
                 <ValueRow
                   key={v.value}
-                  categoryId={category.id}
+                  attributeId={attribute.id}
                   value={v}
                   onUpdateValue={(updates) => onUpdateValue(v.value, updates)}
                   onRemoveValue={() => onRemoveValue(v.value)}

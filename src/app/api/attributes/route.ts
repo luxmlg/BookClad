@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ensureBuiltInCategories, type AttributeConfigJson } from "@/lib/attributes";
+import { ensureBuiltInAttributes, type AttributeConfigJson } from "@/lib/attributes";
 import { attributeConfigSchema } from "@/lib/attribute-validations";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -24,7 +24,7 @@ export async function GET() {
     }
 
     const raw = record.config as unknown as AttributeConfigJson;
-    const config = ensureBuiltInCategories(raw);
+    const config = ensureBuiltInAttributes(raw);
 
     if (config !== raw) {
       await prisma.attributeConfig.update({

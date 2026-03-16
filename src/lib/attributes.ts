@@ -10,7 +10,7 @@ export interface AttributeValue {
   disabled?: boolean;
 }
 
-export interface AttributeCategory {
+export interface Attribute {
   id: string;
   name: string;
   type: "single" | "multi" | "text" | "toggle" | "scale" | "color";
@@ -22,12 +22,12 @@ export interface AttributeCategory {
 }
 
 export interface AttributeConfigJson {
-  categories: AttributeCategory[];
+  attributes: Attribute[];
 }
 
 export const REF_PROMPT_KEY = "ref-instructions";
 
-/** Per-project selections: category id → selected value(s) */
+/** Per-project selections: attribute id → selected value(s) */
 export type AttributeSelection = Record<string, string | string[]>;
 
 // ── Utilities ───────────────────────────────────────────────────
@@ -41,7 +41,7 @@ export function slugify(text: string): string {
 
 /** Get the default selection value for a given attribute type. */
 export function getDefaultValue(
-  type: AttributeCategory["type"],
+  type: Attribute["type"],
   firstValue?: string,
 ): string | string[] {
   switch (type) {
@@ -127,33 +127,33 @@ export function computeAttributeDiff(
   return diffs.length > 0 ? diffs : null;
 }
 
-/** Add a custom value to a category in the config. */
-export function addValueToCategory(
+/** Add a custom value to an attribute in the config. */
+export function addValueToAttribute(
   config: AttributeConfigJson,
-  categoryId: string,
+  attributeId: string,
   value: string,
   label: string,
 ): AttributeConfigJson {
   return {
     ...config,
-    categories: config.categories.map((c) =>
-      c.id === categoryId
+    attributes: config.attributes.map((c) =>
+      c.id === attributeId
         ? { ...c, values: [...c.values, { value, label, builtIn: false }] }
         : c,
     ),
   };
 }
 
-/** Remove a custom value from a category in the config. */
-export function removeValueFromCategory(
+/** Remove a custom value from an attribute in the config. */
+export function removeValueFromAttribute(
   config: AttributeConfigJson,
-  categoryId: string,
+  attributeId: string,
   value: string,
 ): AttributeConfigJson {
   return {
     ...config,
-    categories: config.categories.map((c) =>
-      c.id === categoryId
+    attributes: config.attributes.map((c) =>
+      c.id === attributeId
         ? {
             ...c,
             values: c.values.filter((v) => v.value !== value || v.builtIn),
@@ -207,7 +207,7 @@ export function buildDefaultConfig(): AttributeConfigJson {
   };
 
   return {
-    categories: [
+    attributes: [
       {
         id: "genre",
         name: "Genre",
@@ -266,29 +266,29 @@ export function buildDefaultConfig(): AttributeConfigJson {
 /** Get the description string for a given attribute value. */
 export function getDescription(
   config: AttributeConfigJson,
-  categoryId: string,
+  attributeId: string,
   value: string,
 ): string | undefined {
-  const cat = config.categories.find((c) => c.id === categoryId);
-  return cat?.values.find((v) => v.value === value)?.description;
+  const attr = config.attributes.find((c) => c.id === attributeId);
+  return attr?.values.find((v) => v.value === value)?.description;
 }
 
-/** Return only active (non-disabled) values for a category. */
-export function getActiveValues(category: AttributeCategory): AttributeValue[] {
-  return category.values.filter((v) => !v.disabled);
+/** Return only active (non-disabled) values for an attribute. */
+export function getActiveValues(attribute: Attribute): AttributeValue[] {
+  return attribute.values.filter((v) => !v.disabled);
 }
 
-/** Update a value's properties (description, disabled) within a category. */
-export function updateValueInCategory(
+/** Update a value's properties (description, disabled) within an attribute. */
+export function updateValueInAttribute(
   config: AttributeConfigJson,
-  categoryId: string,
+  attributeId: string,
   value: string,
   updates: Partial<Pick<AttributeValue, "description" | "disabled">>,
 ): AttributeConfigJson {
   return {
     ...config,
-    categories: config.categories.map((c) =>
-      c.id === categoryId
+    attributes: config.attributes.map((c) =>
+      c.id === attributeId
         ? {
             ...c,
             values: c.values.map((v) =>
@@ -300,83 +300,83 @@ export function updateValueInCategory(
   };
 }
 
-/** Update a category's description. */
-export function updateCategoryDescription(
+/** Update an attribute's description. */
+export function updateAttributeDescription(
   config: AttributeConfigJson,
-  categoryId: string,
+  attributeId: string,
   description: string,
 ): AttributeConfigJson {
   return {
     ...config,
-    categories: config.categories.map((c) =>
-      c.id === categoryId ? { ...c, description } : c,
+    attributes: config.attributes.map((c) =>
+      c.id === attributeId ? { ...c, description } : c,
     ),
   };
 }
 
 /** Look up the default description for a built-in value from buildDefaultConfig(). */
 export function getDefaultDescription(
-  categoryId: string,
+  attributeId: string,
   value: string,
 ): string | undefined {
   const defaults = buildDefaultConfig();
-  const cat = defaults.categories.find((c) => c.id === categoryId);
-  return cat?.values.find((v) => v.value === value)?.description;
+  const attr = defaults.attributes.find((c) => c.id === attributeId);
+  return attr?.values.find((v) => v.value === value)?.description;
 }
 
-/** Look up the default description for a built-in category from buildDefaultConfig(). */
-export function getDefaultCategoryDescription(
-  categoryId: string,
+/** Look up the default description for a built-in attribute from buildDefaultConfig(). */
+export function getDefaultAttributeDescription(
+  attributeId: string,
 ): string | undefined {
   const defaults = buildDefaultConfig();
-  return defaults.categories.find((c) => c.id === categoryId)?.description;
+  return defaults.attributes.find((c) => c.id === attributeId)?.description;
 }
 
-/** Build default attribute selection for all enabled categories. */
+/** Build default attribute selection for all enabled attributes. */
 export function buildDefaultSelection(
   config: AttributeConfigJson,
 ): AttributeSelection {
   const selection: AttributeSelection = {};
-  for (const cat of config.categories) {
-    if (!cat.enabled) continue;
-    selection[cat.id] = getDefaultValue(cat.type, cat.values[0]?.value);
+  for (const attr of config.attributes) {
+    if (!attr.enabled) continue;
+    selection[attr.id] = getDefaultValue(attr.type, attr.values[0]?.value);
   }
   return selection;
 }
 
 /**
- * Ensure existing configs have all built-in categories/values and
+ * Ensure existing configs have all built-in attributes/values and
  * that descriptions are populated. Handles:
  * - Backfilling missing value descriptions from defaults
- * - Backfilling missing category-level descriptions
- * - Adding missing built-in values to existing categories
- * - Adding entirely missing built-in categories
+ * - Backfilling missing attribute-level descriptions
+ * - Adding missing built-in values to existing attributes
+ * - Adding entirely missing built-in attributes
  */
-export function ensureBuiltInCategories(
+export function ensureBuiltInAttributes(
   config: AttributeConfigJson,
 ): AttributeConfigJson {
   const defaults = buildDefaultConfig();
-  const defaultsByCategory = new Map(
-    defaults.categories.map((c) => [c.id, c]),
+  const defaultsByAttribute = new Map(
+    defaults.attributes.map((c) => [c.id, c]),
   );
 
   let changed = false;
-  const categories = config.categories.map((cat) => {
-    const defaultCat = defaultsByCategory.get(cat.id);
+  const attributes = config.attributes.map((attr) => {
+    const defaultAttr = defaultsByAttribute.get(attr.id);
 
-    // Backfill category description
-    let description = cat.description;
-    if (!description && defaultCat?.description) {
-      description = defaultCat.description;
+    // Backfill attribute description
+    let description = attr.description;
+    if (!description && defaultAttr?.description) {
+      description = defaultAttr.description;
       changed = true;
     }
 
     // Build lookup for default values
     const defaultValuesMap = new Map(
-      defaultCat?.values.map((v) => [v.value, v]) ?? [],
+      defaultAttr?.values.map((v) => [v.value, v]) ?? [],
     );
 
-    let values = cat.values.map((v) => {
+    let values = attr.values.map((v) => {
       // Backfill missing description from defaults
       if (!v.description && v.builtIn) {
         const defaultVal = defaultValuesMap.get(v.value);
@@ -389,10 +389,10 @@ export function ensureBuiltInCategories(
       return v;
     });
 
-    // Add missing built-in values to existing categories
-    if (defaultCat) {
+    // Add missing built-in values to existing attributes
+    if (defaultAttr) {
       const existingValues = new Set(values.map((v) => v.value));
-      const missingValues = defaultCat.values.filter(
+      const missingValues = defaultAttr.values.filter(
         (v) => !existingValues.has(v.value),
       );
       if (missingValues.length > 0) {
@@ -401,15 +401,15 @@ export function ensureBuiltInCategories(
       }
     }
 
-    if (description !== cat.description || values !== cat.values) {
-      return { ...cat, description, values };
+    if (description !== attr.description || values !== attr.values) {
+      return { ...attr, description, values };
     }
-    return cat;
+    return attr;
   });
 
-  // Add entirely missing built-in categories
-  const existingIds = new Set(categories.map((c) => c.id));
-  const missing = defaults.categories.filter((c) => !existingIds.has(c.id));
+  // Add entirely missing built-in attributes
+  const existingIds = new Set(attributes.map((c) => c.id));
+  const missing = defaults.attributes.filter((c) => !existingIds.has(c.id));
   if (missing.length > 0) {
     changed = true;
   }
@@ -417,6 +417,6 @@ export function ensureBuiltInCategories(
   if (!changed && missing.length === 0) return config;
   return {
     ...config,
-    categories: missing.length > 0 ? [...categories, ...missing] : categories,
+    attributes: missing.length > 0 ? [...attributes, ...missing] : attributes,
   };
 }
