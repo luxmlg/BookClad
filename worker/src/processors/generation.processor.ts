@@ -8,7 +8,7 @@ import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
-import { buildSystemPrompt, buildAttributePrompt, extractDescriptions, type TextLayerInfo } from "../lib/prompt.js";
+import { buildSystemPrompt, buildAttributeContext, buildAttributeValues, extractDescriptions, type TextLayerInfo } from "../lib/prompt.js";
 import { KDP, GENERATION_STATUS, EVENT_TYPE } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
 
@@ -77,7 +77,9 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       : undefined;
 
     const systemPrompt = buildSystemPrompt(promptOptions);
-    const userPrompt = buildAttributePrompt(snapshot, project.title, descriptions);
+    const attributeContext = buildAttributeContext(snapshot, descriptions);
+    const attributeValues = buildAttributeValues(snapshot, descriptions);
+    const userPrompt = [attributeContext, attributeValues].filter(Boolean).join("\n\n");
     const fullPrompt = systemPrompt + "\n\n" + userPrompt;
 
     let rawImages: Buffer[];
@@ -99,7 +101,11 @@ export async function processGeneration(job: Job<GenerationJobData>) {
 
     await prisma.generation.update({
       where: { id: generationId },
-      data: { prompt: systemPrompt, userPrompt },
+      data: {
+        prompt: systemPrompt,
+        userPrompt,
+        descriptionSnapshot: descriptions ? JSON.parse(JSON.stringify(descriptions)) : undefined,
+      },
     });
 
     for (let i = 0; i < rawImages.length; i++) {

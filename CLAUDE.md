@@ -47,7 +47,7 @@ docker compose up -d postgres redis   # Start Postgres (port 5433) and Redis (po
 npx prisma migrate dev    # Run migrations
 npx prisma generate       # Regenerate Prisma client (outputs to src/generated/prisma)
 ```
-The worker has its own Prisma client generated into `worker/src/generated/prisma`. After schema changes, regenerate both:
+The worker has its own `prisma/schema.prisma` (a separate copy, not a symlink) and its own Prisma client generated into `worker/src/generated/prisma`. After schema changes, update both schema files and regenerate both clients:
 ```
 npx prisma generate
 cd worker && npx prisma generate
@@ -78,7 +78,7 @@ No test framework is configured.
   - `useInpaintState` — brush mode, mask, inpaint submission
   - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking
 - **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's attribute configuration, fetched from `/api/attributes`)
-- **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot` and `textLayerSnapshot` with each generation for diff tracking
+- **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot`, `descriptionSnapshot`, and `textLayerSnapshot` with each generation for diff tracking and history display
 
 Key sub-components: `EditorCenterPanel` (canvas viewport + bottom panel), `LeftSidebar` (attribute inputs, presets, brief), `RightSidebar` (layers, properties, export), `CoverCanvas` (Konva canvas), `GenerationHistory` → `GenerationGroup` (past generations with diffs via `DiffDisplay`), `GenerationQueue` (active jobs with WebSocket progress). Shared generation helpers (`getModelLabel`, `formatRelativeTime`, `JOB_TYPE_ICON`) live in `generation-helpers.ts`.
 
@@ -100,7 +100,7 @@ Defined in `src/lib/attributes.ts`. Provides a flexible, user-customizable syste
 
 **Built-in attributes**: Genre, Mood, Art Style — defined in `buildDefaultConfig()` with values from `src/lib/constants.ts`. `ensureBuiltInAttributes()` handles adding new built-in values to existing user configs.
 
-**Worker prompt building**: `worker/src/lib/prompt.ts` formats attributes into AI prompts. Genre/mood/style get special treatment; all other attributes appear as extra bullet points. The worker is a separate package and cannot import from `src/lib/`.
+**Worker prompt building**: `worker/src/lib/prompt.ts` formats attributes into AI prompts. All attributes are treated uniformly — no hardcoded labels or special-casing. The prompt has two sections: `buildAttributeContext()` (attribute-level descriptions as context) and `buildAttributeValues()` (selected values with value descriptions). Attribute names, descriptions, and value labels all come from the user's `AttributeConfig` via `extractDescriptions()`. The worker is a separate package and cannot import from `src/lib/`.
 
 ## Credit System
 

@@ -135,8 +135,9 @@ model Generation {
   model             String    @default("openai")
   parentImageId     String?
   includeLayers     Boolean   @default(false)
-  attributeSnapshot Json?
-  textLayerSnapshot Json?
+  attributeSnapshot     Json?
+  descriptionSnapshot   Json?
+  textLayerSnapshot     Json?
 
   project            CoverProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   images             GeneratedImage[]

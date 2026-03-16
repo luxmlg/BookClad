@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/collapsible";
 import { JOB_TYPE } from "@/lib/constants";
 import { formatAttributes } from "@/lib/attributes";
-import type { Generation } from "./types";
-import { asAttributeSnapshot, asTextLayerSnapshot } from "./types";
+import type { Generation, DescriptionSnapshot } from "./types";
+import { asAttributeSnapshot, asDescriptionSnapshot, asTextLayerSnapshot } from "./types";
 import {
   JOB_TYPE_ICON,
   getModelLabel,
@@ -57,8 +57,9 @@ export function GenerationGroup({
   const [open, setOpen] = useState(defaultOpen);
   const [showDiff, setShowDiff] = useState(false);
   const [compareTargetId, setCompareTargetId] = useState<string | null>(null);
-  const [promptExpanded, setPromptExpanded] = useState(false);
+  const [promptExpanded, setPromptExpanded] = useState(true);
   const [sysPromptExpanded, setSysPromptExpanded] = useState(false);
+  const [contextExpanded, setContextExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const displayName = getDisplayName(generation);
   const [editValue, setEditValue] = useState("");
@@ -143,6 +144,8 @@ export function GenerationGroup({
 
   const attrs = asAttributeSnapshot(generation.attributeSnapshot);
   const hasDisplayAttrs = attrs !== null && Object.keys(attrs).length > 0;
+  const descSnap = asDescriptionSnapshot(generation.descriptionSnapshot);
+  const hasDescriptions = descSnap !== null && Object.values(descSnap).some((m) => m.description);
   const textLayers = asTextLayerSnapshot(generation.textLayerSnapshot);
 
   return (
@@ -318,6 +321,30 @@ export function GenerationGroup({
               </>
             )}
 
+            {/* Attribute context (descriptions) */}
+            {hasDescriptions && (
+              <div>
+                <button
+                  onClick={() => setContextExpanded((e) => !e)}
+                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                  {contextExpanded ? "Hide attribute context" : "Show attribute context"}
+                </button>
+                {contextExpanded && (
+                  <div className="mt-1 text-muted-foreground border rounded-md p-2 bg-muted/30 space-y-0.5">
+                    {Object.entries(descSnap!).map(([, meta]) =>
+                      meta.description ? (
+                        <div key={meta.name}>
+                          <span className="font-medium">{meta.name}:</span>{" "}
+                          {meta.description}
+                        </div>
+                      ) : null,
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Layers */}
             {textLayers && textLayers.length > 0 && (
               <div className="text-muted-foreground space-x-1">
@@ -357,14 +384,14 @@ export function GenerationGroup({
               </div>
             )}
 
-            {/* AI prompt */}
+            {/* Attributes */}
             {jobType !== JOB_TYPE.INPAINT && generation.userPrompt && (
               <div>
                 <button
                   onClick={() => setPromptExpanded((e) => !e)}
                   className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
                 >
-                  {promptExpanded ? "Hide AI prompt" : "Show AI prompt"}
+                  {promptExpanded ? "Hide attributes" : "Show attributes"}
                 </button>
                 {promptExpanded && (
                   <div className="mt-1 whitespace-pre-wrap text-muted-foreground border rounded-md p-2 bg-muted/30">

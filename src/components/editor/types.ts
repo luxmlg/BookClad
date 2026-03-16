@@ -24,6 +24,7 @@ export interface Generation {
   parentImage?: { id: string; storageKey: string } | null;
   includeLayers?: boolean;
   attributeSnapshot?: unknown;
+  descriptionSnapshot?: unknown;
   textLayerSnapshot?: unknown;
 }
 
@@ -43,6 +44,20 @@ export interface CustomFont {
 }
 
 export type AttributeSnapshot = Record<string, string | string[]>;
+
+export interface DescriptionValueMeta {
+  label: string;
+  description?: string;
+}
+
+export interface DescriptionAttrMeta {
+  name: string;
+  description?: string;
+  values: Record<string, DescriptionValueMeta>;
+}
+
+export type DescriptionSnapshot = Record<string, DescriptionAttrMeta>;
+
 export type TextLayerSnapshot = Array<{
   name: string;
   text: string;
@@ -53,6 +68,13 @@ export type TextLayerSnapshot = Array<{
 export function asAttributeSnapshot(val: unknown): AttributeSnapshot | null {
   if (val && typeof val === "object" && !Array.isArray(val)) {
     return val as AttributeSnapshot;
+  }
+  return null;
+}
+
+export function asDescriptionSnapshot(val: unknown): DescriptionSnapshot | null {
+  if (val && typeof val === "object" && !Array.isArray(val)) {
+    return val as DescriptionSnapshot;
   }
   return null;
 }
