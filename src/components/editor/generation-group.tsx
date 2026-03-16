@@ -314,9 +314,7 @@ export function GenerationGroup({
               <>
                 {/* Structured attributes */}
                 {hasDisplayAttrs && (
-                  <div className="text-muted-foreground">
-                    {formatAttributes(displayAttrs)}
-                  </div>
+                  <div>{formatAttributes(displayAttrs)}</div>
                 )}
                 {/* Brief */}
                 {attrBrief && (
@@ -328,60 +326,6 @@ export function GenerationGroup({
                   </div>
                 )}
               </>
-            )}
-
-            {/* System prompt — toggled via showPrompt setting */}
-            {jobType !== JOB_TYPE.INPAINT && generation.prompt && (
-              <div>
-                {(showPrompt ? !sysPromptExpanded : sysPromptExpanded) ? (
-                  <>
-                    <span className="font-medium text-muted-foreground">
-                      System prompt:{" "}
-                    </span>
-                    <span className="whitespace-pre-wrap">{generation.prompt}</span>
-                    <button
-                      onClick={() => setSysPromptExpanded((e) => !e)}
-                      className="ml-1 text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                    >
-                      hide
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setSysPromptExpanded((e) => !e)}
-                    className="text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                  >
-                    Show system prompt
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Full AI prompt — expandable */}
-            {jobType !== JOB_TYPE.INPAINT && generation.userPrompt && (
-              <div>
-                {promptExpanded ? (
-                  <>
-                    <span className="font-medium text-muted-foreground">
-                      AI prompt:{" "}
-                    </span>
-                    <span className="whitespace-pre-wrap">{generation.userPrompt}</span>
-                    <button
-                      onClick={() => setPromptExpanded(false)}
-                      className="ml-1 text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                    >
-                      hide
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setPromptExpanded(true)}
-                    className="text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                  >
-                    Show AI prompt
-                  </button>
-                )}
-              </div>
             )}
 
             {/* Layers */}
@@ -404,12 +348,48 @@ export function GenerationGroup({
               </div>
             )}
 
-            {/* Auto-diff with parent */}
+            {/* System prompt */}
+            {showPrompt && jobType !== JOB_TYPE.INPAINT && generation.prompt && (
+              <div>
+                <button
+                  onClick={() => setSysPromptExpanded((e) => !e)}
+                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                  {(showPrompt ? !sysPromptExpanded : sysPromptExpanded)
+                    ? "Hide system prompt"
+                    : "Show system prompt"}
+                </button>
+                {(showPrompt ? !sysPromptExpanded : sysPromptExpanded) && (
+                  <div className="mt-1 whitespace-pre-wrap text-muted-foreground border rounded-md p-2 bg-muted/30">
+                    {generation.prompt}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AI prompt */}
+            {jobType !== JOB_TYPE.INPAINT && generation.userPrompt && (
+              <div>
+                <button
+                  onClick={() => setPromptExpanded((e) => !e)}
+                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                  {promptExpanded ? "Hide AI prompt" : "Show AI prompt"}
+                </button>
+                {promptExpanded && (
+                  <div className="mt-1 whitespace-pre-wrap text-muted-foreground border rounded-md p-2 bg-muted/30">
+                    {generation.userPrompt}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Changes from parent */}
             {parentGeneration && (
               <div>
                 <button
                   onClick={() => setShowDiff((d) => !d)}
-                  className="text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
                 >
                   {showDiff
                     ? "Hide changes"
@@ -434,12 +414,12 @@ export function GenerationGroup({
               </div>
             )}
 
-            {/* Manual compare */}
-            <div>
+            {/* Compare */}
+            {allGenerations.length > 1 && <div>
               {compareTargetId === null ? (
                 <button
                   onClick={() => setCompareTargetId("")}
-                  className="text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
                 >
                   Compare
                 </button>
@@ -472,7 +452,7 @@ export function GenerationGroup({
                     </select>
                     <button
                       onClick={() => setCompareTargetId(null)}
-                      className="text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                      className="text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
                     >
                       Hide
                     </button>
@@ -486,7 +466,7 @@ export function GenerationGroup({
                   )}
                 </div>
               )}
-            </div>
+            </div>}
           </div>
         </div>
       </CollapsibleContent>
