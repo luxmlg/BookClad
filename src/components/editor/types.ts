@@ -32,7 +32,6 @@ export interface Project {
   title: string;
   author: string;
   attributes: unknown;
-  brief: string | null;
   canvasState: unknown;
   generations: Generation[];
 }

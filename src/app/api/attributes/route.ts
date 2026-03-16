@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { buildDefaultConfig } from "@/lib/attributes";
+import { buildDefaultConfig, ensureBuiltInCategories, type AttributeConfigJson } from "@/lib/attributes";
 import { attributeConfigSchema } from "@/lib/attribute-validations";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -23,7 +23,8 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json(record.config);
+    const config = ensureBuiltInCategories(record.config as AttributeConfigJson);
+    return NextResponse.json(config);
   } catch {
     return NextResponse.json(
       { error: "Failed to fetch attribute config" },

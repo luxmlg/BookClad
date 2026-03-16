@@ -7,6 +7,7 @@ import type { CanvasNode } from "./canvas-types";
 import { NODE_TYPE } from "./canvas-types";
 import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, DEFAULT_MODEL } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
+import { REF_PROMPT_KEY } from "@/lib/attributes";
 import { createGeneration } from "@/lib/api";
 import type { Generation } from "./types";
 import type { UseInpaintStateResult } from "./use-inpaint-state";
@@ -39,7 +40,6 @@ export function useGenerationActions(
   projectId: string,
   projectGenerations: Generation[],
   attributes: AttributeSelection,
-  brief: string,
   canvasNodes: CanvasNode[],
   selectedImageId: string | null,
   inpaintRef: React.RefObject<Pick<UseInpaintStateResult, "includeLayers" | "flattenCanvasToDataUrl">>,
@@ -104,7 +104,7 @@ export function useGenerationActions(
         projectId,
         imageCount,
         model,
-        attributeSnapshot: brief ? { ...attributes, brief } : attributes,
+        attributeSnapshot: attributes,
         textLayerSnapshot: canvasNodes.map((n) => ({
           name: n.name ?? n.id,
           text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
@@ -127,13 +127,15 @@ export function useGenerationActions(
     setRefSubmitting(true);
     try {
       const flattenedImageDataUrl = inpaintRef.current.includeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
+      const snapshot: AttributeSelection = { ...attributes };
+      if (refPrompt) snapshot[REF_PROMPT_KEY] = refPrompt;
       const data = await createGeneration({
         projectId,
         imageCount,
         model,
         referenceImageId: selectedImageId,
         flattenedImageDataUrl,
-        attributeSnapshot: brief ? { ...attributes, brief } : attributes,
+        attributeSnapshot: snapshot,
         textLayerSnapshot: canvasNodes.map((n) => ({
           name: n.name ?? n.id,
           text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",

@@ -89,7 +89,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     Array<{ id: string; name: string; attributes: AttributeSelection }>
   >([]);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
-  const [brief, setBrief] = useState(project.brief ?? "");
   const [saving, setSaving] = useState(false);
 
   const [keepLayersOnGenerate, setKeepLayersOnGenerate] = useState(true);
@@ -126,7 +125,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   // Generation actions (created first with ref — only reads inpaint in event handlers)
   const genActions = useGenerationActions(
     project.id, project.generations,
-    attributes, brief, nodes, selectedImageId,
+    attributes, nodes, selectedImageId,
     inpaintRef, router,
   );
 
@@ -285,7 +284,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         title: titleText,
         author: authorText,
         attributes,
-        brief: brief || null,
         canvasState,
       });
       toast.success("Saved");
@@ -294,7 +292,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     } finally {
       setSaving(false);
     }
-  }, [project.id, project.title, project.author, nodes, textNodes, attributes, brief]);
+  }, [project.id, project.title, project.author, nodes, textNodes, attributes]);
 
   async function selectImage(imageId: string) {
     if (imageId === selectedImageId) return;
@@ -371,7 +369,13 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
 
   async function handleSavePreset(name: string) {
     try {
-      const preset = await createPreset(name, attributes);
+      const textCategoryIds = new Set(
+        attributeConfig.categories.filter((c) => c.type === "text").map((c) => c.id),
+      );
+      const presetAttrs = Object.fromEntries(
+        Object.entries(attributes).filter(([key]) => !textCategoryIds.has(key)),
+      );
+      const preset = await createPreset(name, presetAttrs);
       setPresets((prev) => [preset, ...prev]);
       setActivePresetId(preset.id);
       toast.success(`Preset "${name}" saved`);
@@ -559,8 +563,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
           onApplyPreset={handleApplyPreset}
           activePresetId={activePresetId}
           onClearActivePreset={() => setActivePresetId(null)}
-          brief={brief}
-          setBrief={setBrief}
           saving={saving}
           onSave={saveProject}
         />

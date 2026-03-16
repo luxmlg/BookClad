@@ -4,8 +4,6 @@ import type React from "react";
 import { useState } from "react";
 import { Save, Loader2, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   getDefaultValue,
   addValueToCategory,
@@ -28,8 +26,6 @@ interface LeftSidebarProps {
   onApplyPreset: (preset: StylePreset) => void;
   activePresetId: string | null;
   onClearActivePreset: () => void;
-  brief: string;
-  setBrief: (v: string) => void;
   saving: boolean;
   onSave: () => void;
 }
@@ -44,8 +40,6 @@ export function LeftSidebar({
   onApplyPreset,
   activePresetId,
   onClearActivePreset,
-  brief,
-  setBrief,
   saving,
   onSave,
 }: LeftSidebarProps) {
@@ -53,28 +47,9 @@ export function LeftSidebar({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  // Build flat ordered list: enabled categories + brief
-  type SidebarItem =
-    | { kind: "category"; category: AttributeCategory }
-    | { kind: "brief" };
-
   const enabledCategories = attributeConfig.categories.filter(
     (c) => c.enabled,
   );
-  const briefPos = Math.min(
-    attributeConfig.briefPosition ??
-      enabledCategories.filter((c) => c.builtIn).length,
-    enabledCategories.length,
-  );
-  const sidebarItems: SidebarItem[] = [
-    ...enabledCategories
-      .slice(0, briefPos)
-      .map((c) => ({ kind: "category" as const, category: c })),
-    { kind: "brief" as const },
-    ...enabledCategories
-      .slice(briefPos)
-      .map((c) => ({ kind: "category" as const, category: c })),
-  ];
 
   function updateAttribute(categoryId: string, value: string | string[]) {
     setAttributes({ ...attributes, [categoryId]: value });
@@ -138,31 +113,18 @@ export function LeftSidebar({
       return;
     }
 
-    const newItems = [...sidebarItems];
+    const newItems = [...enabledCategories];
     const [moved] = newItems.splice(draggedIndex, 1);
     newItems.splice(toIndex, 0, moved);
 
-    const orderedCatIds: string[] = [];
-    let newBriefPos = 0;
-    for (const item of newItems) {
-      if (item.kind === "brief") {
-        newBriefPos = orderedCatIds.length;
-      } else {
-        orderedCatIds.push(item.category.id);
-      }
-    }
-
     const reorderedCategories = [
-      ...orderedCatIds.map(
-        (id) => attributeConfig.categories.find((c) => c.id === id)!,
-      ),
+      ...newItems,
       ...attributeConfig.categories.filter((c) => !c.enabled),
     ];
 
     onConfigChange({
       ...attributeConfig,
       categories: reorderedCategories,
-      briefPosition: newBriefPos,
     });
 
     setDraggedIndex(null);
@@ -207,17 +169,15 @@ export function LeftSidebar({
             onApplyPreset={onApplyPreset}
           />
 
-          {/* Draggable items: categories + brief */}
-          {sidebarItems.map((item, index) => {
-            const key =
-              item.kind === "brief" ? "__brief__" : item.category.id;
+          {/* Draggable attribute categories */}
+          {enabledCategories.map((category, index) => {
             const isDragged = draggedIndex === index;
             const isDragOver =
               dragOverIndex === index && draggedIndex !== index;
 
             return (
               <div
-                key={key}
+                key={category.id}
                 draggable
                 onDragStart={(e) => handleItemDragStart(e, index)}
                 onDragOver={(e) => handleItemDragOver(e, index)}
@@ -228,47 +188,33 @@ export function LeftSidebar({
                   isDragOver ? "border-t-2 border-primary" : ""
                 } ${isDragged ? "opacity-40" : ""}`}
               >
-                {item.kind === "brief" ? (
-                  <div className="space-y-2">
-                    <Label>Brief / AI Prompt</Label>
-                    <Textarea
-                      value={brief}
-                      onChange={(e) => setBrief(e.target.value)}
-                      rows={4}
-                      placeholder="Describe visual elements, themes..."
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <AttributeCategoryInput
-                      category={item.category}
-                      value={
-                        attributes[item.category.id] ??
-                        getDefaultValue(
-                          item.category.type,
-                          item.category.values[0]?.value,
-                        )
-                      }
-                      onChange={(v) =>
-                        updateAttribute(item.category.id, v)
-                      }
-                      onAddCustomValue={(value, label) =>
-                        addCustomValue(item.category.id, value, label)
-                      }
-                      onRemoveCustomValue={(value) =>
-                        removeCustomValue(item.category.id, value)
-                      }
-                    />
-                    {!item.category.builtIn && (
-                      <button
-                        type="button"
-                        className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeCategory(item.category.id)}
-                      >
-                        <XIcon className="size-3" />
-                      </button>
-                    )}
-                  </>
+                <AttributeCategoryInput
+                  category={category}
+                  value={
+                    attributes[category.id] ??
+                    getDefaultValue(
+                      category.type,
+                      category.values[0]?.value,
+                    )
+                  }
+                  onChange={(v) =>
+                    updateAttribute(category.id, v)
+                  }
+                  onAddCustomValue={(value, label) =>
+                    addCustomValue(category.id, value, label)
+                  }
+                  onRemoveCustomValue={(value) =>
+                    removeCustomValue(category.id, value)
+                  }
+                />
+                {!category.builtIn && (
+                  <button
+                    type="button"
+                    className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeCategory(category.id)}
+                  >
+                    <XIcon className="size-3" />
+                  </button>
                 )}
               </div>
             );

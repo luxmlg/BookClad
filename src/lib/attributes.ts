@@ -21,9 +21,9 @@ export interface AttributeCategory {
 
 export interface AttributeConfigJson {
   categories: AttributeCategory[];
-  /** Index among enabled categories where the brief/prompt textarea appears. */
-  briefPosition?: number;
 }
+
+export const REF_PROMPT_KEY = "ref-instructions";
 
 /** Per-project selections: category id → selected value(s) */
 export type AttributeSelection = Record<string, string | string[]>;
@@ -203,6 +203,14 @@ export function buildDefaultConfig(): AttributeConfigJson {
           builtIn: true,
         })),
       },
+      {
+        id: "visual-elements",
+        name: "Visual Elements",
+        type: "text",
+        builtIn: true,
+        enabled: true,
+        values: [],
+      },
     ],
   };
 }
@@ -227,4 +235,15 @@ export function buildDefaultSelection(
     selection[cat.id] = getDefaultValue(cat.type, cat.values[0]?.value);
   }
   return selection;
+}
+
+/** Add any missing built-in categories from defaults to an existing config. */
+export function ensureBuiltInCategories(
+  config: AttributeConfigJson,
+): AttributeConfigJson {
+  const defaults = buildDefaultConfig();
+  const existingIds = new Set(config.categories.map((c) => c.id));
+  const missing = defaults.categories.filter((c) => !existingIds.has(c.id));
+  if (missing.length === 0) return config;
+  return { ...config, categories: [...config.categories, ...missing] };
 }

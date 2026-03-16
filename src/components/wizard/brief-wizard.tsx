@@ -19,6 +19,7 @@ import {
   buildDefaultSelection,
   getDefaultValue,
   addValueToCategory,
+  formatAttrValue,
 } from "@/lib/attributes";
 import {
   getAttributeConfig,
@@ -47,7 +48,6 @@ export function BriefWizard() {
     buildDefaultConfig()
   );
   const [attributes, setAttributes] = useState<AttributeSelection>({});
-  const [brief, setBrief] = useState("");
   const [imageCount, setImageCount] = useState(4);
 
   // Fetch user's attribute config
@@ -68,6 +68,10 @@ export function BriefWizard() {
   const enabledCategories = attributeConfig.categories.filter(
     (c) => c.enabled
   );
+  const selectionCategories = enabledCategories.filter(
+    (c) => c.type !== "text"
+  );
+  const textCategories = enabledCategories.filter((c) => c.type === "text");
 
   function addCustomValue(categoryId: string, value: string, label: string) {
     const updated = addValueToCategory(attributeConfig, categoryId, value, label);
@@ -78,11 +82,20 @@ export function BriefWizard() {
   async function handleSubmit() {
     setSubmitting(true);
     try {
+      // Prepend subtitle to the first text attribute if present
+      let projectAttrs = { ...attributes };
+      if (subtitle && textCategories.length > 0) {
+        const firstTextId = textCategories[0].id;
+        const existing = (projectAttrs[firstTextId] as string) || "";
+        projectAttrs[firstTextId] = [subtitle, existing]
+          .filter(Boolean)
+          .join(". ");
+      }
+
       const project = await createProject({
         title,
         author,
-        attributes,
-        brief: [subtitle, brief].filter(Boolean).join(". "),
+        attributes: projectAttrs,
       });
 
       await createGeneration({ projectId: project.id, imageCount });
@@ -102,8 +115,8 @@ export function BriefWizard() {
       case 0:
         return title.trim() !== "" && author.trim() !== "";
       case 1: {
-        // At least one single-select category has a value
-        return enabledCategories.some((c) => {
+        // At least one selection category has a value
+        return selectionCategories.some((c) => {
           const val = attributes[c.id];
           if (c.type === "single") return typeof val === "string" && val !== "";
           return Array.isArray(val) && val.length > 0;
@@ -211,7 +224,7 @@ export function BriefWizard() {
                   presets or type custom values.
                 </p>
               </div>
-              {enabledCategories.map((category) => (
+              {selectionCategories.map((category) => (
                 <AttributeCategoryInput
                   key={category.id}
                   category={category}
@@ -231,7 +244,7 @@ export function BriefWizard() {
           )}
 
           {step === 2 && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold">Additional Details</h2>
                 <p className="text-sm text-muted-foreground">
@@ -239,17 +252,19 @@ export function BriefWizard() {
                   you&apos;d like. The more detail, the better.
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="brief">Description / Keywords</Label>
-                <textarea
-                  id="brief"
-                  rows={5}
-                  className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  placeholder="e.g. A lone figure standing on a cliff overlooking a stormy sea, with a glowing sword. Dark clouds, lightning, dramatic lighting..."
-                  value={brief}
-                  onChange={(e) => setBrief(e.target.value)}
+              {textCategories.map((category) => (
+                <AttributeCategoryInput
+                  key={category.id}
+                  category={category}
+                  value={
+                    attributes[category.id] ??
+                    getDefaultValue(category.type)
+                  }
+                  onChange={(v) =>
+                    setAttributes({ ...attributes, [category.id]: v })
+                  }
                 />
-              </div>
+              ))}
             </div>
           )}
 
@@ -278,24 +293,23 @@ export function BriefWizard() {
                   const val = attributes[cat.id];
                   if (!val || (Array.isArray(val) && val.length === 0))
                     return null;
-                  const display = Array.isArray(val) ? val.join(", ") : val;
                   return (
-                    <div key={cat.id} className="flex justify-between">
+                    <div key={cat.id}>
                       <span className="font-medium text-muted-foreground">
                         {cat.name}
                       </span>
-                      <span className="text-right">{display}</span>
+                      {cat.type === "text" ? (
+                        <p className="mt-1 text-muted-foreground">
+                          {val as string}
+                        </p>
+                      ) : (
+                        <span className="float-right text-right">
+                          {formatAttrValue(val)}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
-                {brief && (
-                  <div>
-                    <span className="font-medium text-muted-foreground">
-                      Details
-                    </span>
-                    <p className="mt-1 text-muted-foreground">{brief}</p>
-                  </div>
-                )}
               </div>
               <div className="mx-auto max-w-sm space-y-2 text-left">
                 <Label htmlFor="imageCount">

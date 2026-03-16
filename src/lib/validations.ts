@@ -12,7 +12,6 @@ export const createProjectSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
   author: z.string().min(1, "Author name is required").max(200),
   attributes: attributeSelectionField,
-  brief: z.string().max(2000).optional().nullable(),
 });
 
 const snapshotFields = {
@@ -40,7 +39,6 @@ export const updateProjectSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   author: z.string().min(1).max(200).optional(),
   attributes: attributeSelectionField.optional(),
-  brief: z.string().max(2000).optional().nullable(),
   canvasState: z.any().optional(),
 });
 

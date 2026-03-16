@@ -28,11 +28,7 @@ export const GENRE_VISUAL_RULES: Record<string, string> = {
     "Understated, moody, artistic composition with symbolic imagery and muted tones",
 };
 
-interface ProjectBrief {
-  attributes: Record<string, string | string[]>;
-  brief: string | null;
-  title: string;
-}
+import { REF_PROMPT_KEY } from "./constants.js";
 
 export interface TextLayerInfo {
   name: string;
@@ -94,12 +90,20 @@ Design principles:
 ${typographySpacing}`;
 }
 
+const PROMPT_LABELS: Record<string, string> = {
+  [REF_PROMPT_KEY]: "Additional instructions",
+};
+
+const SPECIAL_KEYS = new Set(["genre", "mood", "style"]);
+
 /** All dynamic user data — uniform key-value format. */
-export function buildAttributePrompt(project: ProjectBrief): string {
-  const attrs = project.attributes;
-  const genre = (attrs.genre as string) ?? "";
-  const style = (attrs.style as string) ?? "";
-  const mood = formatAttrValue(attrs.mood ?? []);
+export function buildAttributePrompt(
+  attributes: Record<string, string | string[]>,
+  title: string,
+): string {
+  const genre = (attributes.genre as string) ?? "";
+  const style = (attributes.style as string) ?? "";
+  const mood = formatAttrValue(attributes.mood ?? []);
   const genreRules = GENRE_VISUAL_RULES[genre] ?? "";
 
   const parts: string[] = [];
@@ -108,12 +112,11 @@ export function buildAttributePrompt(project: ProjectBrief): string {
   if (style) parts.push(`Art style: ${categoryLabel(style)}`);
   if (mood) parts.push(`Mood: ${mood}`);
 
-  const extraAttrs = Object.entries(attrs)
-    .filter(([key]) => !["genre", "mood", "style"].includes(key))
-    .map(([key, val]) => `${categoryLabel(key)}: ${formatAttrValue(val)}`);
+  const extraAttrs = Object.entries(attributes)
+    .filter(([key]) => !SPECIAL_KEYS.has(key))
+    .filter(([, val]) => val !== "" && !(Array.isArray(val) && val.length === 0))
+    .map(([key, val]) => `${PROMPT_LABELS[key] ?? categoryLabel(key)}: ${formatAttrValue(val)}`);
   parts.push(...extraAttrs);
-
-  if (project.brief) parts.push(`Visual elements: ${project.brief}`);
 
   return parts.join("\n");
 }

@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { title, author, attributes, brief } = parsed.data;
+    const { title, author, attributes } = parsed.data;
 
     const project = await prisma.coverProject.create({
       data: {
@@ -58,7 +58,6 @@ export async function POST(request: Request) {
         title,
         author,
         attributes,
-        brief: brief ?? null,
       },
     });
 

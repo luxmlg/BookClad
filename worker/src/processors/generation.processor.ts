@@ -66,14 +66,9 @@ export async function processGeneration(job: Job<GenerationJobData>) {
 
     const snapshot = (generation.attributeSnapshot as Record<string, string | string[]> | null)
       ?? (project.attributes as Record<string, string | string[]>);
-    const { brief: snapshotBrief, ...snapshotAttrs } = snapshot;
 
     const systemPrompt = buildSystemPrompt(promptOptions);
-    const userPrompt = buildAttributePrompt({
-      attributes: snapshotAttrs,
-      brief: (snapshotBrief as string) ?? project.brief,
-      title: project.title,
-    });
+    const userPrompt = buildAttributePrompt(snapshot, project.title);
     const fullPrompt = systemPrompt + "\n\n" + userPrompt;
 
     let rawImages: Buffer[];

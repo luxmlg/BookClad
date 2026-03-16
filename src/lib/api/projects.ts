@@ -5,14 +5,12 @@ export interface CreateProjectParams {
   title: string;
   author: string;
   attributes: AttributeSelection;
-  brief: string;
 }
 
 export interface UpdateProjectParams {
   title?: string;
   author?: string;
   attributes?: AttributeSelection;
-  brief?: string | null;
   canvasState?: unknown;
 }
 

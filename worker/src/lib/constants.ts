@@ -37,3 +37,5 @@ export const WS_MESSAGE_TYPE = {
   SUBSCRIBE: "subscribe",
   UNSUBSCRIBE: "unsubscribe",
 } as const;
+
+export const REF_PROMPT_KEY = "ref-instructions";

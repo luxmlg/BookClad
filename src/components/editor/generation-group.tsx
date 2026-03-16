@@ -142,8 +142,7 @@ export function GenerationGroup({
   const modelLabel = getModelLabel(generation.model);
 
   const attrs = asAttributeSnapshot(generation.attributeSnapshot);
-  const { brief: attrBrief, ...displayAttrs } = attrs ?? {};
-  const hasDisplayAttrs = Object.keys(displayAttrs).length > 0;
+  const hasDisplayAttrs = attrs !== null && Object.keys(attrs).length > 0;
   const textLayers = asTextLayerSnapshot(generation.textLayerSnapshot);
 
   return (
@@ -314,16 +313,7 @@ export function GenerationGroup({
               <>
                 {/* Structured attributes */}
                 {hasDisplayAttrs && (
-                  <div>{formatAttributes(displayAttrs)}</div>
-                )}
-                {/* Brief */}
-                {attrBrief && (
-                  <div>
-                    <span className="font-medium text-muted-foreground">
-                      Brief:{" "}
-                    </span>
-                    <span>{attrBrief}</span>
-                  </div>
+                  <div>{formatAttributes(attrs!)}</div>
                 )}
               </>
             )}
