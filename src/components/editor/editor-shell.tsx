@@ -221,21 +221,6 @@ export function EditorShell({ project, showPrompt, initialCreditBalance }: Edito
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Hydrate attributes with defaults for enabled attributes only
-  useEffect(() => {
-    setAttributes(prev => {
-      const merged = { ...prev };
-      let changed = false;
-      for (const attr of attributeConfig.attributes) {
-        if (!attr.enabled) continue;
-        if (!(attr.id in merged)) {
-          merged[attr.id] = getDefaultValue(attr.type);
-          changed = true;
-        }
-      }
-      return changed ? merged : prev;
-    });
-  }, [attributeConfig]);
 
   // Initialize per-image layers cache and set initial nodes
   useEffect(() => {
