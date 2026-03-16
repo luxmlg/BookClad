@@ -266,6 +266,7 @@ function MultiSelect({
         {getActiveValues(attribute).map((v) => (
           <Badge
             key={v.value}
+            data-value={v.value}
             variant={value.includes(v.value) ? "default" : "outline"}
             className="cursor-pointer text-xs"
             onClick={() => toggle(v.value)}

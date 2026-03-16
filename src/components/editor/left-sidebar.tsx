@@ -9,6 +9,9 @@ import {
   getDefaultValue,
   addValueToAttribute,
   removeValueFromAttribute,
+  updateValueInAttribute,
+  renameAttribute,
+  updateAttributeDescription,
   type AttributeConfigJson,
   type AttributeSelection,
   type Attribute,
@@ -17,6 +20,7 @@ import { AttributeInput } from "./attribute-input";
 import { PresetPicker, type StylePreset } from "./preset-picker";
 import { AttributePickerDialog } from "@/components/attribute-picker-dialog";
 import { CreateAttributeDialog } from "@/components/create-attribute-dialog";
+import { AttributeContextMenu } from "@/components/attribute-context-menu";
 
 interface LeftSidebarProps {
   attributeConfig: AttributeConfigJson;
@@ -74,6 +78,32 @@ export function LeftSidebar({
   function removeCustomValue(attributeId: string, value: string) {
     onConfigChange(
       removeValueFromAttribute(attributeConfig, attributeId, value),
+    );
+  }
+
+  function handleRenameAttribute(attributeId: string, newName: string) {
+    onConfigChange(renameAttribute(attributeConfig, attributeId, newName));
+  }
+
+  function handleUpdateDescription(attributeId: string, description: string) {
+    onConfigChange(
+      updateAttributeDescription(attributeConfig, attributeId, description),
+    );
+  }
+
+  function handleUpdateValue(
+    attributeId: string,
+    valueId: string,
+    updates: { label?: string; description?: string },
+  ) {
+    onConfigChange(
+      updateValueInAttribute(attributeConfig, attributeId, valueId, updates),
+    );
+  }
+
+  function handleRemoveValue(attributeId: string, valueId: string) {
+    onConfigChange(
+      removeValueFromAttribute(attributeConfig, attributeId, valueId),
     );
   }
 
@@ -200,30 +230,51 @@ export function LeftSidebar({
                   isDragOver ? "border-t-2 border-primary" : ""
                 } ${isDragged ? "opacity-40" : ""}`}
               >
-                <AttributeInput
+                <AttributeContextMenu
                   attribute={attribute}
-                  value={
-                    attributes[attribute.id] ??
-                    getDefaultValue(
-                      attribute.type,
-                      attribute.values[0]?.value,
-                    )
+                  onRename={(name) =>
+                    handleRenameAttribute(attribute.id, name)
                   }
-                  onChange={(v) =>
-                    updateAttribute(attribute.id, v)
-                  }
-                  onAddCustomValue={(value, label, description) =>
-                    addCustomValue(attribute.id, value, label, description)
-                  }
-                  onRemoveCustomValue={(value) =>
-                    removeCustomValue(attribute.id, value)
+                  onUpdateDescription={(desc) =>
+                    handleUpdateDescription(attribute.id, desc)
                   }
                   onRemove={
                     !attribute.builtIn
                       ? () => removeFromProject(attribute.id)
                       : undefined
                   }
-                />
+                  onUpdateValue={(valueId, updates) =>
+                    handleUpdateValue(attribute.id, valueId, updates)
+                  }
+                  onRemoveValue={(valueId) =>
+                    handleRemoveValue(attribute.id, valueId)
+                  }
+                >
+                  <AttributeInput
+                    attribute={attribute}
+                    value={
+                      attributes[attribute.id] ??
+                      getDefaultValue(
+                        attribute.type,
+                        attribute.values[0]?.value,
+                      )
+                    }
+                    onChange={(v) =>
+                      updateAttribute(attribute.id, v)
+                    }
+                    onAddCustomValue={(value, label, description) =>
+                      addCustomValue(attribute.id, value, label, description)
+                    }
+                    onRemoveCustomValue={(value) =>
+                      removeCustomValue(attribute.id, value)
+                    }
+                    onRemove={
+                      !attribute.builtIn
+                        ? () => removeFromProject(attribute.id)
+                        : undefined
+                    }
+                  />
+                </AttributeContextMenu>
               </div>
             );
           })}

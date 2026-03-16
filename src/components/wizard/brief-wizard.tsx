@@ -22,8 +22,13 @@ import {
   buildDefaultSelection,
   getDefaultValue,
   addValueToAttribute,
+  removeValueFromAttribute,
+  updateValueInAttribute,
+  renameAttribute,
+  updateAttributeDescription,
   formatAttrValue,
 } from "@/lib/attributes";
+import { AttributeContextMenu } from "@/components/attribute-context-menu";
 import {
   getAttributeConfig,
   saveAttributeConfig,
@@ -112,6 +117,34 @@ export function BriefWizard() {
         ? `Created "${attribute.name}" — text attributes appear on the Details step`
         : `Created "${attribute.name}"`,
     );
+  }
+
+  function handleRenameAttribute(attributeId: string, newName: string) {
+    const updated = renameAttribute(attributeConfig, attributeId, newName);
+    setAttributeConfig(updated);
+    fireAndForget(saveAttributeConfig(updated));
+  }
+
+  function handleUpdateDescription(attributeId: string, description: string) {
+    const updated = updateAttributeDescription(attributeConfig, attributeId, description);
+    setAttributeConfig(updated);
+    fireAndForget(saveAttributeConfig(updated));
+  }
+
+  function handleUpdateValue(
+    attributeId: string,
+    valueId: string,
+    updates: { label?: string; description?: string },
+  ) {
+    const updated = updateValueInAttribute(attributeConfig, attributeId, valueId, updates);
+    setAttributeConfig(updated);
+    fireAndForget(saveAttributeConfig(updated));
+  }
+
+  function handleRemoveValue(attributeId: string, valueId: string) {
+    const updated = removeValueFromAttribute(attributeConfig, attributeId, valueId);
+    setAttributeConfig(updated);
+    fireAndForget(saveAttributeConfig(updated));
   }
 
   function removeFromWizard(attributeId: string) {
@@ -268,25 +301,46 @@ export function BriefWizard() {
                 </p>
               </div>
               {selectionAttributes.map((attribute) => (
-                <AttributeInput
+                <AttributeContextMenu
                   key={attribute.id}
                   attribute={attribute}
-                  value={
-                    attributes[attribute.id] ??
-                    getDefaultValue(attribute.type, attribute.values[0]?.value)
+                  onRename={(name) =>
+                    handleRenameAttribute(attribute.id, name)
                   }
-                  onChange={(v) =>
-                    setAttributes({ ...attributes, [attribute.id]: v })
-                  }
-                  onAddCustomValue={(value, label, description) =>
-                    addCustomValue(attribute.id, value, label, description)
+                  onUpdateDescription={(desc) =>
+                    handleUpdateDescription(attribute.id, desc)
                   }
                   onRemove={
                     !attribute.builtIn
                       ? () => removeFromWizard(attribute.id)
                       : undefined
                   }
-                />
+                  onUpdateValue={(valueId, updates) =>
+                    handleUpdateValue(attribute.id, valueId, updates)
+                  }
+                  onRemoveValue={(valueId) =>
+                    handleRemoveValue(attribute.id, valueId)
+                  }
+                >
+                  <AttributeInput
+                    attribute={attribute}
+                    value={
+                      attributes[attribute.id] ??
+                      getDefaultValue(attribute.type, attribute.values[0]?.value)
+                    }
+                    onChange={(v) =>
+                      setAttributes({ ...attributes, [attribute.id]: v })
+                    }
+                    onAddCustomValue={(value, label, description) =>
+                      addCustomValue(attribute.id, value, label, description)
+                    }
+                    onRemove={
+                      !attribute.builtIn
+                        ? () => removeFromWizard(attribute.id)
+                        : undefined
+                    }
+                  />
+                </AttributeContextMenu>
               ))}
               <Button
                 variant="outline"
@@ -309,22 +363,43 @@ export function BriefWizard() {
                 </p>
               </div>
               {textAttributes.map((attribute) => (
-                <AttributeInput
+                <AttributeContextMenu
                   key={attribute.id}
                   attribute={attribute}
-                  value={
-                    attributes[attribute.id] ??
-                    getDefaultValue(attribute.type)
+                  onRename={(name) =>
+                    handleRenameAttribute(attribute.id, name)
                   }
-                  onChange={(v) =>
-                    setAttributes({ ...attributes, [attribute.id]: v })
+                  onUpdateDescription={(desc) =>
+                    handleUpdateDescription(attribute.id, desc)
                   }
                   onRemove={
                     !attribute.builtIn
                       ? () => removeFromWizard(attribute.id)
                       : undefined
                   }
-                />
+                  onUpdateValue={(valueId, updates) =>
+                    handleUpdateValue(attribute.id, valueId, updates)
+                  }
+                  onRemoveValue={(valueId) =>
+                    handleRemoveValue(attribute.id, valueId)
+                  }
+                >
+                  <AttributeInput
+                    attribute={attribute}
+                    value={
+                      attributes[attribute.id] ??
+                      getDefaultValue(attribute.type)
+                    }
+                    onChange={(v) =>
+                      setAttributes({ ...attributes, [attribute.id]: v })
+                    }
+                    onRemove={
+                      !attribute.builtIn
+                        ? () => removeFromWizard(attribute.id)
+                        : undefined
+                    }
+                  />
+                </AttributeContextMenu>
               ))}
             </div>
           )}

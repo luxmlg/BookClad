@@ -290,7 +290,7 @@ export function updateValueInAttribute(
   config: AttributeConfigJson,
   attributeId: string,
   value: string,
-  updates: Partial<Pick<AttributeValue, "description" | "disabled">>,
+  updates: Partial<Pick<AttributeValue, "label" | "description" | "disabled">>,
 ): AttributeConfigJson {
   return {
     ...config,
@@ -303,6 +303,20 @@ export function updateValueInAttribute(
             ),
           }
         : c,
+    ),
+  };
+}
+
+/** Rename an attribute (update display name, keep id unchanged). */
+export function renameAttribute(
+  config: AttributeConfigJson,
+  attributeId: string,
+  newName: string,
+): AttributeConfigJson {
+  return {
+    ...config,
+    attributes: config.attributes.map((c) =>
+      c.id === attributeId ? { ...c, name: newName } : c,
     ),
   };
 }
