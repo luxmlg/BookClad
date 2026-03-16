@@ -315,44 +315,48 @@ function AttributeCard({
                 </button>
               )}
 
-              {/* Value rows */}
-              {attribute.values.map((v) => (
-                <ValueRow
-                  key={v.value}
-                  attributeId={attribute.id}
-                  value={v}
-                  onUpdateValue={(updates) => onUpdateValue(v.value, updates)}
-                  onRemoveValue={() => onRemoveValue(v.value)}
-                />
-              ))}
+              {/* Value rows (not applicable for text attributes) */}
+              {(attribute.type === "single" || attribute.type === "multi") && (
+                <>
+                  {attribute.values.map((v) => (
+                    <ValueRow
+                      key={v.value}
+                      attributeId={attribute.id}
+                      value={v}
+                      onUpdateValue={(updates) => onUpdateValue(v.value, updates)}
+                      onRemoveValue={() => onRemoveValue(v.value)}
+                    />
+                  ))}
 
-              {addingValue ? (
-                <div className="flex gap-2">
-                  <Input
-                    value={newValue}
-                    onChange={(e) => setNewValue(e.target.value)}
-                    placeholder="New value..."
-                    className="h-8 text-sm"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAddValue();
-                      if (e.key === "Escape") setAddingValue(false);
-                    }}
-                  />
-                  <Button size="sm" className="h-8" onClick={handleAddValue}>
-                    Add
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => setAddingValue(true)}
-                >
-                  <PlusIcon className="size-3" />
-                  Add Value
-                </Button>
+                  {addingValue ? (
+                    <div className="flex gap-2">
+                      <Input
+                        value={newValue}
+                        onChange={(e) => setNewValue(e.target.value)}
+                        placeholder="New value..."
+                        className="h-8 text-sm"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleAddValue();
+                          if (e.key === "Escape") setAddingValue(false);
+                        }}
+                      />
+                      <Button size="sm" className="h-8" onClick={handleAddValue}>
+                        Add
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setAddingValue(true)}
+                    >
+                      <PlusIcon className="size-3" />
+                      Add Value
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </CardContent>

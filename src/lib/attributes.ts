@@ -133,12 +133,19 @@ export function addValueToAttribute(
   attributeId: string,
   value: string,
   label: string,
+  description?: string,
 ): AttributeConfigJson {
   return {
     ...config,
     attributes: config.attributes.map((c) =>
       c.id === attributeId
-        ? { ...c, values: [...c.values, { value, label, builtIn: false }] }
+        ? {
+            ...c,
+            values: [
+              ...c.values,
+              { value, label, builtIn: false, description: description || undefined },
+            ],
+          }
         : c,
     ),
   };

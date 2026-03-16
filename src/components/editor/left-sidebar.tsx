@@ -2,7 +2,8 @@
 
 import type React from "react";
 import { useState } from "react";
-import { Save, Loader2, XIcon } from "lucide-react";
+import { Save, Loader2, PlusIcon, XIcon } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   getDefaultValue,
@@ -14,7 +15,8 @@ import {
 } from "@/lib/attributes";
 import { AttributeInput } from "./attribute-input";
 import { PresetPicker, type StylePreset } from "./preset-picker";
-import { AddAttributeForm } from "./add-attribute-form";
+import { AttributePickerDialog } from "@/components/attribute-picker-dialog";
+import { CreateAttributeDialog } from "@/components/create-attribute-dialog";
 
 interface LeftSidebarProps {
   attributeConfig: AttributeConfigJson;
@@ -43,12 +45,19 @@ export function LeftSidebar({
   saving,
   onSave,
 }: LeftSidebarProps) {
-  // Drag-and-drop state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
-  const enabledAttributes = attributeConfig.attributes.filter(
-    (c) => c.enabled,
+  // Active = attributes present in this project's selections
+  const activeAttributes = attributeConfig.attributes.filter(
+    (c) => c.id in attributes,
+  );
+
+  // Available for picker = config attributes NOT in project
+  const availableAttributes = attributeConfig.attributes.filter(
+    (c) => !(c.id in attributes),
   );
 
   function updateAttribute(attributeId: string, value: string | string[]) {
@@ -56,9 +65,9 @@ export function LeftSidebar({
     onClearActivePreset();
   }
 
-  function addCustomValue(attributeId: string, value: string, label: string) {
+  function addCustomValue(attributeId: string, value: string, label: string, description?: string) {
     onConfigChange(
-      addValueToAttribute(attributeConfig, attributeId, value, label),
+      addValueToAttribute(attributeConfig, attributeId, value, label, description),
     );
   }
 
@@ -68,19 +77,20 @@ export function LeftSidebar({
     );
   }
 
-  function removeAttribute(attributeId: string) {
-    onConfigChange({
-      ...attributeConfig,
-      attributes: attributeConfig.attributes.filter(
-        (c) => c.id !== attributeId,
-      ),
-    });
+  function removeFromProject(attributeId: string) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { [attributeId]: _, ...rest } = attributes;
     setAttributes(rest);
   }
 
-  function handleAddAttribute(
+  function handlePickAttribute(attribute: Attribute) {
+    setAttributes({
+      ...attributes,
+      [attribute.id]: getDefaultValue(attribute.type, attribute.values[0]?.value),
+    });
+  }
+
+  function handleCreateAttribute(
     attribute: Attribute,
     defaultValue: string | string[],
   ) {
@@ -89,6 +99,7 @@ export function LeftSidebar({
       attributes: [...attributeConfig.attributes, attribute],
     });
     setAttributes({ ...attributes, [attribute.id]: defaultValue });
+    toast.success(`Created "${attribute.name}"`);
   }
 
   // ── Drag-and-drop handlers ──────────────────────────────────────
@@ -113,13 +124,14 @@ export function LeftSidebar({
       return;
     }
 
-    const newItems = [...enabledAttributes];
+    const activeIds = new Set(activeAttributes.map((c) => c.id));
+    const newItems = [...activeAttributes];
     const [moved] = newItems.splice(draggedIndex, 1);
     newItems.splice(toIndex, 0, moved);
 
     const reorderedAttributes = [
       ...newItems,
-      ...attributeConfig.attributes.filter((c) => !c.enabled),
+      ...attributeConfig.attributes.filter((c) => !activeIds.has(c.id)),
     ];
 
     onConfigChange({
@@ -170,7 +182,7 @@ export function LeftSidebar({
           />
 
           {/* Draggable attributes */}
-          {enabledAttributes.map((attribute, index) => {
+          {activeAttributes.map((attribute, index) => {
             const isDragged = draggedIndex === index;
             const isDragOver =
               dragOverIndex === index && draggedIndex !== index;
@@ -200,8 +212,8 @@ export function LeftSidebar({
                   onChange={(v) =>
                     updateAttribute(attribute.id, v)
                   }
-                  onAddCustomValue={(value, label) =>
-                    addCustomValue(attribute.id, value, label)
+                  onAddCustomValue={(value, label, description) =>
+                    addCustomValue(attribute.id, value, label, description)
                   }
                   onRemoveCustomValue={(value) =>
                     removeCustomValue(attribute.id, value)
@@ -211,7 +223,7 @@ export function LeftSidebar({
                   <button
                     type="button"
                     className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeAttribute(attribute.id)}
+                    onClick={() => removeFromProject(attribute.id)}
                   >
                     <XIcon className="size-3" />
                   </button>
@@ -220,12 +232,32 @@ export function LeftSidebar({
             );
           })}
 
-          <AddAttributeForm
-            existingAttributeIds={attributeConfig.attributes.map((c) => c.id)}
-            onAddAttribute={handleAddAttribute}
-          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-1.5 border-dashed text-xs"
+            onClick={() => setPickerOpen(true)}
+          >
+            <PlusIcon className="size-3.5" />
+            Add Attribute
+          </Button>
         </div>
       </div>
+
+      <AttributePickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        availableAttributes={availableAttributes}
+        onSelect={handlePickAttribute}
+        onCreateNew={() => setCreateOpen(true)}
+      />
+
+      <CreateAttributeDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        existingAttributeIds={attributeConfig.attributes.map((c) => c.id)}
+        onCreateAttribute={handleCreateAttribute}
+      />
     </div>
   );
 }

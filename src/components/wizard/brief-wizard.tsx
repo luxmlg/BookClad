@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { BookText, Palette, FileText, Rocket, Check } from "lucide-react";
+import { BookText, Palette, FileText, Rocket, Check, PlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { AttributeInput } from "@/components/editor/attribute-input";
+import { AttributePickerDialog } from "@/components/attribute-picker-dialog";
+import { CreateAttributeDialog } from "@/components/create-attribute-dialog";
 import type {
+  Attribute,
   AttributeConfigJson,
   AttributeSelection,
 } from "@/lib/attributes";
@@ -49,6 +52,8 @@ export function BriefWizard() {
   );
   const [attributes, setAttributes] = useState<AttributeSelection>({});
   const [imageCount, setImageCount] = useState(4);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Fetch user's attribute config
   useEffect(() => {
@@ -65,18 +70,56 @@ export function BriefWizard() {
     init();
   }, []);
 
-  const enabledAttributes = attributeConfig.attributes.filter(
-    (c) => c.enabled
+  // Active = attributes present in current selections
+  const activeAttributes = attributeConfig.attributes.filter(
+    (c) => c.id in attributes,
   );
-  const selectionAttributes = enabledAttributes.filter(
-    (c) => c.type !== "text"
+  const selectionAttributes = activeAttributes.filter(
+    (c) => c.type !== "text",
   );
-  const textAttributes = enabledAttributes.filter((c) => c.type === "text");
+  const textAttributes = activeAttributes.filter((c) => c.type === "text");
 
-  function addCustomValue(attributeId: string, value: string, label: string) {
-    const updated = addValueToAttribute(attributeConfig, attributeId, value, label);
+  // Available for picker = config attributes NOT in current selections
+  const availableAttributes = attributeConfig.attributes.filter(
+    (c) => !(c.id in attributes),
+  );
+
+  function addCustomValue(attributeId: string, value: string, label: string, description?: string) {
+    const updated = addValueToAttribute(attributeConfig, attributeId, value, label, description);
     setAttributeConfig(updated);
     fireAndForget(saveAttributeConfig(updated));
+  }
+
+  function handlePickAttribute(attribute: Attribute) {
+    setAttributes((prev) => ({
+      ...prev,
+      [attribute.id]: getDefaultValue(attribute.type, attribute.values[0]?.value),
+    }));
+  }
+
+  function handleCreateAttribute(attribute: Attribute, defaultValue: string | string[]) {
+    const updated: AttributeConfigJson = {
+      ...attributeConfig,
+      attributes: [...attributeConfig.attributes, attribute],
+    };
+    setAttributeConfig(updated);
+    setAttributes((prev) => ({ ...prev, [attribute.id]: defaultValue }));
+    fireAndForget(saveAttributeConfig(updated));
+
+    const isText = attribute.type === "text";
+    toast.success(
+      isText
+        ? `Created "${attribute.name}" — text attributes appear on the Details step`
+        : `Created "${attribute.name}"`,
+    );
+  }
+
+  function removeFromWizard(attributeId: string) {
+    setAttributes((prev) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [attributeId]: _, ...rest } = prev;
+      return rest;
+    });
   }
 
   async function handleSubmit() {
@@ -225,21 +268,39 @@ export function BriefWizard() {
                 </p>
               </div>
               {selectionAttributes.map((attribute) => (
-                <AttributeInput
-                  key={attribute.id}
-                  attribute={attribute}
-                  value={
-                    attributes[attribute.id] ??
-                    getDefaultValue(attribute.type, attribute.values[0]?.value)
-                  }
-                  onChange={(v) =>
-                    setAttributes({ ...attributes, [attribute.id]: v })
-                  }
-                  onAddCustomValue={(value, label) =>
-                    addCustomValue(attribute.id, value, label)
-                  }
-                />
+                <div key={attribute.id} className="relative">
+                  <AttributeInput
+                    attribute={attribute}
+                    value={
+                      attributes[attribute.id] ??
+                      getDefaultValue(attribute.type, attribute.values[0]?.value)
+                    }
+                    onChange={(v) =>
+                      setAttributes({ ...attributes, [attribute.id]: v })
+                    }
+                    onAddCustomValue={(value, label, description) =>
+                      addCustomValue(attribute.id, value, label, description)
+                    }
+                  />
+                  {!attribute.builtIn && (
+                    <button
+                      type="button"
+                      className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeFromWizard(attribute.id)}
+                    >
+                      <XIcon className="size-3" />
+                    </button>
+                  )}
+                </div>
               ))}
+              <Button
+                variant="outline"
+                className="w-full gap-2 border-dashed"
+                onClick={() => setPickerOpen(true)}
+              >
+                <PlusIcon className="size-4" />
+                Add Attribute
+              </Button>
             </div>
           )}
 
@@ -253,17 +314,27 @@ export function BriefWizard() {
                 </p>
               </div>
               {textAttributes.map((attribute) => (
-                <AttributeInput
-                  key={attribute.id}
-                  attribute={attribute}
-                  value={
-                    attributes[attribute.id] ??
-                    getDefaultValue(attribute.type)
-                  }
-                  onChange={(v) =>
-                    setAttributes({ ...attributes, [attribute.id]: v })
-                  }
-                />
+                <div key={attribute.id} className="relative">
+                  <AttributeInput
+                    attribute={attribute}
+                    value={
+                      attributes[attribute.id] ??
+                      getDefaultValue(attribute.type)
+                    }
+                    onChange={(v) =>
+                      setAttributes({ ...attributes, [attribute.id]: v })
+                    }
+                  />
+                  {!attribute.builtIn && (
+                    <button
+                      type="button"
+                      className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeFromWizard(attribute.id)}
+                    >
+                      <XIcon className="size-3" />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -289,7 +360,7 @@ export function BriefWizard() {
                   </span>
                   <span className="text-right">{author}</span>
                 </div>
-                {enabledAttributes.map((attr) => {
+                {activeAttributes.map((attr) => {
                   const val = attributes[attr.id];
                   if (!val || (Array.isArray(val) && val.length === 0))
                     return null;
@@ -369,6 +440,21 @@ export function BriefWizard() {
           </div>
         </CardContent>
       </Card>
+
+      <AttributePickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        availableAttributes={availableAttributes}
+        onSelect={handlePickAttribute}
+        onCreateNew={() => setCreateOpen(true)}
+      />
+
+      <CreateAttributeDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        existingAttributeIds={attributeConfig.attributes.map((a) => a.id)}
+        onCreateAttribute={handleCreateAttribute}
+      />
     </div>
   );
 }

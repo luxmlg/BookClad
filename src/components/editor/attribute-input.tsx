@@ -9,13 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { AddValuePopover } from "@/components/add-value-popover";
 import { slugify, getDefaultValue, getActiveValues, type Attribute } from "@/lib/attributes";
 
 interface AttributeInputProps {
   attribute: Attribute;
   value: string | string[];
   onChange: (value: string | string[]) => void;
-  onAddCustomValue?: (value: string, label: string) => void;
+  onAddCustomValue?: (value: string, label: string, description?: string) => void;
   onRemoveCustomValue?: (value: string) => void;
 }
 
@@ -132,31 +133,44 @@ function SingleSelect({
   attribute: Attribute;
   value: string;
   onChange: (value: string) => void;
-  onAddCustomValue?: (value: string, label: string) => void;
+  onAddCustomValue?: (value: string, label: string, description?: string) => void;
 }) {
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
+
   const options = getActiveValues(attribute).map((v) => ({
     value: v.value,
     label: v.label,
   }));
 
+  function handleAdd(label: string, description?: string): void {
+    const slug = slugify(label);
+    onAddCustomValue?.(slug, label, description);
+    onChange(slug);
+  }
+
   return (
     <div className="space-y-1.5">
       <Label>{attribute.name}</Label>
-      <Combobox
-        options={options}
-        value={value}
-        onChange={onChange}
-        placeholder={`Select ${attribute.name.toLowerCase()}...`}
-        onCreateOption={
-          onAddCustomValue
-            ? (label) => {
-                const slug = slugify(label);
-                onAddCustomValue(slug, label);
-                onChange(slug);
-              }
-            : undefined
-        }
-      />
+      <AddValuePopover
+        open={pendingLabel !== null}
+        onOpenChange={(open) => { if (!open) setPendingLabel(null); }}
+        initialLabel={pendingLabel ?? ""}
+        onAdd={handleAdd}
+      >
+        <div>
+          <Combobox
+            options={options}
+            value={value}
+            onChange={onChange}
+            placeholder={`Select ${attribute.name.toLowerCase()}...`}
+            onCreateOption={
+              onAddCustomValue
+                ? (label) => setPendingLabel(label)
+                : undefined
+            }
+          />
+        </div>
+      </AddValuePopover>
     </div>
   );
 }
@@ -171,13 +185,12 @@ function MultiSelect({
   attribute: Attribute;
   value: string[];
   onChange: (value: string[]) => void;
-  onAddCustomValue?: (value: string, label: string) => void;
+  onAddCustomValue?: (value: string, label: string, description?: string) => void;
   onRemoveCustomValue?: (value: string) => void;
 }) {
-  const [adding, setAdding] = useState(false);
-  const [customInput, setCustomInput] = useState("");
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
-  function toggle(val: string) {
+  function toggle(val: string): void {
     if (value.includes(val)) {
       onChange(value.filter((v) => v !== val));
     } else {
@@ -185,21 +198,16 @@ function MultiSelect({
     }
   }
 
-  function addCustom() {
-    const label = customInput.trim();
-    if (!label) return;
+  function handleAdd(label: string, description?: string): void {
     const slug = slugify(label);
     if (attribute.values.some((v) => v.value === slug)) {
-      // Already exists, just select it
       if (!value.includes(slug)) {
         onChange([...value, slug]);
       }
     } else {
-      onAddCustomValue?.(slug, label);
+      onAddCustomValue?.(slug, label, description);
       onChange([...value, slug]);
     }
-    setCustomInput("");
-    setAdding(false);
   }
 
   return (
@@ -229,38 +237,20 @@ function MultiSelect({
             )}
           </Badge>
         ))}
-        {adding ? (
-          <form
-            className="flex items-center gap-1"
-            onSubmit={(e) => {
-              e.preventDefault();
-              addCustom();
-            }}
-          >
-            <Input
-              value={customInput}
-              onChange={(e) => setCustomInput(e.target.value)}
-              className="h-6 w-24 text-xs"
-              placeholder="Custom..."
-              autoFocus
-              onBlur={() => {
-                if (!customInput.trim()) setAdding(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setAdding(false);
-              }}
-            />
-          </form>
-        ) : (
+        <AddValuePopover
+          open={popoverOpen}
+          onOpenChange={setPopoverOpen}
+          onAdd={handleAdd}
+        >
           <Badge
             variant="outline"
             className="cursor-pointer text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setAdding(true)}
+            onClick={() => setPopoverOpen(true)}
           >
             <PlusIcon className="mr-0.5 size-3" />
             Add
           </Badge>
-        )}
+        </AddValuePopover>
       </div>
     </div>
   );
