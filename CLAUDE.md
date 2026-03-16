@@ -102,6 +102,25 @@ Defined in `src/lib/attributes.ts`. Provides a flexible, user-customizable syste
 
 **Worker prompt building**: `worker/src/lib/prompt.ts` formats attributes into AI prompts. Genre/mood/style get special treatment; all other attributes appear as extra bullet points. The worker is a separate package and cannot import from `src/lib/`.
 
+## Credit System
+
+Billing uses a credit ledger instead of a generation counter. Defined in `src/lib/credits.ts` (app) and `worker/src/lib/credits.ts` (worker).
+
+**Per-image costs**: `CREDIT_COST_PER_IMAGE` in constants — OpenAI (5), Ideogram (4), Gemini (3). Also exposed as `creditCost` on each `AI_MODELS` entry.
+
+**Tier allowances**: `TIER_CREDITS` — FREE (25), STARTER (100), PRO (250) credits/month.
+
+**Lifecycle**:
+1. API calls `reserveCredits()` — atomic Prisma transaction: checks balance, decrements `User.creditBalance`, creates `CreditTransaction(RESERVE)`, creates `Generation(creditCost)`. Throws `InsufficientCreditsError` (→ 403) if balance too low.
+2. On success: nothing to do, credits already deducted.
+3. On failure: worker calls `refundCredits()` — increments balance, creates `CreditTransaction(REFUND)`.
+
+**Initial grant**: `ensureInitialCredits(userId, tier)` checks if any `CreditTransaction` exists; if not, grants `TIER_CREDITS[tier]`. Called from editor page and dashboard server components.
+
+**API**: `GET /api/credits` returns `{ balance, tier, transactions[] }`. Client module in `src/lib/api/credits.ts`.
+
+**DB**: `CreditTransaction` model with `amount` (positive=credit, negative=debit), `balanceAfter` snapshot, `type` enum (`GRANT`, `RESERVE`, `REFUND`, `EXPIRE`), optional `generationId` link.
+
 ## Font System
 
 `src/lib/fonts.ts` manages font loading and registration:
@@ -156,5 +175,6 @@ Defined in `src/lib/attributes.ts`. Provides a flexible, user-customizable syste
 - **WebSocket**: Singleton manager in `src/lib/use-generation-ws.ts`. Worker endpoint at `NEXT_PUBLIC_WS_URL` (defaults to `ws://localhost:4000/ws/progress`). Falls back to HTTP polling if WebSocket fails. The worker bridges Redis pubsub → WebSocket: `publishProgress()` in `worker/src/lib/progress.ts` publishes to `generation:{id}` channels, and `worker/src/lib/websocket.ts` relays those to connected clients.
 - **Event constants**: Event type discriminators (`EVENT_TYPE`: STATUS, PROGRESS, COMPLETED, FAILED) and WebSocket control messages (`WS_MESSAGE_TYPE`: SUBSCRIBE, UNSUBSCRIBE) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts`. Use these instead of raw strings like `"completed"` or `"subscribe"`.
 - **Attribute defaults**: Always use `getDefaultValue(type)` from `src/lib/attributes.ts` — never hardcode default values like `"false"`, `"5"`, `"#6366f1"` inline.
-- **API client**: Client-side API calls use an axios instance from `src/lib/api/client.ts` with domain-specific modules in `src/lib/api/` (projects, generations, images, fonts, settings). Use `fireAndForget()` for best-effort calls (auto-save). Import via `@/lib/api`.
-- **Cross-package constants**: Constants shared between app and worker (like `GENERATION_STATUS`, `EVENT_TYPE`, `KDP`) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts` — kept in sync manually since the packages cannot import from each other.
+- **API client**: Client-side API calls use an axios instance from `src/lib/api/client.ts` with domain-specific modules in `src/lib/api/` (projects, generations, images, fonts, settings, credits). Use `fireAndForget()` for best-effort calls (auto-save). Import via `@/lib/api`.
+- **Cross-package constants**: Constants shared between app and worker (like `GENERATION_STATUS`, `EVENT_TYPE`, `KDP`, `CREDIT_COST_PER_IMAGE`) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts` — kept in sync manually since the packages cannot import from each other.
+- **Credit costs**: Always use `CREDIT_COST_PER_IMAGE[model]` and `calculateCreditCost()` from `src/lib/credits.ts` — never hardcode credit amounts inline.
