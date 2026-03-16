@@ -36,33 +36,6 @@ export const ART_STYLES = [
   { value: "typographic", label: "Typographic" },
 ] as const;
 
-export const GENRE_VISUAL_RULES: Record<string, string> = {
-  thriller:
-    "High contrast, desaturated palette, single dominant silhouette or object, dramatic shadow",
-  romance:
-    "Warm/rose tones, soft focus, figures (if any) in close proximity, bokeh background",
-  "epic-fantasy":
-    "Wide establishing shot, sense of scale, glowing magical elements, deep sky",
-  "urban-fantasy":
-    "City skyline with magical elements, neon or twilight palette, single figure in foreground",
-  "cozy-fantasy":
-    "Warm interior or cottage scene, soft lighting, magical whimsy, comfortable palette",
-  "sci-fi":
-    "Futuristic setting, cool blue/teal palette, technology or space elements, dramatic lighting",
-  horror:
-    "Low key lighting, desaturated with single accent color (red/sickly green), isolation/dread",
-  "cozy-mystery":
-    "Illustrated style, warm colors, small-town or domestic setting, cat/teacup motif",
-  "self-help":
-    "Clean geometric layout, bold typography-friendly negative space, professional palette",
-  business:
-    "Sleek modern aesthetic, confident palette, abstract geometric shapes or city imagery",
-  childrens:
-    "Bright vivid colors, playful illustrated style, friendly characters, whimsical elements",
-  "literary-fiction":
-    "Understated, moody, artistic composition with symbolic imagery and muted tones",
-};
-
 export const GENERATION_STATUS = {
   QUEUED: "QUEUED",
   PROCESSING: "PROCESSING",

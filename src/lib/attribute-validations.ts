@@ -4,7 +4,8 @@ const attributeValueSchema = z.object({
   value: z.string().min(1),
   label: z.string().min(1),
   builtIn: z.boolean(),
-  visualRule: z.string().optional(),
+  description: z.string().optional(),
+  disabled: z.boolean().optional(),
 });
 
 const attributeCategorySchema = z.object({
@@ -13,6 +14,7 @@ const attributeCategorySchema = z.object({
   type: z.enum(["single", "multi", "text", "toggle", "scale", "color"]),
   builtIn: z.boolean(),
   enabled: z.boolean(),
+  description: z.string().max(200).optional(),
   values: z.array(attributeValueSchema),
   scaleLabels: z.object({ min: z.string(), max: z.string() }).optional(),
 });

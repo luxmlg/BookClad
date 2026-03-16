@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Plus, BookOpen, MoreHorizontal, Pencil, Coins } from "lucide-react";
-import { ensureInitialCredits } from "@/lib/credits";
 import { GENRES, GENERATION_STATUS } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
 import {
@@ -23,8 +22,6 @@ export default async function DashboardPage() {
     where: { id: session.user.id },
     select: { creditBalance: true, tier: true },
   });
-
-  await ensureInitialCredits(session.user.id, user?.tier ?? "FREE");
 
   const projects = await prisma.coverProject.findMany({
     where: { userId: session.user.id },

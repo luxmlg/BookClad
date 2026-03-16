@@ -2,7 +2,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import { EditorShell } from "@/components/editor/editor-shell";
-import { ensureInitialCredits } from "@/lib/credits";
 
 export default async function EditorPage({
   params,
@@ -34,8 +33,6 @@ export default async function EditorPage({
   ]);
 
   if (!project) notFound();
-
-  await ensureInitialCredits(session.user.id, user?.tier ?? "FREE");
 
   return (
     <EditorShell

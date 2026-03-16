@@ -89,16 +89,3 @@ export async function grantCredits(
   });
 }
 
-/**
- * Grant initial credits if the user has no transactions yet (first-time setup).
- */
-export async function ensureInitialCredits(userId: string, tier: string): Promise<void> {
-  const existing = await prisma.creditTransaction.findFirst({
-    where: { userId },
-    select: { id: true },
-  });
-  if (existing) return;
-
-  const amount = TIER_CREDITS[tier] ?? TIER_CREDITS.FREE;
-  await grantCredits(userId, amount, `Welcome bonus (${tier} tier)`);
-}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { buildDefaultConfig, ensureBuiltInCategories, type AttributeConfigJson } from "@/lib/attributes";
+import { ensureBuiltInCategories, type AttributeConfigJson } from "@/lib/attributes";
 import { attributeConfigSchema } from "@/lib/attribute-validations";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -12,18 +12,27 @@ export async function GET() {
   }
 
   try {
-    let record = await prisma.attributeConfig.findUnique({
+    const record = await prisma.attributeConfig.findUnique({
       where: { userId: session.user.id },
     });
 
     if (!record) {
-      const config = buildDefaultConfig();
-      record = await prisma.attributeConfig.create({
-        data: { userId: session.user.id, config: config as unknown as Prisma.InputJsonValue },
+      return NextResponse.json(
+        { error: "Attribute config not found" },
+        { status: 404 },
+      );
+    }
+
+    const raw = record.config as unknown as AttributeConfigJson;
+    const config = ensureBuiltInCategories(raw);
+
+    if (config !== raw) {
+      await prisma.attributeConfig.update({
+        where: { userId: session.user.id },
+        data: { config: config as unknown as Prisma.InputJsonValue },
       });
     }
 
-    const config = ensureBuiltInCategories(record.config as unknown as AttributeConfigJson);
     return NextResponse.json(config);
   } catch {
     return NextResponse.json(

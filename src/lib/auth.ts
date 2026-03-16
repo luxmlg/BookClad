@@ -4,7 +4,11 @@ import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Apple from "next-auth/providers/apple";
 import type { OAuthConfig } from "next-auth/providers";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { buildDefaultConfig } from "@/lib/attributes";
+import { grantCredits } from "@/lib/credits";
+import { TIER_CREDITS } from "@/lib/constants";
 
 const Amazon: OAuthConfig<{
   user_id: string;
@@ -44,6 +48,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   session: {
     strategy: "database",
+  },
+  events: {
+    async createUser({ user }) {
+      if (!user.id) return;
+      await Promise.all([
+        prisma.attributeConfig.create({
+          data: {
+            userId: user.id,
+            config: buildDefaultConfig() as unknown as Prisma.InputJsonValue,
+          },
+        }),
+        grantCredits(user.id, TIER_CREDITS.FREE, "Welcome bonus (FREE tier)"),
+      ]);
+    },
   },
   callbacks: {
     session({ session, user }) {

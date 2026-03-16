@@ -1,34 +1,42 @@
-// Intentional duplication of GENRE_VISUAL_RULES from src/lib/constants.ts and
-// formatAttrValue from src/lib/attributes.ts — the worker is a separate package
-// and cannot import from src/.
-export const GENRE_VISUAL_RULES: Record<string, string> = {
-  thriller:
-    "High contrast, desaturated palette, single dominant silhouette or object, dramatic shadow",
-  romance:
-    "Warm/rose tones, soft focus, figures (if any) in close proximity, bokeh background",
-  "epic-fantasy":
-    "Wide establishing shot, sense of scale, glowing magical elements, deep sky",
-  "urban-fantasy":
-    "City skyline with magical elements, neon or twilight palette, single figure in foreground",
-  "cozy-fantasy":
-    "Warm interior or cottage scene, soft lighting, magical whimsy, comfortable palette",
-  "sci-fi":
-    "Futuristic setting, cool blue/teal palette, technology or space elements, dramatic lighting",
-  horror:
-    "Low key lighting, desaturated with single accent color (red/sickly green), isolation/dread",
-  "cozy-mystery":
-    "Illustrated style, warm colors, small-town or domestic setting, cat/teacup motif",
-  "self-help":
-    "Clean geometric layout, bold typography-friendly negative space, professional palette",
-  business:
-    "Sleek modern aesthetic, confident palette, abstract geometric shapes or city imagery",
-  childrens:
-    "Bright vivid colors, playful illustrated style, friendly characters, whimsical elements",
-  "literary-fiction":
-    "Understated, moody, artistic composition with symbolic imagery and muted tones",
-};
-
 import { REF_PROMPT_KEY } from "./constants.js";
+
+/** Descriptions keyed by category ID, then by value slug. */
+export type DescriptionsMap = Record<string, Record<string, string>>;
+
+/**
+ * Extract a descriptions map from the raw AttributeConfig JSON.
+ * Returns `{}` on any unexpected shape.
+ */
+export function extractDescriptions(configJson: unknown): DescriptionsMap {
+  if (
+    !configJson ||
+    typeof configJson !== "object" ||
+    !("categories" in configJson) ||
+    !Array.isArray((configJson as { categories: unknown }).categories)
+  ) {
+    return {};
+  }
+
+  const result: DescriptionsMap = {};
+  for (const cat of (configJson as { categories: unknown[] }).categories) {
+    if (!cat || typeof cat !== "object" || !("id" in cat) || !("values" in cat)) continue;
+    const { id, values } = cat as { id: string; values: unknown[] };
+    if (typeof id !== "string" || !Array.isArray(values)) continue;
+
+    const descs: Record<string, string> = {};
+    for (const v of values) {
+      if (!v || typeof v !== "object") continue;
+      const { value, description } = v as { value: unknown; description: unknown };
+      if (typeof value === "string" && typeof description === "string" && description) {
+        descs[value] = description;
+      }
+    }
+    if (Object.keys(descs).length > 0) {
+      result[id] = descs;
+    }
+  }
+  return result;
+}
 
 export interface TextLayerInfo {
   name: string;
@@ -100,11 +108,12 @@ const SPECIAL_KEYS = new Set(["genre", "mood", "style"]);
 export function buildAttributePrompt(
   attributes: Record<string, string | string[]>,
   title: string,
+  descriptions?: DescriptionsMap,
 ): string {
   const genre = (attributes.genre as string) ?? "";
   const style = (attributes.style as string) ?? "";
   const mood = formatAttrValue(attributes.mood ?? []);
-  const genreRules = GENRE_VISUAL_RULES[genre] ?? "";
+  const genreRules = descriptions?.genre?.[genre] ?? "";
 
   const parts: string[] = [];
   if (genre) parts.push(`Genre: ${categoryLabel(genre)}`);

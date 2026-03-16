@@ -8,7 +8,7 @@ import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
-import { buildSystemPrompt, buildAttributePrompt, type TextLayerInfo } from "../lib/prompt.js";
+import { buildSystemPrompt, buildAttributePrompt, extractDescriptions, type TextLayerInfo } from "../lib/prompt.js";
 import { KDP, GENERATION_STATUS, EVENT_TYPE } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
 
@@ -30,7 +30,7 @@ async function dispatchGenerate(
 }
 
 export async function processGeneration(job: Job<GenerationJobData>) {
-  const { generationId, projectId, imageCount, referenceImageKey, model } =
+  const { generationId, projectId, userId, imageCount, referenceImageKey, model } =
     job.data;
 
   // totalSteps: generate + (upscale + crop + upload) per image + optional reference download
@@ -45,13 +45,17 @@ export async function processGeneration(job: Job<GenerationJobData>) {
   await publishProgress(job, generationId, { type: EVENT_TYPE.STATUS, status: GENERATION_STATUS.PROCESSING });
 
   try {
-    const [project, generation] = await Promise.all([
+    const [project, generation, attributeConfigRecord] = await Promise.all([
       prisma.coverProject.findUniqueOrThrow({
         where: { id: projectId },
       }),
       prisma.generation.findUniqueOrThrow({
         where: { id: generationId },
         select: { includeLayers: true, textLayerSnapshot: true, attributeSnapshot: true },
+      }),
+      prisma.attributeConfig.findUnique({
+        where: { userId },
+        select: { config: true },
       }),
     ]);
 
@@ -68,8 +72,12 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     const snapshot = (generation.attributeSnapshot as Record<string, string | string[]> | null)
       ?? (project.attributes as Record<string, string | string[]>);
 
+    const descriptions = attributeConfigRecord
+      ? extractDescriptions(attributeConfigRecord.config)
+      : undefined;
+
     const systemPrompt = buildSystemPrompt(promptOptions);
-    const userPrompt = buildAttributePrompt(snapshot, project.title);
+    const userPrompt = buildAttributePrompt(snapshot, project.title, descriptions);
     const fullPrompt = systemPrompt + "\n\n" + userPrompt;
 
     let rawImages: Buffer[];

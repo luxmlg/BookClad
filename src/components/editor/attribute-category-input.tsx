@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { slugify, getDefaultValue, type AttributeCategory } from "@/lib/attributes";
+import { slugify, getDefaultValue, getActiveValues, type AttributeCategory } from "@/lib/attributes";
 
 interface AttributeCategoryInputProps {
   category: AttributeCategory;
@@ -134,7 +134,7 @@ function SingleSelect({
   onChange: (value: string) => void;
   onAddCustomValue?: (value: string, label: string) => void;
 }) {
-  const options = category.values.map((v) => ({
+  const options = getActiveValues(category).map((v) => ({
     value: v.value,
     label: v.label,
   }));
@@ -206,7 +206,7 @@ function MultiSelect({
     <div className="space-y-1.5">
       <Label>{category.name}</Label>
       <div className="flex flex-wrap gap-1.5">
-        {category.values.map((v) => (
+        {getActiveValues(category).map((v) => (
           <Badge
             key={v.value}
             variant={value.includes(v.value) ? "default" : "outline"}
