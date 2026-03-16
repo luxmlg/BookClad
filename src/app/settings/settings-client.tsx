@@ -22,6 +22,7 @@ import { GeneralTab } from "./general-tab";
 import { CategoriesTab } from "./categories-tab";
 import { PresetsTab, type StylePreset } from "./presets-tab";
 import { FontsTab } from "./fonts-tab";
+import { BillingTab } from "./billing-tab";
 
 export function SettingsClient() {
   const [config, setConfig] = useState<AttributeConfigJson>(
@@ -103,6 +104,7 @@ export function SettingsClient() {
         <TabsTrigger value="categories">Attribute Categories</TabsTrigger>
         <TabsTrigger value="presets">Style Presets</TabsTrigger>
         <TabsTrigger value="fonts">Fonts</TabsTrigger>
+        <TabsTrigger value="billing">Billing</TabsTrigger>
       </TabsList>
 
       <TabsContent value="general">
@@ -127,6 +129,10 @@ export function SettingsClient() {
           defaultFont={defaultFont}
           setDefaultFont={setDefaultFont}
         />
+      </TabsContent>
+
+      <TabsContent value="billing">
+        <BillingTab />
       </TabsContent>
     </Tabs>
   );

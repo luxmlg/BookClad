@@ -58,7 +58,11 @@ const plans = [
     name: "Free",
     price: "$0",
     period: "forever",
-    features: ["3 covers / month", "Low-res preview", "Watermarked exports"],
+    features: [
+      "25 credits / month",
+      "~5-8 covers depending on model",
+      "Full-res KDP export",
+    ],
     cta: "Start Free",
     highlighted: false,
   },
@@ -67,9 +71,9 @@ const plans = [
     price: "$9",
     period: "/month",
     features: [
-      "20 covers / month",
-      "Full-res JPEG export",
-      "3D mockups",
+      "100 credits / month",
+      "~20-33 covers depending on model",
+      "Full-res KDP export",
       "Priority queue",
     ],
     cta: "Get Started",
@@ -80,10 +84,9 @@ const plans = [
     price: "$19",
     period: "/month",
     features: [
-      "Unlimited covers",
-      "Series mode",
-      "Batch export",
-      "Social media pack",
+      "250 credits / month",
+      "~50-83 covers depending on model",
+      "Priority queue",
       "Priority support",
     ],
     cta: "Go Pro",
@@ -136,7 +139,7 @@ export default function LandingPage() {
             </Link>
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            Start with 3 free covers. No credit card required.
+            Start with 25 free credits. No credit card required.
           </p>
         </div>
       </section>
@@ -185,8 +188,11 @@ export default function LandingPage() {
       <section className="py-24">
         <div className="container mx-auto max-w-4xl px-4 text-center">
           <h2 className="mb-4 text-3xl font-bold">Simple Pricing</h2>
-          <p className="mb-14 text-muted-foreground">
+          <p className="mb-2 text-muted-foreground">
             Start free. Upgrade when you need more.
+          </p>
+          <p className="mb-14 text-sm text-muted-foreground">
+            Credits per image: Gemini (3), Ideogram (4), OpenAI (5)
           </p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             {plans.map((plan) => (

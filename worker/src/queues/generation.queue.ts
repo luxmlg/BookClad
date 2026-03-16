@@ -17,4 +17,5 @@ export interface GenerationJobData {
   model: string;
   referenceImageKey: string | null;
   flattenedImageDataUrl?: string | null;
+  creditCost: number;
 }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generationQueue } from "@/lib/queue";
 import { createGenerationSchema } from "@/lib/validations";
 import { JOB_TYPE, GENERATION_STATUS } from "@/lib/constants";
+import { calculateCreditCost, reserveCredits, InsufficientCreditsError } from "@/lib/credits";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -40,16 +41,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-    if (user?.tier === "FREE" && (user.generationsUsed ?? 0) >= 3) {
-      return NextResponse.json(
-        { error: "Free tier limit reached (3 generations/month)" },
-        { status: 403 }
-      );
-    }
-
     let referenceImageKey: string | undefined;
     if (referenceImageId) {
       const refImage = await prisma.generatedImage.findFirst({
@@ -62,35 +53,41 @@ export async function POST(request: Request) {
     }
 
     const jobType = referenceImageKey ? JOB_TYPE.GENERATE_FROM_REFERENCE : JOB_TYPE.GENERATE;
+    const creditCost = calculateCreditCost(model, imageCount);
 
-    const generation = await prisma.generation.create({
-      data: {
-        projectId: project.id,
-        prompt: "",
-        status: GENERATION_STATUS.QUEUED,
-        imageCount,
-        jobType,
-        model,
-        referenceImage: referenceImageKey ?? null,
-        parentImageId: referenceImageId ?? null,
-        includeLayers: !!flattenedImageDataUrl,
-        attributeSnapshot: attributeSnapshot ?? undefined,
-        textLayerSnapshot: textLayerSnapshot ?? undefined,
-      },
+    const { generationId } = await reserveCredits(session.user.id, creditCost, {
+      projectId: project.id,
+      prompt: "",
+      status: GENERATION_STATUS.QUEUED,
+      imageCount,
+      jobType,
+      model,
+      referenceImage: referenceImageKey ?? null,
+      parentImageId: referenceImageId ?? null,
+      includeLayers: !!flattenedImageDataUrl,
+      attributeSnapshot: attributeSnapshot ?? undefined,
+      textLayerSnapshot: textLayerSnapshot ?? undefined,
     });
 
     await generationQueue.add(jobType, {
-      generationId: generation.id,
+      generationId,
       projectId: project.id,
       userId: session.user.id,
       imageCount,
       model,
       referenceImageKey: referenceImageKey ?? null,
       flattenedImageDataUrl: flattenedImageDataUrl ?? null,
+      creditCost,
     });
 
-    return NextResponse.json({ generationId: generation.id }, { status: 202 });
-  } catch {
+    return NextResponse.json({ generationId }, { status: 202 });
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      return NextResponse.json(
+        { error: err.message, required: err.required, available: err.available },
+        { status: 403 }
+      );
+    }
     return NextResponse.json(
       { error: "Failed to create generation" },
       { status: 500 }

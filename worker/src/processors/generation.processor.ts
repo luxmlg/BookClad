@@ -10,6 +10,7 @@ import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
 import { buildSystemPrompt, buildAttributePrompt, type TextLayerInfo } from "../lib/prompt.js";
 import { KDP, GENERATION_STATUS, EVENT_TYPE } from "../lib/constants.js";
+import { refundCredits } from "../lib/credits.js";
 
 async function dispatchGenerate(
   model: string,
@@ -122,17 +123,17 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       data: { status: GENERATION_STATUS.COMPLETED },
     });
 
-    await prisma.user.update({
-      where: { id: job.data.userId },
-      data: { generationsUsed: { increment: 1 } },
-    });
-
     await publishProgress(job, generationId, { type: EVENT_TYPE.COMPLETED });
   } catch (error) {
     await prisma.generation.update({
       where: { id: generationId },
       data: { status: GENERATION_STATUS.FAILED },
     });
+
+    if (job.data.creditCost > 0) {
+      await refundCredits(job.data.userId, generationId, job.data.creditCost);
+    }
+
     await publishProgress(job, generationId, {
       type: EVENT_TYPE.FAILED,
       error: error instanceof Error ? error.message : "Unknown error",

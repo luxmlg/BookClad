@@ -4,3 +4,4 @@ export * from "./projects";
 export * from "./images";
 export * from "./settings";
 export * from "./fonts";
+export * from "./credits";

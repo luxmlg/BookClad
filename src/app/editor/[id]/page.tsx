@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import { EditorShell } from "@/components/editor/editor-shell";
+import { ensureInitialCredits } from "@/lib/credits";
 
 export default async function EditorPage({
   params,
@@ -28,11 +29,19 @@ export default async function EditorPage({
     }),
     prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { showPrompt: true },
+      select: { showPrompt: true, tier: true, creditBalance: true },
     }),
   ]);
 
   if (!project) notFound();
 
-  return <EditorShell project={project} showPrompt={user?.showPrompt ?? false} />;
+  await ensureInitialCredits(session.user.id, user?.tier ?? "FREE");
+
+  return (
+    <EditorShell
+      project={project}
+      showPrompt={user?.showPrompt ?? false}
+      initialCreditBalance={user?.creditBalance ?? 0}
+    />
+  );
 }

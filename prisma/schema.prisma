@@ -12,25 +12,25 @@ datasource db {
 // ──────────────────────────────────────────
 
 model User {
-  id               String    @id @default(cuid())
-  name             String?
-  email            String    @unique
-  emailVerified    DateTime?
-  image            String?
-  passwordHash     String?
-  tier             Tier      @default(FREE)
-  generationsUsed  Int       @default(0)
-  generationsReset DateTime?
-  defaultFont      String    @default("Playfair Display")
-  showPrompt       Boolean   @default(false)
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  tier          Tier      @default(FREE)
+  creditBalance Int       @default(0)
+  defaultFont   String    @default("Playfair Display")
+  showPrompt    Boolean   @default(false)
 
-  accounts        Account[]
-  sessions        Session[]
-  projects        CoverProject[]
-  attributeConfig AttributeConfig?
-  stylePresets    StylePreset[]
-  assets          UserAsset[]
-  fonts           UserFont[]
+  accounts           Account[]
+  sessions           Session[]
+  projects           CoverProject[]
+  attributeConfig    AttributeConfig?
+  stylePresets       StylePreset[]
+  assets             UserAsset[]
+  fonts              UserFont[]
+  creditTransactions CreditTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -86,7 +86,13 @@ enum Tier {
   FREE
   STARTER
   PRO
-  PAY_PER_COVER
+}
+
+enum CreditTxnType {
+  GRANT
+  RESERVE
+  REFUND
+  EXPIRE
 }
 
 enum JobStatus {
@@ -122,7 +128,7 @@ model Generation {
   prompt            String    @db.Text
   userPrompt        String?   @db.Text
   status            JobStatus @default(QUEUED)
-  cost              Float?
+  creditCost        Int?
   imageCount        Int       @default(4)
   referenceImage    String?
   jobType           String    @default("generate")
@@ -132,14 +138,33 @@ model Generation {
   attributeSnapshot Json?
   textLayerSnapshot Json?
 
-  project     CoverProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  images      GeneratedImage[]
-  parentImage GeneratedImage?  @relation("DerivedFrom", fields: [parentImageId], references: [id], onDelete: SetNull)
+  project            CoverProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  images             GeneratedImage[]
+  parentImage        GeneratedImage?    @relation("DerivedFrom", fields: [parentImageId], references: [id], onDelete: SetNull)
+  creditTransactions CreditTransaction[]
 
   createdAt DateTime @default(now())
 
   @@index([projectId])
   @@index([status])
+}
+
+model CreditTransaction {
+  id           String        @id @default(cuid())
+  userId       String
+  amount       Int
+  balanceAfter Int
+  type         CreditTxnType
+  description  String?
+  generationId String?
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generation Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([generationId])
 }
 
 model GeneratedImage {

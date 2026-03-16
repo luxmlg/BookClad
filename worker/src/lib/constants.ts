@@ -39,3 +39,9 @@ export const WS_MESSAGE_TYPE = {
 } as const;
 
 export const REF_PROMPT_KEY = "ref-instructions";
+
+export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
+  openai: 5,
+  gemini: 3,
+  ideogram: 4,
+};

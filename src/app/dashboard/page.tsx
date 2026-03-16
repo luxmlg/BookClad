@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, BookOpen, MoreHorizontal, Pencil } from "lucide-react";
+import { Plus, BookOpen, MoreHorizontal, Pencil, Coins } from "lucide-react";
+import { ensureInitialCredits } from "@/lib/credits";
 import { GENRES, GENERATION_STATUS } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
 import {
@@ -17,6 +18,13 @@ import { DeleteProjectButton } from "@/components/dashboard/delete-project-butto
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/sign-in");
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { creditBalance: true, tier: true },
+  });
+
+  await ensureInitialCredits(session.user.id, user?.tier ?? "FREE");
 
   const projects = await prisma.coverProject.findMany({
     where: { userId: session.user.id },
@@ -39,6 +47,10 @@ export default async function DashboardPage() {
           <p className="text-muted-foreground">
             {projects.length} project{projects.length !== 1 ? "s" : ""}
           </p>
+        </div>
+        <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5">
+          <Coins className="size-4 text-primary" />
+          <span className="text-sm font-medium">{user?.creditBalance ?? 0} credits</span>
         </div>
       </div>
 

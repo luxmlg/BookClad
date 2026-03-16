@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generationQueue } from "@/lib/queue";
 import { createInpaintSchema } from "@/lib/validations";
 import { JOB_TYPE, GENERATION_STATUS } from "@/lib/constants";
+import { calculateCreditCost, reserveCredits, InsufficientCreditsError } from "@/lib/credits";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -44,24 +45,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Image not found" }, { status: 404 });
     }
 
-    const generation = await prisma.generation.create({
-      data: {
-        projectId: image.generation.projectId,
-        prompt,
-        status: GENERATION_STATUS.QUEUED,
-        imageCount: 1,
-        jobType: JOB_TYPE.INPAINT,
-        model,
-        referenceImage: image.storageKey,
-        parentImageId: imageId,
-        includeLayers: !!flattenedImageDataUrl,
-        attributeSnapshot: attributeSnapshot ?? undefined,
-        textLayerSnapshot: textLayerSnapshot ?? undefined,
-      },
+    const creditCost = calculateCreditCost(model, 1);
+
+    const { generationId } = await reserveCredits(session.user.id, creditCost, {
+      projectId: image.generation.projectId,
+      prompt,
+      status: GENERATION_STATUS.QUEUED,
+      imageCount: 1,
+      jobType: JOB_TYPE.INPAINT,
+      model,
+      referenceImage: image.storageKey,
+      parentImageId: imageId,
+      includeLayers: !!flattenedImageDataUrl,
+      attributeSnapshot: attributeSnapshot ?? undefined,
+      textLayerSnapshot: textLayerSnapshot ?? undefined,
     });
 
     await generationQueue.add(JOB_TYPE.INPAINT, {
-      generationId: generation.id,
+      generationId,
       projectId: image.generation.projectId,
       userId: session.user.id,
       sourceImageKey: image.storageKey,
@@ -69,10 +70,17 @@ export async function POST(request: Request) {
       prompt,
       model,
       flattenedImageDataUrl: flattenedImageDataUrl ?? null,
+      creditCost,
     });
 
-    return NextResponse.json({ generationId: generation.id }, { status: 202 });
+    return NextResponse.json({ generationId }, { status: 202 });
   } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      return NextResponse.json(
+        { error: err.message, required: err.required, available: err.available },
+        { status: 403 }
+      );
+    }
     console.error("[inpaint] Error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to create inpaint job" },

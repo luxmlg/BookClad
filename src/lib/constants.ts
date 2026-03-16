@@ -78,21 +78,36 @@ export const JOB_TYPE = {
 } as const;
 export type JobType = typeof JOB_TYPE[keyof typeof JOB_TYPE];
 
+export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
+  openai: 5,
+  gemini: 3,
+  ideogram: 4,
+};
+
+export const TIER_CREDITS: Record<string, number> = {
+  FREE: 25,
+  STARTER: 100,
+  PRO: 250,
+};
+
 export const AI_MODELS = [
   {
     value: "openai",
     label: "OpenAI (gpt-image-1)",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
+    creditCost: CREDIT_COST_PER_IMAGE.openai,
   },
   {
     value: "gemini",
     label: "Gemini 2.0 Flash",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
+    creditCost: CREDIT_COST_PER_IMAGE.gemini,
   },
   {
     value: "ideogram",
     label: "Ideogram V3",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
+    creditCost: CREDIT_COST_PER_IMAGE.ideogram,
   },
 ] as const;
 

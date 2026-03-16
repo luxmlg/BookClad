@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import type Konva from "konva";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode, CanvasState } from "./canvas-types";
 import { getDefaultCanvasState, parseCanvasState, CANVAS_WIDTH, CANVAS_HEIGHT, SCALE, NODE_TYPE } from "./canvas-types";
-import { KDP, GENERATION_STATUS } from "@/lib/constants";
+import { KDP, GENERATION_STATUS, CREDIT_COST_PER_IMAGE } from "@/lib/constants";
 import { DEFAULT_FONT, ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
@@ -24,6 +24,7 @@ import {
   getProjectAssets,
   listFonts,
   getPreferences,
+  getCredits,
   updateImage,
   updateProject,
   uploadAsset,
@@ -45,9 +46,10 @@ import { useGenerationActions } from "./use-generation-actions";
 interface EditorShellProps {
   project: Project;
   showPrompt: boolean;
+  initialCreditBalance: number;
 }
 
-export function EditorShell({ project, showPrompt }: EditorShellProps) {
+export function EditorShell({ project, showPrompt, initialCreditBalance }: EditorShellProps) {
   const router = useRouter();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -90,6 +92,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   >([]);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [creditBalance, setCreditBalance] = useState(initialCreditBalance);
 
   const [keepLayersOnGenerate, setKeepLayersOnGenerate] = useState(true);
   const keepLayersRef = useRef(true);
@@ -127,6 +130,21 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     project.id, project.generations,
     attributes, nodes, selectedImageId,
     inpaintRef, router,
+  );
+
+  // Refresh credit balance after generation lifecycle ends
+  const refreshCredits = useCallback(() => {
+    getCredits().then((c) => setCreditBalance(c.balance)).catch(() => {});
+  }, []);
+
+  // Wrap generation complete to also refresh credits
+  const { handleGenerationComplete } = genActions;
+  const handleGenerationCompleteWithCredits = useCallback(
+    (generationId: string) => {
+      handleGenerationComplete(generationId);
+      refreshCredits();
+    },
+    [handleGenerationComplete, refreshCredits]
   );
 
   // Inpaint state (uses genActions' stable setters)
@@ -178,6 +196,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         getProjectAssets(project.id),
         listFonts(),
         getPreferences(),
+        getCredits(),
       ]);
       if (results[0].status === "fulfilled") setAttributeConfig(results[0].value);
       if (results[1].status === "fulfilled") setPresets(results[1].value);
@@ -194,6 +213,9 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
       if (results[4].status === "fulfilled") {
         const prefs = results[4].value;
         if (prefs.defaultFont) setDefaultFont(prefs.defaultFont);
+      }
+      if (results[5].status === "fulfilled") {
+        setCreditBalance(results[5].value.balance);
       }
     }
     init();
@@ -610,7 +632,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         selectImage={selectImage}
         allActiveIds={genActions.allActiveIds}
         activeGenerations={genActions.activeGenerations}
-        handleGenerationComplete={genActions.handleGenerationComplete}
+        handleGenerationComplete={handleGenerationCompleteWithCredits}
         showPrompt={showPrompt}
       />
 
@@ -734,6 +756,8 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
               setModel={genActions.setModel}
               imageCount={genActions.imageCount}
               setImageCount={genActions.setImageCount}
+              creditBalance={creditBalance}
+              creditCost={(CREDIT_COST_PER_IMAGE[genActions.model] ?? 5) * genActions.imageCount}
             />
           </div>
         </div>

@@ -8,6 +8,7 @@ import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import { KDP, GENERATION_STATUS, EVENT_TYPE } from "../lib/constants.js";
+import { refundCredits } from "../lib/credits.js";
 
 export interface InpaintJobData {
   generationId: string;
@@ -18,6 +19,7 @@ export interface InpaintJobData {
   prompt: string;
   model: string;
   flattenedImageDataUrl?: string | null;
+  creditCost: number;
 }
 
 async function dispatchInpaint(
@@ -93,6 +95,11 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       where: { id: generationId },
       data: { status: GENERATION_STATUS.FAILED },
     });
+
+    if (job.data.creditCost > 0) {
+      await refundCredits(job.data.userId, generationId, job.data.creditCost);
+    }
+
     await publishProgress(job, generationId, {
       type: EVENT_TYPE.FAILED,
       error: error instanceof Error ? error.message : "Unknown error",

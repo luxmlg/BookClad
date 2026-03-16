@@ -44,6 +44,9 @@ interface InpaintToolbarProps {
   setModel: (v: string) => void;
   imageCount: number;
   setImageCount: (v: number) => void;
+  // Credits
+  creditBalance: number;
+  creditCost: number;
 }
 
 export function InpaintToolbar({
@@ -66,7 +69,10 @@ export function InpaintToolbar({
   setModel,
   imageCount,
   setImageCount,
+  creditBalance,
+  creditCost,
 }: InpaintToolbarProps) {
+  const insufficientCredits = creditBalance < creditCost;
   // Painting phase — show brush controls
   if (brushMode) {
     return (
@@ -139,9 +145,12 @@ export function InpaintToolbar({
         size="sm"
         className="h-7 gap-1.5 text-xs"
         onClick={onRegenerate}
+        disabled={insufficientCredits}
+        title={insufficientCredits ? `Not enough credits (need ${creditCost}, have ${creditBalance})` : `${creditCost} credits`}
       >
         <RefreshCw className="size-3.5" />
-        Generate Covers
+        Generate
+        <span className="text-[10px] opacity-70">{creditCost}cr</span>
         {activeGenerationCount > 0 && (
           <span className="ml-0.5 inline-flex size-4 items-center justify-center rounded-full bg-primary-foreground/20 text-[10px] font-bold">
             {activeGenerationCount}
@@ -179,7 +188,7 @@ export function InpaintToolbar({
         <SelectContent alignItemWithTrigger={false} className="min-w-52">
           {AI_MODELS.map((m) => (
             <SelectItem key={m.value} value={m.value}>
-              {m.label}
+              {m.label} <span className="text-muted-foreground">({m.creditCost}cr/img)</span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -197,6 +206,10 @@ export function InpaintToolbar({
         </div>
         <span className="text-[10px] text-muted-foreground w-3 text-right">{imageCount}</span>
       </div>
+      <div className="mx-1 h-5 w-px bg-border" />
+      <span className={`text-[10px] font-medium ${insufficientCredits ? "text-destructive" : "text-muted-foreground"}`}>
+        {creditBalance}cr
+      </span>
     </div>
   );
 }
