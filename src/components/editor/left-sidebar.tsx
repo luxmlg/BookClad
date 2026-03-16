@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useState } from "react";
-import { Save, Loader2, PlusIcon, XIcon } from "lucide-react";
+import { Save, Loader2, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -196,7 +196,7 @@ export function LeftSidebar({
                 onDragLeave={() => setDragOverIndex(null)}
                 onDrop={(e) => handleItemDrop(e, index)}
                 onDragEnd={handleItemDragEnd}
-                className={`relative cursor-grab active:cursor-grabbing ${
+                className={`cursor-grab active:cursor-grabbing ${
                   isDragOver ? "border-t-2 border-primary" : ""
                 } ${isDragged ? "opacity-40" : ""}`}
               >
@@ -218,16 +218,12 @@ export function LeftSidebar({
                   onRemoveCustomValue={(value) =>
                     removeCustomValue(attribute.id, value)
                   }
+                  onRemove={
+                    !attribute.builtIn
+                      ? () => removeFromProject(attribute.id)
+                      : undefined
+                  }
                 />
-                {!attribute.builtIn && (
-                  <button
-                    type="button"
-                    className="absolute right-0 top-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeFromProject(attribute.id)}
-                  >
-                    <XIcon className="size-3" />
-                  </button>
-                )}
               </div>
             );
           })}

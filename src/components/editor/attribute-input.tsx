@@ -18,6 +18,7 @@ interface AttributeInputProps {
   onChange: (value: string | string[]) => void;
   onAddCustomValue?: (value: string, label: string, description?: string) => void;
   onRemoveCustomValue?: (value: string) => void;
+  onRemove?: () => void;
 }
 
 export function AttributeInput({
@@ -26,11 +27,27 @@ export function AttributeInput({
   onChange,
   onAddCustomValue,
   onRemoveCustomValue,
+  onRemove,
 }: AttributeInputProps) {
+  const labelNode = (
+    <span className="flex items-center gap-1">
+      {attribute.name}
+      {onRemove && (
+        <button
+          type="button"
+          className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/attr:opacity-100"
+          onClick={onRemove}
+        >
+          <XIcon className="size-3" />
+        </button>
+      )}
+    </span>
+  );
+
   if (attribute.type === "toggle") {
     return (
-      <div className="flex items-center justify-between">
-        <Label>{attribute.name}</Label>
+      <div className="group/attr flex items-center justify-between">
+        <Label>{labelNode}</Label>
         <Switch
           checked={value === "true"}
           onCheckedChange={(c) => onChange(c ? "true" : "false")}
@@ -42,9 +59,9 @@ export function AttributeInput({
   if (attribute.type === "scale") {
     const num = parseInt(value as string, 10) || 5;
     return (
-      <div className="space-y-1.5">
+      <div className="group/attr space-y-1.5">
         <div className="flex items-center justify-between">
-          <Label>{attribute.name}</Label>
+          <Label>{labelNode}</Label>
           <span className="text-xs text-muted-foreground tabular-nums">
             {num}/10
           </span>
@@ -68,8 +85,8 @@ export function AttributeInput({
 
   if (attribute.type === "color") {
     return (
-      <div className="space-y-1.5">
-        <Label>{attribute.name}</Label>
+      <div className="group/attr space-y-1.5">
+        <Label>{labelNode}</Label>
         <div className="flex items-center gap-2">
           <input
             type="color"
@@ -90,8 +107,8 @@ export function AttributeInput({
 
   if (attribute.type === "text") {
     return (
-      <div className="space-y-1.5">
-        <Label>{attribute.name}</Label>
+      <div className="group/attr space-y-1.5">
+        <Label>{labelNode}</Label>
         <Textarea
           rows={3}
           placeholder={`Enter ${attribute.name.toLowerCase()}...`}
@@ -109,6 +126,7 @@ export function AttributeInput({
         value={value as string}
         onChange={(v) => onChange(v)}
         onAddCustomValue={onAddCustomValue}
+        onRemove={onRemove}
       />
     );
   }
@@ -120,6 +138,7 @@ export function AttributeInput({
       onChange={(v) => onChange(v)}
       onAddCustomValue={onAddCustomValue}
       onRemoveCustomValue={onRemoveCustomValue}
+      onRemove={onRemove}
     />
   );
 }
@@ -129,11 +148,13 @@ function SingleSelect({
   value,
   onChange,
   onAddCustomValue,
+  onRemove,
 }: {
   attribute: Attribute;
   value: string;
   onChange: (value: string) => void;
   onAddCustomValue?: (value: string, label: string, description?: string) => void;
+  onRemove?: () => void;
 }) {
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
 
@@ -149,8 +170,21 @@ function SingleSelect({
   }
 
   return (
-    <div className="space-y-1.5">
-      <Label>{attribute.name}</Label>
+    <div className="group/attr space-y-1.5">
+      <Label>
+        <span className="flex items-center gap-1">
+          {attribute.name}
+          {onRemove && (
+            <button
+              type="button"
+              className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/attr:opacity-100"
+              onClick={onRemove}
+            >
+              <XIcon className="size-3" />
+            </button>
+          )}
+        </span>
+      </Label>
       <AddValuePopover
         open={pendingLabel !== null}
         onOpenChange={(open) => { if (!open) setPendingLabel(null); }}
@@ -181,12 +215,14 @@ function MultiSelect({
   onChange,
   onAddCustomValue,
   onRemoveCustomValue,
+  onRemove,
 }: {
   attribute: Attribute;
   value: string[];
   onChange: (value: string[]) => void;
   onAddCustomValue?: (value: string, label: string, description?: string) => void;
   onRemoveCustomValue?: (value: string) => void;
+  onRemove?: () => void;
 }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -211,8 +247,21 @@ function MultiSelect({
   }
 
   return (
-    <div className="space-y-1.5">
-      <Label>{attribute.name}</Label>
+    <div className="group/attr space-y-1.5">
+      <Label>
+        <span className="flex items-center gap-1">
+          {attribute.name}
+          {onRemove && (
+            <button
+              type="button"
+              className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/attr:opacity-100"
+              onClick={onRemove}
+            >
+              <XIcon className="size-3" />
+            </button>
+          )}
+        </span>
+      </Label>
       <div className="flex flex-wrap gap-1.5">
         {getActiveValues(attribute).map((v) => (
           <Badge
