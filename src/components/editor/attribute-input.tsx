@@ -9,8 +9,48 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+} from "@/components/ui/hover-card";
 import { AddValuePopover } from "@/components/add-value-popover";
 import { slugify, getDefaultValue, getActiveValues, type Attribute } from "@/lib/attributes";
+
+function AttributeLabel({ attribute, onRemove }: { attribute: Attribute; onRemove?: () => void }) {
+  const nameNode = attribute.description ? (
+    <HoverCard>
+      <HoverCardTrigger
+        render={<span />}
+        className="underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
+      >
+        {attribute.name}
+      </HoverCardTrigger>
+      <HoverCardContent side="right" className="text-sm">
+        {attribute.description}
+      </HoverCardContent>
+    </HoverCard>
+  ) : (
+    <>{attribute.name}</>
+  );
+
+  return (
+    <Label>
+      <span className="flex items-center gap-1">
+        {nameNode}
+        {onRemove && (
+          <button
+            type="button"
+            className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/attr:opacity-100"
+            onClick={onRemove}
+          >
+            <XIcon className="size-3" />
+          </button>
+        )}
+      </span>
+    </Label>
+  );
+}
 
 interface AttributeInputProps {
   attribute: Attribute;
@@ -29,25 +69,10 @@ export function AttributeInput({
   onRemoveCustomValue,
   onRemove,
 }: AttributeInputProps) {
-  const labelNode = (
-    <span className="flex items-center gap-1">
-      {attribute.name}
-      {onRemove && (
-        <button
-          type="button"
-          className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/attr:opacity-100"
-          onClick={onRemove}
-        >
-          <XIcon className="size-3" />
-        </button>
-      )}
-    </span>
-  );
-
   if (attribute.type === "toggle") {
     return (
       <div className="group/attr flex items-center justify-between">
-        <Label>{labelNode}</Label>
+        <AttributeLabel attribute={attribute} onRemove={onRemove} />
         <Switch
           checked={value === "true"}
           onCheckedChange={(c) => onChange(c ? "true" : "false")}
@@ -61,7 +86,7 @@ export function AttributeInput({
     return (
       <div className="group/attr space-y-1.5">
         <div className="flex items-center justify-between">
-          <Label>{labelNode}</Label>
+          <AttributeLabel attribute={attribute} onRemove={onRemove} />
           <span className="text-xs text-muted-foreground tabular-nums">
             {num}/10
           </span>
@@ -86,7 +111,7 @@ export function AttributeInput({
   if (attribute.type === "color") {
     return (
       <div className="group/attr space-y-1.5">
-        <Label>{labelNode}</Label>
+        <AttributeLabel attribute={attribute} onRemove={onRemove} />
         <div className="flex items-center gap-2">
           <input
             type="color"
@@ -108,7 +133,7 @@ export function AttributeInput({
   if (attribute.type === "text") {
     return (
       <div className="group/attr space-y-1.5">
-        <Label>{labelNode}</Label>
+        <AttributeLabel attribute={attribute} onRemove={onRemove} />
         <Textarea
           rows={3}
           placeholder={`Enter ${attribute.name.toLowerCase()}...`}
@@ -161,6 +186,7 @@ function SingleSelect({
   const options = getActiveValues(attribute).map((v) => ({
     value: v.value,
     label: v.label,
+    description: v.description,
   }));
 
   function handleAdd(label: string, description?: string): void {
@@ -171,20 +197,7 @@ function SingleSelect({
 
   return (
     <div className="group/attr space-y-1.5">
-      <Label>
-        <span className="flex items-center gap-1">
-          {attribute.name}
-          {onRemove && (
-            <button
-              type="button"
-              className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/attr:opacity-100"
-              onClick={onRemove}
-            >
-              <XIcon className="size-3" />
-            </button>
-          )}
-        </span>
-      </Label>
+      <AttributeLabel attribute={attribute} onRemove={onRemove} />
       <AddValuePopover
         open={pendingLabel !== null}
         onOpenChange={(open) => { if (!open) setPendingLabel(null); }}
@@ -248,45 +261,42 @@ function MultiSelect({
 
   return (
     <div className="group/attr space-y-1.5">
-      <Label>
-        <span className="flex items-center gap-1">
-          {attribute.name}
-          {onRemove && (
-            <button
-              type="button"
-              className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/attr:opacity-100"
-              onClick={onRemove}
-            >
-              <XIcon className="size-3" />
-            </button>
-          )}
-        </span>
-      </Label>
+      <AttributeLabel attribute={attribute} onRemove={onRemove} />
       <div className="flex flex-wrap gap-1.5">
-        {getActiveValues(attribute).map((v) => (
-          <Badge
-            key={v.value}
-            data-value={v.value}
-            variant={value.includes(v.value) ? "default" : "outline"}
-            className="cursor-pointer text-xs"
-            onClick={() => toggle(v.value)}
-          >
-            {v.label}
-            {!v.builtIn && onRemoveCustomValue && (
-              <button
-                type="button"
-                className="ml-1 rounded-full hover:bg-foreground/20"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onChange(value.filter((val) => val !== v.value));
-                  onRemoveCustomValue(v.value);
-                }}
-              >
-                <XIcon className="size-2.5" />
-              </button>
-            )}
-          </Badge>
-        ))}
+        {getActiveValues(attribute).map((v) => {
+          const badge = (
+            <Badge
+              data-value={v.value}
+              variant={value.includes(v.value) ? "default" : "outline"}
+              className="cursor-pointer text-xs"
+              onClick={() => toggle(v.value)}
+            >
+              {v.label}
+              {!v.builtIn && onRemoveCustomValue && (
+                <button
+                  type="button"
+                  className="ml-1 rounded-full hover:bg-foreground/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(value.filter((val) => val !== v.value));
+                    onRemoveCustomValue(v.value);
+                  }}
+                >
+                  <XIcon className="size-2.5" />
+                </button>
+              )}
+            </Badge>
+          );
+
+          return v.description ? (
+            <HoverCard key={v.value}>
+              <HoverCardTrigger render={<span />}>{badge}</HoverCardTrigger>
+              <HoverCardContent className="text-sm">{v.description}</HoverCardContent>
+            </HoverCard>
+          ) : (
+            <span key={v.value}>{badge}</span>
+          );
+        })}
         <AddValuePopover
           open={popoverOpen}
           onOpenChange={setPopoverOpen}

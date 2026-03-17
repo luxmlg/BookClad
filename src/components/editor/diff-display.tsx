@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { computeAttributeDiff } from "@/lib/attributes";
+import {
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+} from "@/components/ui/hover-card";
 import type { Generation, DescriptionSnapshot } from "./types";
 import {
   asAttributeSnapshot,
@@ -34,6 +39,58 @@ function resolveAttrName(
     curDesc?.[key]?.name ??
     targetDesc?.[key]?.name ??
     key.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
+function AttrNameHover({
+  name,
+  description,
+  className,
+}: {
+  name: string;
+  description?: string;
+  className?: string;
+}) {
+  if (!description) {
+    return <span className={className}>{name}:</span>;
+  }
+  return (
+    <HoverCard>
+      <HoverCardTrigger
+        render={<span />}
+        className={`${className ?? ""} underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help`}
+      >
+        {name}:
+      </HoverCardTrigger>
+      <HoverCardContent side="right" className="text-sm">
+        {description}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+function ValueHover({
+  label,
+  description,
+  className,
+}: {
+  label: string;
+  description?: string;
+  className?: string;
+}) {
+  if (!description) {
+    return <span className={className}>{label}</span>;
+  }
+  return (
+    <HoverCard>
+      <HoverCardTrigger
+        render={<span />}
+        className={`${className ?? ""} underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help`}
+      >
+        {label}
+      </HoverCardTrigger>
+      <HoverCardContent className="text-sm">{description}</HoverCardContent>
+    </HoverCard>
   );
 }
 
@@ -129,20 +186,29 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
         <div className="space-y-0.5">
           {attrDiff.map((d) => {
             const name = resolveAttrName(d.key, curDesc, targetDesc);
+            const attrDesc = curDesc?.[d.key]?.description ?? targetDesc?.[d.key]?.description;
             const oldValues = [...d.kept, ...d.removed];
             const newValues = [...d.kept, ...d.added];
+
+            const renderValues = (values: string[], descSnap: DescriptionSnapshot | null, className?: string) =>
+              values.map((v, i) => {
+                const vLabel = resolveLabel(d.key, v, descSnap);
+                const vDesc = descSnap?.[d.key]?.values[v]?.description;
+                return (
+                  <Fragment key={v}>
+                    {i > 0 && ", "}
+                    <ValueHover label={vLabel} description={vDesc} className={className} />
+                  </Fragment>
+                );
+              });
 
             // Entire attribute added
             if (oldValues.length === 0) {
               return (
                 <div key={d.key}>
-                  <span className="font-medium text-muted-foreground">
-                    {name}:{" "}
-                  </span>
+                  <AttrNameHover name={name} description={attrDesc} className="font-medium text-muted-foreground" />{" "}
                   <span className="text-green-600">
-                    {newValues
-                      .map((v) => resolveLabel(d.key, v, curDesc))
-                      .join(", ")}
+                    {renderValues(newValues, curDesc)}
                   </span>
                   <span className="text-muted-foreground/60 italic ml-1">
                     (added)
@@ -155,13 +221,9 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
             if (newValues.length === 0) {
               return (
                 <div key={d.key}>
-                  <span className="font-medium text-muted-foreground">
-                    {name}:{" "}
-                  </span>
+                  <AttrNameHover name={name} description={attrDesc} className="font-medium text-muted-foreground" />{" "}
                   <span className="text-red-500 line-through">
-                    {oldValues
-                      .map((v) => resolveLabel(d.key, v, targetDesc))
-                      .join(", ")}
+                    {renderValues(oldValues, targetDesc)}
                   </span>
                   <span className="text-muted-foreground/60 italic ml-1">
                     (removed)
@@ -174,19 +236,25 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
             if (d.kept.length > 0) {
               return (
                 <div key={d.key}>
-                  <span className="font-medium text-muted-foreground">
-                    {name}:{" "}
-                  </span>
-                  {d.added.map((v) => (
-                    <span key={v} className="text-green-600 mr-1">
-                      + {resolveLabel(d.key, v, curDesc)}
-                    </span>
-                  ))}
-                  {d.removed.map((v) => (
-                    <span key={v} className="text-red-500 mr-1">
-                      &minus; {resolveLabel(d.key, v, targetDesc)}
-                    </span>
-                  ))}
+                  <AttrNameHover name={name} description={attrDesc} className="font-medium text-muted-foreground" />{" "}
+                  {d.added.map((v) => {
+                    const vLabel = resolveLabel(d.key, v, curDesc);
+                    const vDesc = curDesc?.[d.key]?.values[v]?.description;
+                    return (
+                      <span key={v} className="text-green-600 mr-1">
+                        + <ValueHover label={vLabel} description={vDesc} />
+                      </span>
+                    );
+                  })}
+                  {d.removed.map((v) => {
+                    const vLabel = resolveLabel(d.key, v, targetDesc);
+                    const vDesc = targetDesc?.[d.key]?.values[v]?.description;
+                    return (
+                      <span key={v} className="text-red-500 mr-1">
+                        &minus; <ValueHover label={vLabel} description={vDesc} />
+                      </span>
+                    );
+                  })}
                 </div>
               );
             }
@@ -194,19 +262,13 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
             // Full replacement: old → new
             return (
               <div key={d.key}>
-                <span className="font-medium text-muted-foreground">
-                  {name}:{" "}
-                </span>
+                <AttrNameHover name={name} description={attrDesc} className="font-medium text-muted-foreground" />{" "}
                 <span className="text-muted-foreground">
-                  {oldValues
-                    .map((v) => resolveLabel(d.key, v, targetDesc))
-                    .join(", ")}
+                  {renderValues(oldValues, targetDesc)}
                 </span>
                 {" → "}
                 <span>
-                  {newValues
-                    .map((v) => resolveLabel(d.key, v, curDesc))
-                    .join(", ")}
+                  {renderValues(newValues, curDesc)}
                 </span>
               </div>
             );
@@ -222,9 +284,11 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
           </span>
           {contextDiffs.map((d) => (
             <div key={d.key} className="ml-2">
-              <span className="font-medium text-muted-foreground">
-                {d.name}:{" "}
-              </span>
+              <AttrNameHover
+                name={d.name}
+                description={d.newDesc ?? d.oldDesc ?? undefined}
+                className="font-medium text-muted-foreground"
+              />{" "}
               {d.oldDesc == null ? (
                 <span className="text-green-600 line-clamp-1">
                   &ldquo;{d.newDesc}&rdquo;

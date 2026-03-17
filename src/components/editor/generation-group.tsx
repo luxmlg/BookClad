@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { Fragment, useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { ChevronRight, Sparkles, Pencil, Layers } from "lucide-react";
 import { updateGenerationName } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import {
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+} from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Collapsible,
@@ -320,16 +325,47 @@ export function GenerationGroup({
                       const meta = descSnap?.[key];
                       const label = meta?.name ?? key.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
                       const values = Array.isArray(val) ? val : [val];
-                      const formatted = values
-                        .map((v) => {
-                          if (v === "true") return "yes";
-                          if (v === "false") return "no";
-                          return meta?.values[v]?.label ?? v;
-                        })
-                        .join(", ");
                       return (
                         <div key={key}>
-                          <span className="font-medium">{label}:</span> {formatted}
+                          {meta?.description ? (
+                            <HoverCard>
+                              <HoverCardTrigger
+                                render={<span />}
+                                className="font-medium underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
+                              >
+                                {label}:
+                              </HoverCardTrigger>
+                              <HoverCardContent side="right" className="text-sm">
+                                {meta.description}
+                              </HoverCardContent>
+                            </HoverCard>
+                          ) : (
+                            <span className="font-medium">{label}:</span>
+                          )}{" "}
+                          {values.map((v, i) => {
+                            const vLabel = v === "true" ? "yes" : v === "false" ? "no" : (meta?.values[v]?.label ?? v);
+                            const vDesc = meta?.values[v]?.description;
+                            return (
+                              <Fragment key={v}>
+                                {i > 0 && ", "}
+                                {vDesc ? (
+                                  <HoverCard>
+                                    <HoverCardTrigger
+                                      render={<span />}
+                                      className="underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
+                                    >
+                                      {vLabel}
+                                    </HoverCardTrigger>
+                                    <HoverCardContent className="text-sm">
+                                      {vDesc}
+                                    </HoverCardContent>
+                                  </HoverCard>
+                                ) : (
+                                  vLabel
+                                )}
+                              </Fragment>
+                            );
+                          })}
                         </div>
                       );
                     })}

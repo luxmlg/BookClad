@@ -8,6 +8,7 @@ import { ChevronDownIcon, PlusIcon } from "lucide-react";
 interface ComboboxOption {
   value: string;
   label: string;
+  description?: string;
 }
 
 interface ComboboxProps {
@@ -81,7 +82,14 @@ export function Combobox({
                   value={option.value}
                   className="relative flex cursor-default items-center gap-1.5 rounded-md py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50"
                 >
-                  {option.label}
+                  <div className="min-w-0 flex-1">
+                    <span>{option.label}</span>
+                    {option.description && (
+                      <span className="block text-xs text-muted-foreground line-clamp-2">
+                        {option.description}
+                      </span>
+                    )}
+                  </div>
                   <ComboboxPrimitive.ItemIndicator className="pointer-events-none absolute right-2 flex size-4 items-center justify-center">
                     <svg
                       className="size-4"
