@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -24,7 +25,26 @@ import { PresetsTab, type StylePreset } from "./presets-tab";
 import { FontsTab } from "./fonts-tab";
 import { BillingTab } from "./billing-tab";
 
+const VALID_TABS = ["general", "attributes", "presets", "fonts", "billing"];
+
 export function SettingsClient() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const tabParam = searchParams.get("tab");
+  const activeTab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "general";
+
+  const handleTabChange = useCallback((value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === "general") {
+      params.delete("tab");
+    } else {
+      params.set("tab", value);
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
+
   const [config, setConfig] = useState<AttributeConfigJson>(
     buildDefaultConfig()
   );
@@ -98,7 +118,7 @@ export function SettingsClient() {
   }
 
   return (
-    <Tabs defaultValue="general">
+    <Tabs value={activeTab} onValueChange={handleTabChange}>
       <TabsList className="mb-6">
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="attributes">Attributes</TabsTrigger>

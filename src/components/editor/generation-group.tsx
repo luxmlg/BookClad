@@ -12,7 +12,6 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { JOB_TYPE } from "@/lib/constants";
-import { formatAttributes } from "@/lib/attributes";
 import type { Generation, DescriptionSnapshot } from "./types";
 import { asAttributeSnapshot, asDescriptionSnapshot, asTextLayerSnapshot } from "./types";
 import {
@@ -316,7 +315,25 @@ export function GenerationGroup({
               <>
                 {/* Structured attributes */}
                 {hasDisplayAttrs && (
-                  <div>{formatAttributes(attrs!)}</div>
+                  <div className="space-y-0.5">
+                    {Object.entries(attrs!).map(([key, val]) => {
+                      const meta = descSnap?.[key];
+                      const label = meta?.name ?? key.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                      const values = Array.isArray(val) ? val : [val];
+                      const formatted = values
+                        .map((v) => {
+                          if (v === "true") return "yes";
+                          if (v === "false") return "no";
+                          return meta?.values[v]?.label ?? v;
+                        })
+                        .join(", ");
+                      return (
+                        <div key={key}>
+                          <span className="font-medium">{label}:</span> {formatted}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </>
             )}
@@ -366,17 +383,17 @@ export function GenerationGroup({
             )}
 
             {/* System prompt */}
-            {showPrompt && jobType !== JOB_TYPE.INPAINT && generation.prompt && (
+            {jobType !== JOB_TYPE.INPAINT && generation.prompt && (
               <div>
                 <button
                   onClick={() => setSysPromptExpanded((e) => !e)}
                   className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
                 >
-                  {(showPrompt ? !sysPromptExpanded : sysPromptExpanded)
+                  {sysPromptExpanded
                     ? "Hide system prompt"
                     : "Show system prompt"}
                 </button>
-                {(showPrompt ? !sysPromptExpanded : sysPromptExpanded) && (
+                {sysPromptExpanded && (
                   <div className="mt-1 whitespace-pre-wrap text-muted-foreground border rounded-md p-2 bg-muted/30">
                     {generation.prompt}
                   </div>
@@ -384,22 +401,6 @@ export function GenerationGroup({
               </div>
             )}
 
-            {/* Attributes */}
-            {jobType !== JOB_TYPE.INPAINT && generation.userPrompt && (
-              <div>
-                <button
-                  onClick={() => setPromptExpanded((e) => !e)}
-                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                >
-                  {promptExpanded ? "Hide attributes" : "Show attributes"}
-                </button>
-                {promptExpanded && (
-                  <div className="mt-1 whitespace-pre-wrap text-muted-foreground border rounded-md p-2 bg-muted/30">
-                    {generation.userPrompt}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Changes from parent */}
             {parentGeneration && (
@@ -425,7 +426,6 @@ export function GenerationGroup({
                   <DiffDisplay
                     current={generation}
                     target={parentGeneration}
-                    showPrompt={showPrompt}
                   />
                 )}
               </div>
@@ -478,7 +478,6 @@ export function GenerationGroup({
                     <DiffDisplay
                       current={generation}
                       target={compareTarget}
-                      showPrompt={showPrompt}
                     />
                   )}
                 </div>

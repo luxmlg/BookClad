@@ -24,7 +24,6 @@ import {
   getProjectAssets,
   listFonts,
   getPreferences,
-  getCredits,
   updateImage,
   updateProject,
   uploadAsset,
@@ -42,14 +41,14 @@ import {
 } from "./hooks";
 import { useInpaintState } from "./use-inpaint-state";
 import { useGenerationActions } from "./use-generation-actions";
+import { useCreditStore } from "@/lib/stores/credit-store";
 
 interface EditorShellProps {
   project: Project;
   showPrompt: boolean;
-  initialCreditBalance: number;
 }
 
-export function EditorShell({ project, showPrompt, initialCreditBalance }: EditorShellProps) {
+export function EditorShell({ project, showPrompt }: EditorShellProps) {
   const router = useRouter();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -92,7 +91,7 @@ export function EditorShell({ project, showPrompt, initialCreditBalance }: Edito
   >([]);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [creditBalance, setCreditBalance] = useState(initialCreditBalance);
+  const refreshCredits = useCreditStore((s) => s.refreshCredits);
 
   const [keepLayersOnGenerate, setKeepLayersOnGenerate] = useState(true);
   const keepLayersRef = useRef(true);
@@ -131,11 +130,6 @@ export function EditorShell({ project, showPrompt, initialCreditBalance }: Edito
     attributes, nodes, selectedImageId,
     inpaintRef, router,
   );
-
-  // Refresh credit balance after generation lifecycle ends
-  const refreshCredits = useCallback(() => {
-    getCredits().then((c) => setCreditBalance(c.balance)).catch(() => {});
-  }, []);
 
   // Wrap generation complete to also refresh credits
   const { handleGenerationComplete } = genActions;
@@ -196,7 +190,6 @@ export function EditorShell({ project, showPrompt, initialCreditBalance }: Edito
         getProjectAssets(project.id),
         listFonts(),
         getPreferences(),
-        getCredits(),
       ]);
       if (results[0].status === "fulfilled") setAttributeConfig(results[0].value);
       if (results[1].status === "fulfilled") setPresets(results[1].value);
@@ -214,9 +207,8 @@ export function EditorShell({ project, showPrompt, initialCreditBalance }: Edito
         const prefs = results[4].value;
         if (prefs.defaultFont) setDefaultFont(prefs.defaultFont);
       }
-      if (results[5].status === "fulfilled") {
-        setCreditBalance(results[5].value.balance);
-      }
+      // Refresh credits from store to ensure latest balance
+      refreshCredits();
     }
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -742,7 +734,6 @@ export function EditorShell({ project, showPrompt, initialCreditBalance }: Edito
               setModel={genActions.setModel}
               imageCount={genActions.imageCount}
               setImageCount={genActions.setImageCount}
-              creditBalance={creditBalance}
               creditCost={(CREDIT_COST_PER_IMAGE[genActions.model] ?? 5) * genActions.imageCount}
             />
           </div>

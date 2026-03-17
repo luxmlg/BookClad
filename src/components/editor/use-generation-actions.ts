@@ -9,6 +9,7 @@ import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, DEFAULT_MODEL } from "@/lib/
 import type { AttributeSelection } from "@/lib/attributes";
 import { REF_PROMPT_KEY } from "@/lib/attributes";
 import { createGeneration } from "@/lib/api";
+import { useCreditStore } from "@/lib/stores/credit-store";
 import type { Generation } from "./types";
 import type { UseInpaintStateResult } from "./use-inpaint-state";
 
@@ -45,6 +46,7 @@ export function useGenerationActions(
   inpaintRef: React.RefObject<Pick<UseInpaintStateResult, "includeLayers" | "flattenCanvasToDataUrl">>,
   router: ReturnType<typeof useRouter>,
 ): UseGenerationActionsResult {
+  const refreshCredits = useCreditStore((s) => s.refreshCredits);
   const [activeGenerationIds, setActiveGenerationIds] = useState<string[]>([]);
   const [model, setModel] = useState<string>(DEFAULT_MODEL);
   const [imageCount, setImageCount] = useState(() => {
@@ -115,6 +117,7 @@ export function useGenerationActions(
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setActiveTab(1);
       setPanelOpen(true);
+      refreshCredits();
       toast.success("Regeneration queued!");
       router.refresh();
     } catch (err) {
@@ -146,6 +149,7 @@ export function useGenerationActions(
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setActiveTab(1);
       setPanelOpen(true);
+      refreshCredits();
       toast.success("Reference generation queued!");
       setRefDialogOpen(false);
       setRefPrompt("");

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, BookOpen } from "lucide-react";
+import { Menu, BookOpen, Coins } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -11,6 +11,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { useCreditStore } from "@/lib/stores/credit-store";
 
 interface MobileNavProps {
   isAuthenticated: boolean;
@@ -18,6 +19,7 @@ interface MobileNavProps {
 
 export function MobileNav({ isAuthenticated }: MobileNavProps) {
   const [open, setOpen] = useState(false);
+  const creditBalance = useCreditStore((s) => s.balance);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -42,6 +44,15 @@ export function MobileNav({ isAuthenticated }: MobileNavProps) {
                 className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
               >
                 My Covers
+              </Link>
+              <Link
+                href="/settings?tab=billing"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
+              >
+                <Coins className="size-4 text-primary" />
+                <span className="tabular-nums">{creditBalance}</span>
+                <span className="text-muted-foreground">credits</span>
               </Link>
             </>
           ) : (

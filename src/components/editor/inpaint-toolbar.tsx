@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AI_MODELS } from "@/lib/constants";
+import { useCreditStore } from "@/lib/stores/credit-store";
 
 interface InpaintToolbarProps {
   brushMode: boolean;
@@ -45,7 +46,6 @@ interface InpaintToolbarProps {
   imageCount: number;
   setImageCount: (v: number) => void;
   // Credits
-  creditBalance: number;
   creditCost: number;
 }
 
@@ -69,9 +69,9 @@ export function InpaintToolbar({
   setModel,
   imageCount,
   setImageCount,
-  creditBalance,
   creditCost,
 }: InpaintToolbarProps) {
+  const creditBalance = useCreditStore((s) => s.balance);
   const insufficientCredits = creditBalance < creditCost;
   // Painting phase — show brush controls
   if (brushMode) {

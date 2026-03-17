@@ -28,7 +28,7 @@ export default async function EditorPage({
     }),
     prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { showPrompt: true, tier: true, creditBalance: true },
+      select: { showPrompt: true, tier: true },
     }),
   ]);
 
@@ -38,7 +38,6 @@ export default async function EditorPage({
     <EditorShell
       project={project}
       showPrompt={user?.showPrompt ?? false}
-      initialCreditBalance={user?.creditBalance ?? 0}
     />
   );
 }

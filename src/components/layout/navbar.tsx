@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileNav } from "./mobile-nav";
+import { CreditPill } from "./credit-pill";
 
 export async function Navbar() {
   const session = await auth();
@@ -34,6 +35,7 @@ export async function Navbar() {
               >
                 My Covers
               </Link>
+              <CreditPill />
               <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger className="relative h-8 w-8 rounded-full cursor-pointer">

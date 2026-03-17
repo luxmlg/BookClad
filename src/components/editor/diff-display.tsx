@@ -1,30 +1,81 @@
 "use client";
 
+import { useState } from "react";
 import { computeAttributeDiff } from "@/lib/attributes";
-import type { Generation } from "./types";
-import { asAttributeSnapshot, asTextLayerSnapshot } from "./types";
+import type { Generation, DescriptionSnapshot } from "./types";
+import {
+  asAttributeSnapshot,
+  asDescriptionSnapshot,
+  asTextLayerSnapshot,
+} from "./types";
 import { getModelLabel } from "./generation-helpers";
 
 interface DiffDisplayProps {
   current: Generation;
   target: Generation;
-  showPrompt: boolean;
 }
 
-export function DiffDisplay({ current, target, showPrompt }: DiffDisplayProps) {
+function resolveLabel(
+  key: string,
+  value: string,
+  descSnap: DescriptionSnapshot | null,
+): string {
+  if (value === "true") return "yes";
+  if (value === "false") return "no";
+  return descSnap?.[key]?.values[value]?.label ?? value;
+}
+
+function resolveAttrName(
+  key: string,
+  curDesc: DescriptionSnapshot | null,
+  targetDesc: DescriptionSnapshot | null,
+): string {
+  return (
+    curDesc?.[key]?.name ??
+    targetDesc?.[key]?.name ??
+    key.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
+export function DiffDisplay({ current, target }: DiffDisplayProps) {
+  const [sysPromptExpanded, setSysPromptExpanded] = useState(false);
+
   const curAttrs = asAttributeSnapshot(current.attributeSnapshot);
   const targetAttrs = asAttributeSnapshot(target.attributeSnapshot);
+  const curDesc = asDescriptionSnapshot(current.descriptionSnapshot);
+  const targetDesc = asDescriptionSnapshot(target.descriptionSnapshot);
   const curTextLayers = asTextLayerSnapshot(current.textLayerSnapshot);
 
+  // Attribute values diff
   const attrDiff = computeAttributeDiff(curAttrs, targetAttrs);
 
-  const curUserPrompt = current.userPrompt ?? current.prompt;
-  const targetUserPrompt = target.userPrompt ?? target.prompt;
-  const userPromptChanged =
-    targetUserPrompt != null &&
-    curUserPrompt != null &&
-    curUserPrompt !== targetUserPrompt;
+  // Attribute context diff (compare descriptions)
+  const contextDiffs: Array<{
+    key: string;
+    name: string;
+    oldDesc: string | null;
+    newDesc: string | null;
+  }> = [];
+  if (curDesc || targetDesc) {
+    const allDescKeys = new Set([
+      ...Object.keys(curDesc ?? {}),
+      ...Object.keys(targetDesc ?? {}),
+    ]);
+    for (const key of allDescKeys) {
+      const curD = curDesc?.[key]?.description ?? null;
+      const targetD = targetDesc?.[key]?.description ?? null;
+      if (curD !== targetD) {
+        contextDiffs.push({
+          key,
+          name: resolveAttrName(key, curDesc, targetDesc),
+          oldDesc: targetD,
+          newDesc: curD,
+        });
+      }
+    }
+  }
 
+  // System prompt diff
   const sysPromptChanged =
     target.prompt != null &&
     current.prompt != null &&
@@ -49,30 +100,185 @@ export function DiffDisplay({ current, target, showPrompt }: DiffDisplayProps) {
     current.includeLayers !== target.includeLayers;
 
   const prevLayers = asTextLayerSnapshot(target.textLayerSnapshot);
-  const layerKey = (l: { name: string; text: string; type?: string; visible?: boolean }): string =>
+  const layerKey = (l: {
+    name: string;
+    text: string;
+    type?: string;
+    visible?: boolean;
+  }): string =>
     `${l.type ?? "text"}|${l.text || l.name}|${l.visible ?? true}`;
   const prevStr = (prevLayers ?? []).map(layerKey).join(",");
   const curStr = (curTextLayers ?? []).map(layerKey).join(",");
   const textLayersChanged =
     (prevLayers || curTextLayers) && prevStr !== curStr;
 
+  const hasNoChanges =
+    !attrDiff &&
+    contextDiffs.length === 0 &&
+    !sysPromptChanged &&
+    !modelChanged &&
+    !imageCountChanged &&
+    !jobTypeChanged &&
+    !includeLayersChanged &&
+    !textLayersChanged;
+
   return (
     <div className="mt-1 space-y-1.5 rounded border border-dashed bg-muted/20 px-2 py-1.5">
-      {userPromptChanged && (
-        <div>
-          <span className="font-medium text-muted-foreground">Prompt: </span>
-          <div className="mt-0.5 space-y-0.5">
-            <div className="text-muted-foreground line-clamp-3">{targetUserPrompt}</div>
-            <div className="line-clamp-3">→ {curUserPrompt}</div>
-          </div>
+      {/* Attribute value changes */}
+      {attrDiff && (
+        <div className="space-y-0.5">
+          {attrDiff.map((d) => {
+            const name = resolveAttrName(d.key, curDesc, targetDesc);
+            const oldValues = [...d.kept, ...d.removed];
+            const newValues = [...d.kept, ...d.added];
+
+            // Entire attribute added
+            if (oldValues.length === 0) {
+              return (
+                <div key={d.key}>
+                  <span className="font-medium text-muted-foreground">
+                    {name}:{" "}
+                  </span>
+                  <span className="text-green-600">
+                    {newValues
+                      .map((v) => resolveLabel(d.key, v, curDesc))
+                      .join(", ")}
+                  </span>
+                  <span className="text-muted-foreground/60 italic ml-1">
+                    (added)
+                  </span>
+                </div>
+              );
+            }
+
+            // Entire attribute removed
+            if (newValues.length === 0) {
+              return (
+                <div key={d.key}>
+                  <span className="font-medium text-muted-foreground">
+                    {name}:{" "}
+                  </span>
+                  <span className="text-red-500 line-through">
+                    {oldValues
+                      .map((v) => resolveLabel(d.key, v, targetDesc))
+                      .join(", ")}
+                  </span>
+                  <span className="text-muted-foreground/60 italic ml-1">
+                    (removed)
+                  </span>
+                </div>
+              );
+            }
+
+            // Multi-select with some kept: show +/- format
+            if (d.kept.length > 0) {
+              return (
+                <div key={d.key}>
+                  <span className="font-medium text-muted-foreground">
+                    {name}:{" "}
+                  </span>
+                  {d.added.map((v) => (
+                    <span key={v} className="text-green-600 mr-1">
+                      + {resolveLabel(d.key, v, curDesc)}
+                    </span>
+                  ))}
+                  {d.removed.map((v) => (
+                    <span key={v} className="text-red-500 mr-1">
+                      &minus; {resolveLabel(d.key, v, targetDesc)}
+                    </span>
+                  ))}
+                </div>
+              );
+            }
+
+            // Full replacement: old → new
+            return (
+              <div key={d.key}>
+                <span className="font-medium text-muted-foreground">
+                  {name}:{" "}
+                </span>
+                <span className="text-muted-foreground">
+                  {oldValues
+                    .map((v) => resolveLabel(d.key, v, targetDesc))
+                    .join(", ")}
+                </span>
+                {" → "}
+                <span>
+                  {newValues
+                    .map((v) => resolveLabel(d.key, v, curDesc))
+                    .join(", ")}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
-      {showPrompt && sysPromptChanged && (
-        <div>
-          <span className="font-medium text-muted-foreground">System prompt: </span>
-          <span className="text-muted-foreground/60 italic">changed</span>
+
+      {/* Attribute context changes */}
+      {contextDiffs.length > 0 && (
+        <div className="space-y-0.5">
+          <span className="font-medium text-muted-foreground">
+            Attribute context:
+          </span>
+          {contextDiffs.map((d) => (
+            <div key={d.key} className="ml-2">
+              <span className="font-medium text-muted-foreground">
+                {d.name}:{" "}
+              </span>
+              {d.oldDesc == null ? (
+                <span className="text-green-600 line-clamp-1">
+                  &ldquo;{d.newDesc}&rdquo;
+                  <span className="italic ml-1">(added)</span>
+                </span>
+              ) : d.newDesc == null ? (
+                <span className="text-red-500">
+                  <span className="line-through line-clamp-1">
+                    &ldquo;{d.oldDesc}&rdquo;
+                  </span>
+                  <span className="italic ml-1">(removed)</span>
+                </span>
+              ) : (
+                <>
+                  <span className="text-muted-foreground line-clamp-1">
+                    &ldquo;{d.oldDesc}&rdquo;
+                  </span>
+                  {" → "}
+                  <span className="line-clamp-1">
+                    &ldquo;{d.newDesc}&rdquo;
+                  </span>
+                </>
+              )}
+            </div>
+          ))}
         </div>
       )}
+
+      {/* System prompt */}
+      {sysPromptChanged && (
+        <div>
+          <span className="font-medium text-muted-foreground">
+            System prompt:{" "}
+          </span>
+          <button
+            onClick={() => setSysPromptExpanded((e) => !e)}
+            className="text-muted-foreground/60 italic underline underline-offset-2 hover:text-foreground"
+          >
+            {sysPromptExpanded ? "hide" : "changed"}
+          </button>
+          {sysPromptExpanded && (
+            <div className="mt-1 space-y-1">
+              <div className="whitespace-pre-wrap text-muted-foreground border rounded-md p-2 bg-muted/30 text-[11px] max-h-40 overflow-y-auto">
+                {target.prompt}
+              </div>
+              <div className="whitespace-pre-wrap border rounded-md p-2 bg-muted/30 text-[11px] max-h-40 overflow-y-auto">
+                {current.prompt}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Model */}
       {modelChanged && (
         <div>
           <span className="font-medium text-muted-foreground">Model: </span>
@@ -82,6 +288,8 @@ export function DiffDisplay({ current, target, showPrompt }: DiffDisplayProps) {
           → <span>{getModelLabel(current.model)}</span>
         </div>
       )}
+
+      {/* Image count */}
       {imageCountChanged && (
         <div>
           <span className="font-medium text-muted-foreground">
@@ -93,6 +301,8 @@ export function DiffDisplay({ current, target, showPrompt }: DiffDisplayProps) {
           → <span>{current.imageCount}</span>
         </div>
       )}
+
+      {/* Job type */}
       {jobTypeChanged && (
         <div>
           <span className="font-medium text-muted-foreground">Type: </span>
@@ -102,68 +312,56 @@ export function DiffDisplay({ current, target, showPrompt }: DiffDisplayProps) {
           → <span>{current.jobType}</span>
         </div>
       )}
+
+      {/* Include layers */}
       {includeLayersChanged && (
         <div>
-          <span className="font-medium text-muted-foreground">Layers baked in: </span>
+          <span className="font-medium text-muted-foreground">
+            Layers baked in:{" "}
+          </span>
           <span className="text-muted-foreground mr-1">
             {target.includeLayers ? "yes" : "no"}
           </span>
           → <span>{current.includeLayers ? "yes" : "no"}</span>
         </div>
       )}
-      {attrDiff && (
-        <div className="space-y-0.5">
-          {attrDiff.map((d) => (
-            <div key={d.key}>
-              <span className="font-medium text-muted-foreground">
-                {d.label}:{" "}
-              </span>
-              <span className="text-muted-foreground mr-1">
-                {[...d.kept, ...d.removed].join(", ")}
-              </span>
-              → <span>{[...d.kept, ...d.added].join(", ")}</span>
-            </div>
-          ))}
-        </div>
-      )}
+
+      {/* Text layers */}
       {textLayersChanged && (
         <div>
-          <span className="font-medium text-muted-foreground">
-            Layers:{" "}
-          </span>
+          <span className="font-medium text-muted-foreground">Layers: </span>
           {(prevLayers ?? []).length > 0 && (
             <span className="text-muted-foreground mr-1">
-              {(prevLayers ?? []).map((l) => {
-                const label = `"${l.text || l.name}"`;
-                const vis = l.visible === false ? " hidden" : "";
-                return l.type ? `${label} (${l.type}${vis})` : label;
-              }).join(", ")}
+              {(prevLayers ?? [])
+                .map((l) => {
+                  const label = `"${l.text || l.name}"`;
+                  const vis = l.visible === false ? " hidden" : "";
+                  return l.type ? `${label} (${l.type}${vis})` : label;
+                })
+                .join(", ")}
             </span>
           )}
           {(curTextLayers ?? []).length > 0 && (
             <>
               {(prevLayers ?? []).length > 0 && "→ "}
               <span>
-                {(curTextLayers ?? []).map((l) => {
-                  const label = `"${l.text || l.name}"`;
-                  const vis = l.visible === false ? " hidden" : "";
-                  return l.type ? `${label} (${l.type}${vis})` : label;
-                }).join(", ")}
+                {(curTextLayers ?? [])
+                  .map((l) => {
+                    const label = `"${l.text || l.name}"`;
+                    const vis = l.visible === false ? " hidden" : "";
+                    return l.type ? `${label} (${l.type}${vis})` : label;
+                  })
+                  .join(", ")}
               </span>
             </>
           )}
         </div>
       )}
-      {!userPromptChanged &&
-        !(showPrompt && sysPromptChanged) &&
-        !modelChanged &&
-        !attrDiff &&
-        !imageCountChanged &&
-        !jobTypeChanged &&
-        !includeLayersChanged &&
-        !textLayersChanged && (
-          <div className="text-muted-foreground/60 italic">No changes</div>
-        )}
+
+      {/* No changes */}
+      {hasNoChanges && (
+        <div className="text-muted-foreground/60 italic">No changes</div>
+      )}
     </div>
   );
 }
