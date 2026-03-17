@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { Coins } from "lucide-react";
+import { Coins, ExternalLink, AlertTriangle, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { getCredits, type CreditTransaction } from "@/lib/api/credits";
-import { TIER_CREDITS } from "@/lib/constants";
+import { createCheckout, createCreditPackCheckout, createCustomerPortal } from "@/lib/api/checkout";
+import { TIER_CREDITS, PLAN_PRICES, CREDIT_PACKS, SUBSCRIPTION_STATUS } from "@/lib/constants";
 
 const TXN_TYPE_LABEL: Record<string, string> = {
   GRANT: "Credit",
@@ -14,22 +17,142 @@ const TXN_TYPE_LABEL: Record<string, string> = {
   EXPIRE: "Expired",
 };
 
+const STATUS_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  [SUBSCRIPTION_STATUS.ACTIVE]: { label: "Active", variant: "default" },
+  [SUBSCRIPTION_STATUS.ON_HOLD]: { label: "Payment Failed", variant: "destructive" },
+  [SUBSCRIPTION_STATUS.CANCELLED]: { label: "Cancelled", variant: "secondary" },
+  [SUBSCRIPTION_STATUS.EXPIRED]: { label: "Expired", variant: "outline" },
+};
+
+const PLAN_FEATURES: Record<string, string[]> = {
+  STARTER: ["100 credits / month", "All AI models", "Priority support"],
+  PRO: ["250 credits / month", "All AI models", "Priority support", "Early access to features"],
+};
+
 export function BillingTab() {
   const [balance, setBalance] = useState(0);
   const [tier, setTier] = useState("FREE");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
+  const [hasSubscription, setHasSubscription] = useState(false);
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
 
+  const [showSuccess, setShowSuccess] = useState(false);
+  const initialSnapshotRef = useRef<{ balance: number; tier: string; txnCount: number } | null>(null);
+
+  const applyCreditsData = useCallback((data: Awaited<ReturnType<typeof getCredits>>) => {
+    setBalance(data.balance);
+    setTier(data.tier);
+    setSubscriptionStatus(data.subscriptionStatus);
+    setCurrentPeriodEnd(data.currentPeriodEnd);
+    setHasSubscription(!!data.dodoSubscriptionId);
+    setTransactions(data.transactions);
+  }, []);
+
+  // Detect checkout=success in URL
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("checkout") === "success" || params.get("status") === "succeeded") {
+        setShowSuccess(true);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("checkout");
+        url.searchParams.delete("status");
+        url.searchParams.delete("payment_id");
+        url.searchParams.delete("email");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, []);
+
+  // Initial data fetch
   useEffect(() => {
     getCredits()
       .then((data) => {
-        setBalance(data.balance);
-        setTier(data.tier);
-        setTransactions(data.transactions);
+        applyCreditsData(data);
+        initialSnapshotRef.current = {
+          balance: data.balance,
+          tier: data.tier,
+          txnCount: data.transactions.length,
+        };
       })
       .catch(() => toast.error("Failed to load billing info"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [applyCreditsData]);
+
+  // Poll for updates after checkout success
+  useEffect(() => {
+    if (!showSuccess) return;
+
+    const POLL_INTERVAL = 2000;
+    const MAX_DURATION = 30000;
+    const start = Date.now();
+
+    const interval = setInterval(async () => {
+      if (Date.now() - start > MAX_DURATION) {
+        clearInterval(interval);
+        setShowSuccess(false);
+        return;
+      }
+      try {
+        const data = await getCredits();
+        const snap = initialSnapshotRef.current;
+        const changed =
+          !snap ||
+          data.balance !== snap.balance ||
+          data.tier !== snap.tier ||
+          data.transactions.length !== snap.txnCount;
+
+        applyCreditsData(data);
+
+        if (changed) {
+          clearInterval(interval);
+          setShowSuccess(false);
+        }
+      } catch {
+        // Silently retry on next interval
+      }
+    }, POLL_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [showSuccess, applyCreditsData]);
+
+  async function handleUpgrade(targetTier: "STARTER" | "PRO") {
+    setCheckoutLoading(targetTier);
+    try {
+      const { checkoutUrl } = await createCheckout(targetTier);
+      window.location.href = checkoutUrl;
+    } catch {
+      toast.error("Failed to start checkout");
+      setCheckoutLoading(null);
+    }
+  }
+
+  async function handleBuyCredits(packId: string) {
+    setCheckoutLoading(packId);
+    try {
+      const { checkoutUrl } = await createCreditPackCheckout(packId);
+      window.location.href = checkoutUrl;
+    } catch {
+      toast.error("Failed to start checkout");
+      setCheckoutLoading(null);
+    }
+  }
+
+  async function handleManageSubscription() {
+    setPortalLoading(true);
+    try {
+      const { portalUrl } = await createCustomerPortal();
+      window.open(portalUrl, "_blank");
+    } catch {
+      toast.error("Failed to open subscription portal");
+    } finally {
+      setPortalLoading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -40,9 +163,41 @@ export function BillingTab() {
   }
 
   const tierCredits = TIER_CREDITS[tier] ?? TIER_CREDITS.FREE;
+  const statusBadge = subscriptionStatus ? STATUS_BADGE[subscriptionStatus] : null;
+  const isActive = subscriptionStatus === SUBSCRIPTION_STATUS.ACTIVE;
+  const isOnHold = subscriptionStatus === SUBSCRIPTION_STATUS.ON_HOLD;
+  const isCancelled = subscriptionStatus === SUBSCRIPTION_STATUS.CANCELLED;
 
   return (
     <div className="space-y-6">
+      {/* Success banner */}
+      {showSuccess && (
+        <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-700 dark:text-green-400">
+          <Check className="size-4 shrink-0" />
+          Payment is being processed. Your plan will update shortly.
+        </div>
+      )}
+
+      {/* Payment failure warning */}
+      {isOnHold && (
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          <AlertTriangle className="size-4 shrink-0" />
+          Payment failed. Please update your payment method to keep your plan.
+          {hasSubscription && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto shrink-0"
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+            >
+              Update Payment
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Balance + plan cards */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardContent className="flex items-center gap-4 p-6">
@@ -57,15 +212,108 @@ export function BillingTab() {
         </Card>
         <Card>
           <CardContent className="flex items-center gap-4 p-6">
-            <div>
+            <div className="flex-1">
               <p className="text-sm text-muted-foreground">Current Plan</p>
-              <p className="text-2xl font-bold">{tier}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-bold">{tier}</p>
+                {statusBadge && (
+                  <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">{tierCredits} credits / month</p>
+              {isCancelled && currentPeriodEnd && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Active until {new Date(currentPeriodEnd).toLocaleDateString()}
+                </p>
+              )}
             </div>
+            {hasSubscription && (isActive || isOnHold || isCancelled) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleManageSubscription}
+                disabled={portalLoading}
+              >
+                <ExternalLink className="mr-1 size-3" />
+                Manage
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
 
+      {/* Upgrade plans */}
+      {tier !== "PRO" && (
+        <div>
+          <h3 className="mb-3 text-sm font-medium">Upgrade Your Plan</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(["STARTER", "PRO"] as const).map((planTier) => {
+              const isCurrent = tier === planTier;
+              const price = PLAN_PRICES[planTier];
+              const features = PLAN_FEATURES[planTier];
+
+              return (
+                <Card key={planTier} className={planTier === "PRO" ? "border-primary" : ""}>
+                  <CardContent className="p-6">
+                    <div className="mb-4">
+                      <h4 className="text-lg font-semibold">{planTier}</h4>
+                      <p className="text-2xl font-bold">
+                        ${price}<span className="text-sm font-normal text-muted-foreground">/mo</span>
+                      </p>
+                    </div>
+                    <ul className="mb-4 space-y-1 text-sm text-muted-foreground">
+                      {features.map((f) => (
+                        <li key={f} className="flex items-center gap-2">
+                          <Check className="size-3 text-primary" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <Button
+                      className="w-full"
+                      variant={planTier === "PRO" ? "default" : "outline"}
+                      disabled={isCurrent || checkoutLoading !== null}
+                      onClick={() => handleUpgrade(planTier)}
+                    >
+                      {isCurrent
+                        ? "Current Plan"
+                        : checkoutLoading === planTier
+                          ? "Redirecting..."
+                          : `Upgrade to ${planTier}`}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Buy credits */}
+      <div>
+        <h3 className="mb-3 text-sm font-medium">Buy Credits</h3>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {CREDIT_PACKS.map((pack) => (
+            <Card key={pack.id}>
+              <CardContent className="p-6 text-center">
+                <p className="text-2xl font-bold">{pack.credits}</p>
+                <p className="mb-3 text-sm text-muted-foreground">credits</p>
+                <p className="mb-4 text-lg font-semibold">${pack.price}</p>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={checkoutLoading !== null}
+                  onClick={() => handleBuyCredits(pack.id)}
+                >
+                  {checkoutLoading === pack.id ? "Redirecting..." : "Buy"}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Transaction history */}
       <div>
         <h3 className="mb-3 text-sm font-medium">Transaction History</h3>
         {transactions.length === 0 ? (

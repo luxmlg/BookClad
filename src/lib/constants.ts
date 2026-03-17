@@ -108,6 +108,27 @@ export const POLL_INTERVAL_MS = 5000;
 
 export const IMAGE_COUNT_KEY_PREFIX = "imageCount";
 
+export const SUBSCRIPTION_STATUS = {
+  ACTIVE: "active",
+  ON_HOLD: "on_hold",
+  CANCELLED: "cancelled",
+  EXPIRED: "expired",
+} as const;
+export type SubscriptionStatus = typeof SUBSCRIPTION_STATUS[keyof typeof SUBSCRIPTION_STATUS];
+
+export const PLAN_PRICES: Record<string, number> = {
+  STARTER: 9,
+  PRO: 19,
+};
+
+export const CREDIT_PACKS = [
+  { id: "CREDITS_50", credits: 50, price: 5 },
+  { id: "CREDITS_100", credits: 100, price: 9 },
+  { id: "CREDITS_250", credits: 250, price: 20 },
+] as const;
+
+export type CreditPackId = typeof CREDIT_PACKS[number]["id"];
+
 export const EVENT_TYPE = {
   STATUS: "status",
   PROGRESS: "progress",

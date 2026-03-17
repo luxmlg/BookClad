@@ -19,8 +19,12 @@ model User {
   image         String?
   passwordHash  String?
   tier          Tier      @default(FREE)
-  creditBalance Int       @default(0)
-  defaultFont   String    @default("Playfair Display")
+  creditBalance      Int       @default(0)
+  defaultFont        String    @default("Playfair Display")
+  dodoCustomerId     String?   @unique
+  dodoSubscriptionId String?
+  subscriptionStatus String?
+  currentPeriodEnd   DateTime?
 
   accounts           Account[]
   sessions           Session[]
@@ -257,4 +261,11 @@ model StylePreset {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+model WebhookEvent {
+  id        String   @id // DodoPayments webhook-id header
+  eventType String
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

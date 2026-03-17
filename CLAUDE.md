@@ -115,11 +115,29 @@ Billing uses a credit ledger instead of a generation counter. Defined in `src/li
 2. On success: nothing to do, credits already deducted.
 3. On failure: worker calls `refundCredits()` — increments balance, creates `CreditTransaction(REFUND)`.
 
-**Initial grant**: `ensureInitialCredits(userId, tier)` checks if any `CreditTransaction` exists; if not, grants `TIER_CREDITS[tier]`. Called from editor page and dashboard server components.
+**Initial grant**: On signup (Auth.js `createUser` event), grants `TIER_CREDITS.FREE` (25 credits).
 
-**API**: `GET /api/credits` returns `{ balance, tier, transactions[] }`. Client module in `src/lib/api/credits.ts`.
+**API**: `GET /api/credits` returns `{ balance, tier, subscriptionStatus, currentPeriodEnd, dodoSubscriptionId, transactions[] }`. Client module in `src/lib/api/credits.ts`.
 
 **DB**: `CreditTransaction` model with `amount` (positive=credit, negative=debit), `balanceAfter` snapshot, `type` enum (`GRANT`, `RESERVE`, `REFUND`, `EXPIRE`), optional `generationId` link.
+
+## Payment System
+
+Payments are handled by DodoPayments. Defined in `src/lib/dodo.ts` (SDK client + product ID mapping).
+
+**Subscription flow**: User clicks "Upgrade" on billing tab → `POST /api/checkout` creates DodoPayments checkout session → user redirected to hosted checkout → payment completes → webhook fires at `POST /api/webhooks/dodo` → tier upgraded + credits granted.
+
+**SDK client**: Singleton `dodo` in `src/lib/dodo.ts`. Uses `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, and `DODO_PAYMENTS_ENVIRONMENT` ("test_mode" or "live_mode") from env. Product IDs stored in `DODO_PRODUCT_ID_STARTER` and `DODO_PRODUCT_ID_PRO` env vars.
+
+**Webhook handler**: `src/app/api/webhooks/dodo/route.ts` — verifies signature via SDK `unwrap()`, handles subscription events (active, renewed, cancelled, expired, on_hold, plan_changed). Uses `WebhookEvent` model for idempotency (webhook-id as primary key, exactly-once processing).
+
+**Customer management**: DodoPayments customers are created lazily on first checkout. `User.dodoCustomerId` links to the Dodo customer. Customer portal accessible via `POST /api/customer-portal`.
+
+**Subscription fields on User**: `dodoCustomerId` (unique), `dodoSubscriptionId`, `subscriptionStatus` ("active"/"on_hold"/"cancelled"/"expired"), `currentPeriodEnd`.
+
+**Constants**: `SUBSCRIPTION_STATUS`, `PLAN_PRICES` in `src/lib/constants.ts`. Product ID helpers `tierFromProductId()` and `productIdFromTier()` in `src/lib/dodo.ts`.
+
+**Local testing**: Set `DODO_PAYMENTS_ENVIRONMENT=test_mode`, create test products in Dodo dashboard, use ngrok or `dodo wh listen` for webhook forwarding.
 
 ## Font System
 
@@ -178,3 +196,4 @@ Billing uses a credit ledger instead of a generation counter. Defined in `src/li
 - **API client**: Client-side API calls use an axios instance from `src/lib/api/client.ts` with domain-specific modules in `src/lib/api/` (projects, generations, images, fonts, settings, credits). Use `fireAndForget()` for best-effort calls (auto-save). Import via `@/lib/api`.
 - **Cross-package constants**: Constants shared between app and worker (like `GENERATION_STATUS`, `EVENT_TYPE`, `KDP`, `CREDIT_COST_PER_IMAGE`) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts` — kept in sync manually since the packages cannot import from each other.
 - **Credit costs**: Always use `CREDIT_COST_PER_IMAGE[model]` and `calculateCreditCost()` from `src/lib/credits.ts` — never hardcode credit amounts inline.
+- **Webhook endpoint**: `POST /api/webhooks/dodo` must NOT use `auth()` — it's called by DodoPayments servers and authenticated via webhook signature verification. Raw body must be read with `request.text()` before any JSON parsing for signature verification to work.

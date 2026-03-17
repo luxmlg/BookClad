@@ -11,7 +11,13 @@ export async function GET() {
   const [user, transactions] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { creditBalance: true, tier: true },
+      select: {
+        creditBalance: true,
+        tier: true,
+        subscriptionStatus: true,
+        currentPeriodEnd: true,
+        dodoSubscriptionId: true,
+      },
     }),
     prisma.creditTransaction.findMany({
       where: { userId: session.user.id },
@@ -31,6 +37,9 @@ export async function GET() {
   return NextResponse.json({
     balance: user?.creditBalance ?? 0,
     tier: user?.tier ?? "FREE",
+    subscriptionStatus: user?.subscriptionStatus ?? null,
+    currentPeriodEnd: user?.currentPeriodEnd?.toISOString() ?? null,
+    dodoSubscriptionId: user?.dodoSubscriptionId ?? null,
     transactions,
   });
 }

@@ -5,3 +5,4 @@ export * from "./images";
 export * from "./settings";
 export * from "./fonts";
 export * from "./credits";
+export * from "./checkout";

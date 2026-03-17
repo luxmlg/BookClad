@@ -12,6 +12,9 @@ export interface CreditTransaction {
 export interface CreditsResponse {
   balance: number;
   tier: string;
+  subscriptionStatus: string | null;
+  currentPeriodEnd: string | null;
+  dodoSubscriptionId: string | null;
   transactions: CreditTransaction[];
 }
 
