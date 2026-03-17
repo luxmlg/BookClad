@@ -73,8 +73,8 @@ export function CoverCarousel() {
   return (
     <div className="relative">
       {/* Carousel viewport */}
-      <div className="overflow-hidden" ref={emblaRef}>
-        <div className="-ml-4 flex">
+      <div className="overflow-x-clip overflow-y-visible" ref={emblaRef}>
+        <div className="-ml-4 flex py-4">
           {covers.map((cover, i) => {
             const isActive = i === selectedIndex;
             return (
@@ -85,15 +85,15 @@ export function CoverCarousel() {
                 <div
                   className={`transition-all duration-300 ${
                     isActive
-                      ? "scale-100 opacity-100"
-                      : "scale-90 opacity-60"
+                      ? "scale-105 opacity-100"
+                      : "scale-[0.85] opacity-40 blur-[1px]"
                   }`}
                 >
                   {/* Kindle mockup frame for active slide */}
                   <div
                     className={`mx-auto max-w-[220px] sm:max-w-[240px] ${
                       isActive
-                        ? "rounded-2xl border-[3px] border-zinc-800 bg-zinc-800 p-1 pb-4 shadow-2xl dark:border-zinc-600 dark:bg-zinc-700"
+                        ? "rounded-2xl border-[3px] border-zinc-800 bg-zinc-800 p-1 pb-4 shadow-[0_0_40px_-10px_oklch(0.4_0_0/0.4)] dark:border-zinc-600 dark:bg-zinc-700 dark:shadow-[0_0_40px_-10px_oklch(0.9_0_0/0.15)]"
                         : ""
                     }`}
                   >
@@ -103,12 +103,29 @@ export function CoverCarousel() {
                         isActive ? "rounded-xl" : "rounded-xl shadow-xl"
                       } p-6 text-center`}
                     >
-                      <span
-                        className={`text-xs font-medium uppercase tracking-widest ${cover.accent} opacity-80`}
-                      >
-                        {cover.genre}
-                      </span>
-                      <div>
+                      {/* Lighting overlay */}
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/10" />
+
+                      {/* Decorative glyphs */}
+                      <div className="relative z-10">
+                        <span
+                          className={`text-[10px] tracking-[0.4em] ${cover.accent} opacity-40`}
+                        >
+                          &#9670; &#9670; &#9670;
+                        </span>
+                        <span
+                          className={`mt-2 block text-xs font-medium uppercase tracking-widest ${cover.accent} opacity-80`}
+                        >
+                          {cover.genre}
+                        </span>
+                      </div>
+
+                      {/* Horizontal rule */}
+                      <div
+                        className={`relative z-10 h-px w-10 ${cover.accent} bg-current opacity-20`}
+                      />
+
+                      <div className="relative z-10">
                         <h3
                           className={`text-lg font-bold leading-tight sm:text-xl ${cover.accent}`}
                         >
@@ -140,14 +157,14 @@ export function CoverCarousel() {
       <button
         onClick={scrollPrev}
         aria-label="Previous cover"
-        className="absolute left-0 top-1/2 -translate-y-1/2 rounded-full border bg-background/80 p-2 shadow-md backdrop-blur transition-colors hover:bg-accent"
+        className="absolute -left-3 top-1/2 hidden -translate-y-1/2 items-center justify-center rounded-full bg-background p-2.5 shadow-lg ring-1 ring-foreground/10 transition-colors hover:bg-accent sm:flex"
       >
         <ChevronLeft className="size-5" />
       </button>
       <button
         onClick={scrollNext}
         aria-label="Next cover"
-        className="absolute right-0 top-1/2 -translate-y-1/2 rounded-full border bg-background/80 p-2 shadow-md backdrop-blur transition-colors hover:bg-accent"
+        className="absolute -right-3 top-1/2 hidden -translate-y-1/2 items-center justify-center rounded-full bg-background p-2.5 shadow-lg ring-1 ring-foreground/10 transition-colors hover:bg-accent sm:flex"
       >
         <ChevronRight className="size-5" />
       </button>
