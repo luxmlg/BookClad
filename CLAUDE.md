@@ -11,7 +11,7 @@ CoverCraft is an AI-powered ebook cover generator for Amazon KDP. Users describe
 This is a **two-process** system:
 
 1. **Next.js app** (`src/`) — Next.js 16 with App Router, React 19, Auth.js v5, Prisma 7 (with `@prisma/adapter-pg`), Tailwind CSS 4. Handles UI, API routes, and enqueues jobs via BullMQ.
-2. **Worker** (`worker/`) — Standalone Node/Express process that consumes BullMQ jobs from Redis. Calls AI APIs (OpenAI, Gemini, Ideogram), upscales via Replicate, crops to KDP dimensions with Sharp, and uploads results to R2/S3.
+2. **Worker** (`worker/`) — Standalone Node/Express process that consumes BullMQ jobs from Redis. Calls AI APIs (OpenAI, Gemini, Ideogram), upscales via Replicate, crops to KDP dimensions with Sharp, and uploads results to R2/S3. Runs with `concurrency: 2`, checks for stalled jobs every 30s (max 2 stalls before failure + credit refund), and sweeps for stale generations (>15 min in QUEUED/PROCESSING) on startup. Express serves WebSocket at `/ws/progress` and health check at `/health`.
 
 The two processes share the same Postgres database and Redis instance but are **separate packages** with independent `node_modules` and `tsconfig.json`. The worker is excluded from the root `tsconfig.json`.
 
@@ -46,6 +46,7 @@ docker compose up -d postgres redis   # Start Postgres (port 5433) and Redis (po
 ```
 npx prisma migrate dev    # Run migrations
 npx prisma generate       # Regenerate Prisma client (outputs to src/generated/prisma)
+npm run db:seed           # Seed default attribute config (prisma/seed.ts)
 ```
 The worker has its own `prisma/schema.prisma` (a separate copy, not a symlink) and its own Prisma client generated into `worker/src/generated/prisma`. After schema changes, update both schema files and regenerate both clients:
 ```
@@ -153,6 +154,20 @@ Payments are handled by DodoPayments. Defined in `src/lib/dodo.ts` (SDK client +
 - **Migration**: `FONT_MIGRATION_MAP` handles legacy system font → modern font substitution
 - **Default font**: Per-user preference stored in DB, configurable in settings
 
+## Storage
+
+`src/lib/storage.ts` abstracts file storage with dual-mode support:
+- **Production**: Cloudflare R2 (S3-compatible) via `@aws-sdk/client-s3`. Requires `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` env vars.
+- **Dev**: Falls back to local `uploads/` directory when `R2_ENDPOINT` is unset. Served via `/api/uploads/` route.
+
+Functions: `getSignedDownloadUrl(key)`, `downloadFromStorage(key)`, `uploadToStorage(key, body, contentType)`, `deleteFromStorage(key)`. The `useLocalStorage` flag is derived from the environment automatically.
+
+The worker has its own storage module (`worker/src/lib/storage.ts`) with the same dual-mode pattern.
+
+## Credit Store
+
+`src/lib/stores/credit-store.ts` — Zustand store for real-time credit balance display. `CreditHydrator` component (rendered in the root layout) hydrates the store from the server-side session balance. After credit-consuming operations (generation), call `useCreditStore.getState().refreshCredits()` to update the navbar badge. Import via `useCreditStore` hook or `useCreditStore.getState()` for non-React contexts.
+
 ## Code Standards
 
 ### File size & component structure
@@ -190,7 +205,7 @@ Payments are handled by DodoPayments. Defined in `src/lib/dodo.ts` (SDK client +
 
 - **Prisma client import**: Use `import { PrismaClient } from "@/generated/prisma/client"` (not `@prisma/client`) — the client is generated to a custom output path.
 - **Validation**: All API request bodies are validated with Zod schemas from `src/lib/validations.ts`. Schemas derive allowed values from `src/lib/constants.ts`.
-- **Auth pattern**: API routes check `const session = await auth()` from `src/lib/auth.ts`, then verify `session?.user?.id`. Protected pages redirect via middleware in `src/proxy.ts`.
+- **Auth pattern**: Auth.js v5 with database sessions. Providers: GitHub, Google, Apple, Amazon (custom OAuth). API routes check `const session = await auth()` from `src/lib/auth.ts`, then verify `session?.user?.id`. Protected pages redirect via middleware in `src/proxy.ts` (checks `/dashboard`, `/create`, `/editor` routes for session cookie). `createUser` event auto-creates `AttributeConfig` and grants initial credits.
 - **BullMQ queue name**: `QUEUE_NAME` (`"cover-generation"`) — used by both the Next.js API (producer) and the worker (consumer). Job type constants in `JOB_TYPE`: `GENERATE`, `INPAINT`, `GENERATE_FROM_REFERENCE`.
 - **Storage**: Images go to Cloudflare R2 (S3-compatible). Dev can use local `uploads/` directory.
 - **UI components**: shadcn/ui in `src/components/ui/`. The canvas editor uses Konva via `react-konva` (dynamically imported to avoid SSR).
