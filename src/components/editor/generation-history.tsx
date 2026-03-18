@@ -11,6 +11,8 @@ interface GenerationHistoryProps {
   selectedImageId: string | null;
   onSelect: (id: string) => void;
   showPrompt: boolean;
+  draftImageIds: Set<string>;
+  onDiscardDrafts: () => void;
 }
 
 export function GenerationHistory({
@@ -19,6 +21,8 @@ export function GenerationHistory({
   selectedImageId,
   onSelect,
   showPrompt,
+  draftImageIds,
+  onDiscardDrafts,
 }: GenerationHistoryProps) {
   const expandSeqRef = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -74,6 +78,8 @@ export function GenerationHistory({
             getDisplayName={getDisplayName}
             scrollContainerRef={scrollContainerRef}
             showPrompt={showPrompt}
+            draftImageIds={draftImageIds}
+            onDiscardDrafts={onDiscardDrafts}
           />
         ))}
       </div>

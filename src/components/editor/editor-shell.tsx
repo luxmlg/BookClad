@@ -16,7 +16,7 @@ import { GenerateSimilarDialog } from "./generate-similar-dialog";
 import { InpaintDialog } from "./inpaint-dialog";
 import { EditorCenterPanel } from "./editor-center-panel";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
-import { buildDefaultConfig, getDefaultValue } from "@/lib/attributes";
+import { buildDefaultConfig, getDefaultValue, computeAttributeDiff } from "@/lib/attributes";
 import {
   getAttributeConfig,
   saveAttributeConfig,
@@ -31,7 +31,7 @@ import {
   createPreset,
   fireAndForget,
 } from "@/lib/api";
-import type { Project, CustomFont } from "./types";
+import { asAttributeSnapshot, type Project, type CustomFont } from "./types";
 import {
   useLayerCache,
   useAutoSave,
@@ -83,6 +83,33 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   const [attributes, setAttributes] = useState<AttributeSelection>(
     (project.attributes as AttributeSelection | null) ?? {}
   );
+  const [baseSnapshot, setBaseSnapshot] = useState<AttributeSelection | null>(null);
+  const draftStashRef = useRef<Map<string, AttributeSelection>>(new Map());
+
+  const draftKeys: Set<string> = useMemo(() => {
+    if (!baseSnapshot) return new Set<string>();
+    const diffs = computeAttributeDiff(attributes, baseSnapshot);
+    return new Set(diffs?.map((d) => d.key) ?? []);
+  }, [attributes, baseSnapshot]);
+
+  // Set of image IDs that have draft edits (stashed or live)
+  const draftImageIds: Set<string> = useMemo(() => {
+    const ids = new Set(draftStashRef.current.keys());
+    if (selectedImageId && draftKeys.size > 0) ids.add(selectedImageId);
+    if (selectedImageId && draftKeys.size === 0) ids.delete(selectedImageId);
+    return ids;
+  }, [selectedImageId, draftKeys]);
+
+  const discardAllDrafts = useCallback(() => {
+    if (!baseSnapshot) return;
+    setAttributes(baseSnapshot);
+    if (selectedImageId) draftStashRef.current.delete(selectedImageId);
+  }, [baseSnapshot, selectedImageId]);
+
+  const discardAttributeDraft = useCallback((key: string) => {
+    if (!baseSnapshot || !(key in baseSnapshot)) return;
+    setAttributes((prev) => ({ ...prev, [key]: baseSnapshot[key] }));
+  }, [baseSnapshot]);
   const [attributeConfig, setAttributeConfig] = useState<AttributeConfigJson>(
     buildDefaultConfig()
   );
@@ -235,6 +262,11 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
       Promise.all(uniqueFonts.map(ensureFontLoaded));
       setSelectedImageId(initialId);
       setNodesRaw(layers);
+
+      const ownerGen = completedGenerations.find((g) =>
+        g.images.some((img) => img.id === initialId)
+      );
+      setBaseSnapshot(ownerGen ? asAttributeSnapshot(ownerGen.attributeSnapshot) : null);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -301,6 +333,16 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
       layersCacheRef.current.set(selectedImageId, nodes);
       const canvasState: CanvasState = { nodes };
       fireAndForget(updateImage(selectedImageId, { canvasState }));
+
+      // Stash current attributes if they differ from baseSnapshot
+      if (baseSnapshot) {
+        const diffs = computeAttributeDiff(attributes, baseSnapshot);
+        if (diffs && diffs.length > 0) {
+          draftStashRef.current.set(selectedImageId, attributes);
+        } else {
+          draftStashRef.current.delete(selectedImageId);
+        }
+      }
     }
 
     const newLayers = getLayersForImage(imageId);
@@ -330,6 +372,23 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     setSelectedNodeId(null);
     setSelectedImageId(imageId);
     fireAndForget(updateImage(imageId, { selected: true }));
+
+    // Resolve base snapshot for the new image
+    const ownerGen = completedGenerations.find((g) =>
+      g.images.some((img) => img.id === imageId)
+    );
+    const genSnap = ownerGen ? asAttributeSnapshot(ownerGen.attributeSnapshot) : null;
+
+    // Restore stashed drafts if any, otherwise restore generation snapshot
+    const stashed = draftStashRef.current.get(imageId);
+    if (stashed) {
+      setAttributes(stashed);
+    } else if (genSnap) {
+      setAttributes(genSnap);
+    }
+
+    setBaseSnapshot(genSnap);
+    setActivePresetId(null);
   }
 
   async function handleExport(format: "jpeg" | "png") {
@@ -565,6 +624,8 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
           onClearActivePreset={() => setActivePresetId(null)}
           saving={saving}
           onSave={saveProject}
+          draftKeys={draftKeys}
+          onDiscardAttributeDraft={discardAttributeDraft}
         />
       </div>
 
@@ -612,6 +673,8 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         activeGenerations={genActions.activeGenerations}
         handleGenerationComplete={handleGenerationCompleteWithCredits}
         showPrompt={showPrompt}
+        draftImageIds={draftImageIds}
+        onDiscardDrafts={discardAllDrafts}
       />
 
       {/* Right sidebar */}

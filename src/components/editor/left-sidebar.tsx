@@ -34,6 +34,8 @@ interface LeftSidebarProps {
   onClearActivePreset: () => void;
   saving: boolean;
   onSave: () => void;
+  draftKeys: Set<string>;
+  onDiscardAttributeDraft: (key: string) => void;
 }
 
 export function LeftSidebar({
@@ -48,6 +50,8 @@ export function LeftSidebar({
   onClearActivePreset,
   saving,
   onSave,
+  draftKeys,
+  onDiscardAttributeDraft,
 }: LeftSidebarProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -271,6 +275,12 @@ export function LeftSidebar({
                     onRemove={
                       !attribute.builtIn
                         ? () => removeFromProject(attribute.id)
+                        : undefined
+                    }
+                    isDraft={draftKeys.has(attribute.id)}
+                    onDiscardDraft={
+                      draftKeys.has(attribute.id)
+                        ? () => onDiscardAttributeDraft(attribute.id)
                         : undefined
                     }
                   />

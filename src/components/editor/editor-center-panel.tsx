@@ -90,6 +90,8 @@ interface EditorCenterPanelProps {
   activeGenerations: Generation[];
   handleGenerationComplete: (generationId: string) => void;
   showPrompt: boolean;
+  draftImageIds: Set<string>;
+  onDiscardDrafts: () => void;
 }
 
 export function EditorCenterPanel({
@@ -135,6 +137,8 @@ export function EditorCenterPanel({
   activeGenerations,
   handleGenerationComplete,
   showPrompt,
+  draftImageIds,
+  onDiscardDrafts,
 }: EditorCenterPanelProps) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-muted/20">
@@ -291,6 +295,8 @@ export function EditorCenterPanel({
               selectedImageId={selectedImageId}
               onSelect={selectImage}
               showPrompt={showPrompt}
+              draftImageIds={draftImageIds}
+              onDiscardDrafts={onDiscardDrafts}
             />
           </div>
           <div className={activeTab !== 1 ? "hidden" : undefined}>

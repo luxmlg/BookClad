@@ -11,6 +11,7 @@ import {
   HoverCardContent,
 } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import {
   Collapsible,
   CollapsibleContent,
@@ -41,6 +42,8 @@ export interface GenerationGroupProps {
   getDisplayName: (gen: Generation) => string;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   showPrompt: boolean;
+  draftImageIds: Set<string>;
+  onDiscardDrafts: () => void;
 }
 
 export function GenerationGroup({
@@ -57,6 +60,8 @@ export function GenerationGroup({
   getDisplayName,
   scrollContainerRef,
   showPrompt,
+  draftImageIds,
+  onDiscardDrafts,
 }: GenerationGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showDiff, setShowDiff] = useState(false);
@@ -269,31 +274,54 @@ export function GenerationGroup({
                   </div>
                 </>
               )}
-            {generation.images.map((img) => (
-              <button
-                key={img.id}
-                onClick={() => onSelect(img.id)}
-                className={`origin-center overflow-hidden rounded-lg border-2 transition-all ${
-                  selectedImageId === img.id
-                    ? "border-primary shadow-md ring-2 ring-primary/20 scale-105"
-                    : "border-transparent hover:border-muted-foreground/30"
-                }`}
-                style={{ width: 44, aspectRatio: "1600/2560" }}
-              >
-                {imageUrls[img.id] ? (
-                  <Image
-                    src={imageUrls[img.id]}
-                    alt={`Option ${img.id.slice(0, 4)}`}
-                    width={44}
-                    height={70}
-                    className="h-full w-full object-cover"
-                    unoptimized
-                  />
-                ) : (
-                  <Skeleton className="h-full w-full" />
-                )}
-              </button>
-            ))}
+            {generation.images.map((img) => {
+              const hasDraft = draftImageIds.has(img.id);
+              const isSelected = selectedImageId === img.id;
+              return (
+                <div key={img.id} className="relative">
+                  <button
+                    onClick={() => onSelect(img.id)}
+                    className={`origin-center overflow-hidden rounded-lg border-2 transition-all ${
+                      isSelected
+                        ? "border-primary shadow-md ring-2 ring-primary/20 scale-105"
+                        : "border-transparent hover:border-muted-foreground/30"
+                    }`}
+                    style={{ width: 44, aspectRatio: "1600/2560" }}
+                  >
+                    {imageUrls[img.id] ? (
+                      <Image
+                        src={imageUrls[img.id]}
+                        alt={`Option ${img.id.slice(0, 4)}`}
+                        width={44}
+                        height={70}
+                        className="h-full w-full object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <Skeleton className="h-full w-full" />
+                    )}
+                  </button>
+                  {hasDraft && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={<button type="button" />}
+                          className="absolute -top-1 -right-1 flex items-center justify-center size-3.5 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(img.id);
+                            onDiscardDrafts();
+                          }}
+                        >
+                          <span className="size-2 rounded-full bg-amber-500 ring-1 ring-background" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Click to reset to generated values</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Right: details */}

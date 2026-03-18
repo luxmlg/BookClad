@@ -14,10 +14,11 @@ import {
   HoverCardTrigger,
   HoverCardContent,
 } from "@/components/ui/hover-card";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { AddValuePopover } from "@/components/add-value-popover";
 import { slugify, getDefaultValue, getActiveValues, type Attribute } from "@/lib/attributes";
 
-function AttributeLabel({ attribute, onRemove }: { attribute: Attribute; onRemove?: () => void }) {
+function AttributeLabel({ attribute, onRemove, isDraft, onDiscardDraft }: { attribute: Attribute; onRemove?: () => void; isDraft?: boolean; onDiscardDraft?: () => void }) {
   const nameNode = attribute.description ? (
     <HoverCard>
       <HoverCardTrigger
@@ -38,6 +39,20 @@ function AttributeLabel({ attribute, onRemove }: { attribute: Attribute; onRemov
     <Label>
       <span className="flex items-center gap-1">
         {nameNode}
+        {isDraft && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                render={<button type="button" />}
+                className="flex items-center cursor-pointer"
+                onClick={onDiscardDraft}
+              >
+                <span className="size-1.5 rounded-full bg-amber-500 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent side="top">Click to revert to generated value</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {onRemove && (
           <button
             type="button"
@@ -59,6 +74,8 @@ interface AttributeInputProps {
   onAddCustomValue?: (value: string, label: string, description?: string) => void;
   onRemoveCustomValue?: (value: string) => void;
   onRemove?: () => void;
+  isDraft?: boolean;
+  onDiscardDraft?: () => void;
 }
 
 export function AttributeInput({
@@ -68,11 +85,13 @@ export function AttributeInput({
   onAddCustomValue,
   onRemoveCustomValue,
   onRemove,
+  isDraft,
+  onDiscardDraft,
 }: AttributeInputProps) {
   if (attribute.type === "toggle") {
     return (
       <div className="group/attr flex items-center justify-between">
-        <AttributeLabel attribute={attribute} onRemove={onRemove} />
+        <AttributeLabel attribute={attribute} onRemove={onRemove} isDraft={isDraft} onDiscardDraft={onDiscardDraft} />
         <Switch
           checked={value === "true"}
           onCheckedChange={(c) => onChange(c ? "true" : "false")}
@@ -86,7 +105,7 @@ export function AttributeInput({
     return (
       <div className="group/attr space-y-1.5">
         <div className="flex items-center justify-between">
-          <AttributeLabel attribute={attribute} onRemove={onRemove} />
+          <AttributeLabel attribute={attribute} onRemove={onRemove} isDraft={isDraft} onDiscardDraft={onDiscardDraft} />
           <span className="text-xs text-muted-foreground tabular-nums">
             {num}/10
           </span>
@@ -111,7 +130,7 @@ export function AttributeInput({
   if (attribute.type === "color") {
     return (
       <div className="group/attr space-y-1.5">
-        <AttributeLabel attribute={attribute} onRemove={onRemove} />
+        <AttributeLabel attribute={attribute} onRemove={onRemove} isDraft={isDraft} onDiscardDraft={onDiscardDraft} />
         <div className="flex items-center gap-2">
           <input
             type="color"
@@ -133,7 +152,7 @@ export function AttributeInput({
   if (attribute.type === "text") {
     return (
       <div className="group/attr space-y-1.5">
-        <AttributeLabel attribute={attribute} onRemove={onRemove} />
+        <AttributeLabel attribute={attribute} onRemove={onRemove} isDraft={isDraft} onDiscardDraft={onDiscardDraft} />
         <Textarea
           rows={3}
           placeholder={`Enter ${attribute.name.toLowerCase()}...`}
@@ -152,6 +171,8 @@ export function AttributeInput({
         onChange={(v) => onChange(v)}
         onAddCustomValue={onAddCustomValue}
         onRemove={onRemove}
+        isDraft={isDraft}
+        onDiscardDraft={onDiscardDraft}
       />
     );
   }
@@ -164,6 +185,8 @@ export function AttributeInput({
       onAddCustomValue={onAddCustomValue}
       onRemoveCustomValue={onRemoveCustomValue}
       onRemove={onRemove}
+      isDraft={isDraft}
+      onDiscardDraft={onDiscardDraft}
     />
   );
 }
@@ -174,12 +197,16 @@ function SingleSelect({
   onChange,
   onAddCustomValue,
   onRemove,
+  isDraft,
+  onDiscardDraft,
 }: {
   attribute: Attribute;
   value: string;
   onChange: (value: string) => void;
   onAddCustomValue?: (value: string, label: string, description?: string) => void;
   onRemove?: () => void;
+  isDraft?: boolean;
+  onDiscardDraft?: () => void;
 }) {
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
 
@@ -197,7 +224,7 @@ function SingleSelect({
 
   return (
     <div className="group/attr space-y-1.5">
-      <AttributeLabel attribute={attribute} onRemove={onRemove} />
+      <AttributeLabel attribute={attribute} onRemove={onRemove} isDraft={isDraft} onDiscardDraft={onDiscardDraft} />
       <AddValuePopover
         open={pendingLabel !== null}
         onOpenChange={(open) => { if (!open) setPendingLabel(null); }}
@@ -229,6 +256,8 @@ function MultiSelect({
   onAddCustomValue,
   onRemoveCustomValue,
   onRemove,
+  isDraft,
+  onDiscardDraft,
 }: {
   attribute: Attribute;
   value: string[];
@@ -236,6 +265,8 @@ function MultiSelect({
   onAddCustomValue?: (value: string, label: string, description?: string) => void;
   onRemoveCustomValue?: (value: string) => void;
   onRemove?: () => void;
+  isDraft?: boolean;
+  onDiscardDraft?: () => void;
 }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -261,7 +292,7 @@ function MultiSelect({
 
   return (
     <div className="group/attr space-y-1.5">
-      <AttributeLabel attribute={attribute} onRemove={onRemove} />
+      <AttributeLabel attribute={attribute} onRemove={onRemove} isDraft={isDraft} onDiscardDraft={onDiscardDraft} />
       <div className="flex flex-wrap gap-1.5">
         {getActiveValues(attribute).map((v) => {
           const badge = (
