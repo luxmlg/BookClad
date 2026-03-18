@@ -1,9 +1,14 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FETCH_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes — premium models can be slow
 
+const NO_IMAGES_MESSAGE =
+  "No images were generated. Try adjusting your description or settings.";
+
 const GEMINI_ERROR_MESSAGES: Record<number, string> = {
   400: "Something about your request was invalid. Try adjusting your description or settings.",
+  401: "Image generation service authentication failed. Please contact support.",
   403: "Access to the image generation service was denied. Please contact support.",
+  404: "The image generation service is temporarily unavailable. Please try again later.",
   429: "Too many requests. Please wait a moment and try again.",
   500: "Image generation hit an unexpected error. Please try again.",
   503: "Image generation is experiencing high demand. Please try again shortly.",
@@ -104,7 +109,7 @@ export async function generateImages({
     const data = (await res.json()) as GeminiResponse;
     const buffers = extractImageBuffers(data);
     if (buffers.length === 0) {
-      throw new GeminiApiError(500);
+      throw new Error(NO_IMAGES_MESSAGE);
     }
     results.push(buffers[0]);
   }
@@ -162,7 +167,7 @@ export async function inpaintImage({
   const data = (await res.json()) as GeminiResponse;
   const buffers = extractImageBuffers(data);
   if (buffers.length === 0) {
-    throw new GeminiApiError(500);
+    throw new Error(NO_IMAGES_MESSAGE);
   }
   return buffers[0];
 }
