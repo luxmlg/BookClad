@@ -25,6 +25,7 @@ model User {
   dodoSubscriptionId String?
   subscriptionStatus String?
   currentPeriodEnd   DateTime?
+  lastPlanChangeAt   DateTime?
 
   accounts           Account[]
   sessions           Session[]

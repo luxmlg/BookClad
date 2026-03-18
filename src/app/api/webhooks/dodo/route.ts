@@ -20,10 +20,10 @@ function isSubscriptionEvent(event: UnwrapWebhookEvent): event is SubscriptionEv
   );
 }
 
-async function findUserByDodoCustomer(customerId: string): Promise<{ id: string; tier: string; dodoSubscriptionId: string | null } | null> {
+async function findUserByDodoCustomer(customerId: string): Promise<{ id: string; tier: string; dodoSubscriptionId: string | null; lastPlanChangeAt: Date | null } | null> {
   return prisma.user.findUnique({
     where: { dodoCustomerId: customerId },
-    select: { id: true, tier: true, dodoSubscriptionId: true },
+    select: { id: true, tier: true, dodoSubscriptionId: true, lastPlanChangeAt: true },
   });
 }
 
@@ -175,7 +175,16 @@ async function handleSubscriptionRenewed(
     });
   });
 
-  await grantCredits(user.id, TIER_CREDITS[tier], `Subscription renewed: ${tier} plan`);
+  // Skip credit grant if this renewal was triggered by a plan change (which already granted credits)
+  const PLAN_CHANGE_WINDOW = 5 * 60 * 1000;
+  const recentPlanChange = user.lastPlanChangeAt &&
+    Date.now() - new Date(user.lastPlanChangeAt).getTime() < PLAN_CHANGE_WINDOW;
+
+  if (!recentPlanChange) {
+    await grantCredits(user.id, TIER_CREDITS[tier], `Subscription renewed: ${tier} plan`);
+  } else {
+    console.log(`[webhook] Skipping renewal credit grant for user ${user.id} — triggered by plan change`);
+  }
 }
 
 async function handleSubscriptionCancelled(
@@ -275,6 +284,7 @@ async function handleSubscriptionPlanChanged(
       data: {
         tier: newTier,
         subscriptionStatus: SUBSCRIPTION_STATUS.ACTIVE,
+        lastPlanChangeAt: new Date(),
       },
     });
     await tx.webhookEvent.update({

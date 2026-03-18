@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { getCredits, type CreditTransaction } from "@/lib/api/credits";
 import { createCheckout, createCreditPackCheckout, createCustomerPortal } from "@/lib/api/checkout";
 import { TIER_CREDITS, PLAN_PRICES, CREDIT_PACKS, SUBSCRIPTION_STATUS } from "@/lib/constants";
+import { useCreditStore } from "@/lib/stores/credit-store";
 
 const TXN_TYPE_LABEL: Record<string, string> = {
   GRANT: "Credit",
@@ -56,13 +57,18 @@ export function BillingTab() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("checkout") === "success" || params.get("status") === "succeeded") {
+      if (
+        params.get("checkout") === "success" ||
+        params.get("status") === "succeeded" ||
+        params.has("subscription_id")
+      ) {
         setShowSuccess(true);
         const url = new URL(window.location.href);
         url.searchParams.delete("checkout");
         url.searchParams.delete("status");
         url.searchParams.delete("payment_id");
         url.searchParams.delete("email");
+        url.searchParams.delete("subscription_id");
         window.history.replaceState({}, "", url.toString());
       }
     }
@@ -88,7 +94,7 @@ export function BillingTab() {
     if (!showSuccess) return;
 
     const POLL_INTERVAL = 2000;
-    const MAX_DURATION = 30000;
+    const MAX_DURATION = 60000;
     const start = Date.now();
 
     const interval = setInterval(async () => {
@@ -111,6 +117,7 @@ export function BillingTab() {
         if (changed) {
           clearInterval(interval);
           setShowSuccess(false);
+          useCreditStore.getState().refreshCredits();
         }
       } catch {
         // Silently retry on next interval
@@ -125,10 +132,8 @@ export function BillingTab() {
     try {
       const result = await createCheckout(targetTier);
       if (result.planChanged) {
-        toast.success(`Upgraded to ${targetTier}!`);
         setCheckoutLoading(null);
-        const data = await getCredits();
-        applyCreditsData(data);
+        setShowSuccess(true);
       } else {
         window.location.href = result.checkoutUrl;
       }
