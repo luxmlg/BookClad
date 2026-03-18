@@ -40,20 +40,28 @@ export function EditPopover({
       el.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
   }, []);
 
+  // Reset form state when popover opens (render-time adjustment, not an effect)
+  const [prevOpen, setPrevOpen] = useState(false);
+  if (open && !prevOpen) {
+    setPrevOpen(true);
+    setName(initialName);
+    setDescription(initialDescription);
+  } else if (!open && prevOpen) {
+    setPrevOpen(false);
+  }
+
+  // DOM adjustments after popover opens
   useEffect(() => {
     if (open) {
-      setName(initialName);
-      setDescription(initialDescription);
       requestAnimationFrame(() => {
         if (descRef.current) {
           autoGrow(descRef.current);
-          // Place cursor at end of text
           const len = descRef.current.value.length;
           descRef.current.setSelectionRange(len, len);
         }
       });
     }
-  }, [open, initialName, initialDescription, autoGrow]);
+  }, [open, autoGrow]);
 
   function handleSave(): void {
     const trimmedName = name.trim();

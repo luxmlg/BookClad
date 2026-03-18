@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { CREDIT_COST_PER_IMAGE, TIER_CREDITS } from "@/lib/constants";
+import { CREDIT_COST_PER_IMAGE } from "@/lib/constants";
 import type { Prisma } from "@/generated/prisma/client";
 
 export class InsufficientCreditsError extends Error {

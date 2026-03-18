@@ -16,7 +16,7 @@ import { GenerateSimilarDialog } from "./generate-similar-dialog";
 import { InpaintDialog } from "./inpaint-dialog";
 import { EditorCenterPanel } from "./editor-center-panel";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
-import { buildDefaultConfig, getDefaultValue, computeAttributeDiff } from "@/lib/attributes";
+import { buildDefaultConfig, computeAttributeDiff } from "@/lib/attributes";
 import {
   getAttributeConfig,
   saveAttributeConfig,
@@ -292,7 +292,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         pendingAutoSelectRef.current = newestGen.images[0].id;
       }
     }
-  }, [allImages.length, completedGenerations, layersCacheRef]);
+  }, [allImages.length, completedGenerations, layersCacheRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select once URL becomes available
   useEffect(() => {

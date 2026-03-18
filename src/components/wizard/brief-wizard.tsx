@@ -159,7 +159,7 @@ export function BriefWizard() {
     setSubmitting(true);
     try {
       // Prepend subtitle to the first text attribute if present
-      let projectAttrs = { ...attributes };
+      const projectAttrs = { ...attributes };
       if (subtitle && textAttributes.length > 0) {
         const firstTextId = textAttributes[0].id;
         const existing = (projectAttrs[firstTextId] as string) || "";

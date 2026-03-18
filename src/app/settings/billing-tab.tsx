@@ -328,7 +328,10 @@ export function BillingTab() {
           {CREDIT_PACKS.map((pack) => (
             <Card key={pack.id}>
               <CardContent className="p-6 text-center">
-                <p className="text-2xl font-bold">{pack.credits}</p>
+                <div className="flex items-center justify-center gap-1.5">
+                  <Coins className="size-5 text-yellow-500" />
+                  <p className="text-2xl font-bold">{pack.credits}</p>
+                </div>
                 <p className="mb-3 text-sm text-muted-foreground">credits</p>
                 <p className="mb-4 text-lg font-semibold">${pack.price}</p>
                 <Button

@@ -9,6 +9,7 @@ import {
   Zap,
   Check,
   ArrowRight,
+  Coins,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,7 +61,7 @@ const plans = [
     period: "forever",
     features: [
       "25 credits / month",
-      "~5-8 covers depending on model",
+      "~5-8 covers depending on quality preset",
       "Full-res KDP export",
     ],
     cta: "Start Free",
@@ -72,7 +73,7 @@ const plans = [
     period: "/month",
     features: [
       "100 credits / month",
-      "~20-33 covers depending on model",
+      "~20-33 covers depending on quality preset",
       "Full-res KDP export",
       "Priority queue",
     ],
@@ -85,7 +86,7 @@ const plans = [
     period: "/month",
     features: [
       "250 credits / month",
-      "~50-83 covers depending on model",
+      "~50-83 covers depending on quality preset",
       "Priority queue",
       "Priority support",
     ],
@@ -247,7 +248,14 @@ export default function LandingPage() {
                               : "text-primary"
                           }`}
                         />
-                        {f}
+                        {f.includes("credits / month") ? (
+                          <span className="flex items-center gap-1">
+                            <Coins className="size-3 text-yellow-500" />
+                            {f}
+                          </span>
+                        ) : (
+                          f
+                        )}
                       </li>
                     ))}
                   </ul>

@@ -18,7 +18,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { JOB_TYPE } from "@/lib/constants";
-import type { Generation, DescriptionSnapshot } from "./types";
+import type { Generation } from "./types";
 import { asAttributeSnapshot, asDescriptionSnapshot, asTextLayerSnapshot } from "./types";
 import {
   JOB_TYPE_ICON,
@@ -59,7 +59,6 @@ export function GenerationGroup({
   onNameChange,
   getDisplayName,
   scrollContainerRef,
-  showPrompt,
   draftImageIds,
   onDiscardDrafts,
 }: GenerationGroupProps) {

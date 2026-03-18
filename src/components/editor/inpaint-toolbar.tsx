@@ -151,7 +151,6 @@ export function InpaintToolbar({
       >
         <RefreshCw className="size-3.5" />
         Generate
-        <span className="inline-flex items-center gap-0.5 tabular-nums text-[10px] opacity-70"><Coins className="size-2.5 text-yellow-500" />{creditCost}</span>
         {activeGenerationCount > 0 && (
           <span className="ml-0.5 inline-flex size-4 items-center justify-center rounded-full bg-primary-foreground/20 text-[10px] font-bold">
             {activeGenerationCount}
@@ -209,7 +208,7 @@ export function InpaintToolbar({
       </div>
       <div className="mx-1 h-5 w-px bg-border" />
       <span className={`inline-flex items-center gap-0.5 tabular-nums text-[10px] font-medium ${insufficientCredits ? "text-destructive" : "text-muted-foreground"}`}>
-        <Coins className="size-3 text-yellow-500" />{creditBalance}
+        <Coins className="size-3 text-yellow-500" />{creditCost}
       </span>
     </div>
   );

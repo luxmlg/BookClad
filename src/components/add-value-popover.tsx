@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,12 +28,15 @@ export function AddValuePopover({
   const anchorRef = useRef<HTMLDivElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    if (open) {
-      setLabel(initialLabel);
-      setDescription("");
-    }
-  }, [open, initialLabel]);
+  // Reset form state when popover opens (render-time adjustment, not an effect)
+  const [prevOpen, setPrevOpen] = useState(false);
+  if (open && !prevOpen) {
+    setPrevOpen(true);
+    setLabel(initialLabel);
+    setDescription("");
+  } else if (!open && prevOpen) {
+    setPrevOpen(false);
+  }
 
   const autoGrow = useCallback((el: HTMLTextAreaElement) => {
     el.style.height = "auto";
