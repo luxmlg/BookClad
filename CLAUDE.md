@@ -80,6 +80,7 @@ No test framework is configured.
   - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking
 - **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's attribute configuration, fetched from `/api/attributes`)
 - **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot`, `descriptionSnapshot`, and `textLayerSnapshot` with each generation for diff tracking and history display
+- **Draft attribute system**: When switching between history images, attribute edits are stashed per-image in `draftStashRef` (a `Map<imageId, AttributeSelection>`) and restored on return. `baseSnapshot` holds the generation's original attributes; `draftKeys` (derived via `computeAttributeDiff`) drives amber dot indicators on modified attributes. Clicking an amber dot reverts that single attribute; clicking the amber dot on a history thumbnail resets all drafts. The stash lives in a ref (no renders on write) and is cleaned up when edits are reverted to match the snapshot.
 
 Key sub-components: `EditorCenterPanel` (canvas viewport + bottom panel), `LeftSidebar` (attribute inputs, presets, brief), `RightSidebar` (layers, properties, export), `CoverCanvas` (Konva canvas), `GenerationHistory` → `GenerationGroup` (past generations with diffs via `DiffDisplay`), `GenerationQueue` (active jobs with WebSocket progress). Shared generation helpers (`getModelLabel`, `formatRelativeTime`, `JOB_TYPE_ICON`) live in `generation-helpers.ts`.
 
