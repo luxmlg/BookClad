@@ -210,6 +210,10 @@ The worker has its own storage module (`worker/src/lib/storage.ts`) with the sam
 - **BullMQ queue name**: `QUEUE_NAME` (`"cover-generation"`) — used by both the Next.js API (producer) and the worker (consumer). Job type constants in `JOB_TYPE`: `GENERATE`, `INPAINT`, `GENERATE_FROM_REFERENCE`.
 - **Storage**: Images go to Cloudflare R2 (S3-compatible). Dev can use local `uploads/` directory.
 - **UI components**: shadcn/ui in `src/components/ui/`. The canvas editor uses Konva via `react-konva` (dynamically imported to avoid SSR).
+- **UI primitives are `@base-ui/react`** (not Radix). shadcn/ui provides the component structure/styling but all primitives (`Dialog`, `Menu`, `Select`, `Collapsible`, etc.) come from base-ui. Key gotchas vs Radix:
+  - `DropdownMenuItem` has no `onSelect` — use `onClick`.
+  - `DropdownMenuContent` unmounts children when the menu closes. Never render a `Dialog` inside it — render the dialog as a sibling of `DropdownMenu` with shared state in the parent.
+  - `SelectValue` doesn't auto-map values to labels — pass explicit children: `<SelectValue>{label}</SelectValue>`.
 - **AI models**: OpenAI (gpt-image-1), Gemini 2.0 Flash, Ideogram V3 — dispatched by `model` field on Generation records.
 - **KDP constants**: Defined in `src/lib/constants.ts` as `KDP` object (1600x2560, 300 DPI, JPEG).
 - **WebSocket**: Singleton manager in `src/lib/use-generation-ws.ts`. Worker endpoint at `NEXT_PUBLIC_WS_URL` (defaults to `ws://localhost:4000/ws/progress`). Falls back to HTTP polling if WebSocket fails. The worker bridges Redis pubsub → WebSocket: `publishProgress()` in `worker/src/lib/progress.ts` publishes to `generation:{id}` channels, and `worker/src/lib/websocket.ts` relays those to connected clients.
