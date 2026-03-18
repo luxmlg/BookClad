@@ -2,11 +2,11 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FETCH_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes — premium models can be slow
 
 const GEMINI_ERROR_MESSAGES: Record<number, string> = {
-  400: "The request was invalid. Try adjusting your description or settings.",
-  403: "Access denied. Please contact support.",
-  429: "Rate limit reached. Please wait a moment and try again.",
-  500: "The AI service encountered an internal error. Please try again.",
-  503: "This model is experiencing high demand. Please try again shortly.",
+  400: "Something about your request was invalid. Try adjusting your description or settings.",
+  403: "Access to the image generation service was denied. Please contact support.",
+  429: "Too many requests. Please wait a moment and try again.",
+  500: "Image generation hit an unexpected error. Please try again.",
+  503: "Image generation is experiencing high demand. Please try again shortly.",
 };
 
 export class GeminiApiError extends Error {
