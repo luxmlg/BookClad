@@ -1,6 +1,9 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = "gemini-2.0-flash-preview-image-generation";
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const FETCH_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes — premium models can be slow
+
+function geminiEndpoint(modelId: string): string {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`;
+}
 
 export function isGeminiAvailable(): boolean {
   return !!GEMINI_API_KEY;
@@ -36,12 +39,14 @@ export interface GeminiGenerateParams {
   prompt: string;
   count: number;
   referenceImage?: Buffer;
+  modelId: string;
 }
 
 export async function generateImages({
   prompt,
   count,
   referenceImage,
+  modelId,
 }: GeminiGenerateParams): Promise<Buffer[]> {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
@@ -68,10 +73,11 @@ export async function generateImages({
       },
     };
 
-    const res = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    const res = await fetch(`${geminiEndpoint(modelId)}?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!res.ok) {
@@ -94,6 +100,7 @@ export interface GeminiInpaintParams {
   imageBuffer: Buffer;
   maskBuffer?: Buffer;
   prompt: string;
+  modelId: string;
 }
 
 /**
@@ -104,6 +111,7 @@ export interface GeminiInpaintParams {
 export async function inpaintImage({
   imageBuffer,
   prompt,
+  modelId,
 }: GeminiInpaintParams): Promise<Buffer> {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
@@ -124,10 +132,11 @@ export async function inpaintImage({
     },
   };
 
-  const res = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+  const res = await fetch(`${geminiEndpoint(modelId)}?key=${GEMINI_API_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
   if (!res.ok) {

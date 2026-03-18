@@ -1,15 +1,13 @@
 import { Job } from "bullmq";
 import { prisma } from "../lib/prisma.js";
 import { publishProgress } from "../lib/progress.js";
-import { generateImages as openaiGenerate } from "../services/openai.service.js";
 import { generateImages as geminiGenerate } from "../services/gemini.service.js";
-import { ideogramGenerate } from "../services/ideogram.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
 import { buildSystemPrompt, buildAttributeContext, buildAttributeValues, extractDescriptions, type TextLayerInfo } from "../lib/prompt.js";
-import { KDP, GENERATION_STATUS, EVENT_TYPE } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
 
 async function dispatchGenerate(
@@ -18,15 +16,9 @@ async function dispatchGenerate(
   count: number,
   referenceImage?: Buffer
 ): Promise<Buffer[]> {
-  switch (model) {
-    case "gemini":
-      return geminiGenerate({ prompt, count, referenceImage });
-    case "ideogram":
-      return ideogramGenerate({ prompt, count });
-    case "openai":
-    default:
-      return openaiGenerate({ prompt, count, referenceImage });
-  }
+  const geminiModelId = GEMINI_MODEL_IDS[model];
+  if (!geminiModelId) throw new Error(`Unknown model: ${model}`);
+  return geminiGenerate({ prompt, count, referenceImage, modelId: geminiModelId });
 }
 
 export async function processGeneration(job: Job<GenerationJobData>) {
@@ -82,6 +74,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     const userPrompt = [attributeContext, attributeValues].filter(Boolean).join("\n\n");
     const fullPrompt = systemPrompt + "\n\n" + userPrompt;
 
+    const geminiModelId = GEMINI_MODEL_IDS[model];
     let rawImages: Buffer[];
 
     if (referenceImageKey) {
@@ -91,11 +84,11 @@ export async function processGeneration(job: Job<GenerationJobData>) {
         ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
         : await downloadImage(referenceImageKey);
       step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Generating ${imageCount} images from reference with ${model}...`, step, totalSteps });
+      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Generating ${imageCount} images from reference...`, step, totalSteps });
       rawImages = await dispatchGenerate(model, fullPrompt, imageCount, refBuffer);
     } else {
       step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Generating ${imageCount} images with ${model}...`, step, totalSteps });
+      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Generating ${imageCount} images...`, step, totalSteps });
       rawImages = await dispatchGenerate(model, fullPrompt, imageCount);
     }
 
@@ -105,6 +98,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
         prompt: systemPrompt,
         userPrompt,
         descriptionSnapshot: descriptions ? JSON.parse(JSON.stringify(descriptions)) : undefined,
+        aiModelId: geminiModelId,
       },
     });
 

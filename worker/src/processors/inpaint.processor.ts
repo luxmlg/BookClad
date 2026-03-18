@@ -1,13 +1,11 @@
 import { Job } from "bullmq";
 import { prisma } from "../lib/prisma.js";
 import { publishProgress } from "../lib/progress.js";
-import { inpaintImage as openaiInpaint } from "../services/openai.service.js";
-import { ideogramInpaint } from "../services/ideogram.service.js";
 import { inpaintImage as geminiInpaint } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
-import { KDP, GENERATION_STATUS, EVENT_TYPE } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
 
 export interface InpaintJobData {
@@ -28,15 +26,9 @@ async function dispatchInpaint(
   maskBuffer: Buffer,
   prompt: string
 ): Promise<Buffer> {
-  switch (model) {
-    case "gemini":
-      return geminiInpaint({ imageBuffer, prompt });
-    case "ideogram":
-      return ideogramInpaint({ imageBuffer, maskBuffer, prompt });
-    case "openai":
-    default:
-      return openaiInpaint({ imageBuffer, maskBuffer, prompt });
-  }
+  const geminiModelId = GEMINI_MODEL_IDS[model];
+  if (!geminiModelId) throw new Error(`Unknown model: ${model}`);
+  return geminiInpaint({ imageBuffer, prompt, modelId: geminiModelId });
 }
 
 export async function processInpaint(job: Job<InpaintJobData>) {
@@ -62,8 +54,14 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       "base64"
     );
 
-    await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Inpainting with ${model}...`, step: 2, totalSteps });
+    await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Inpainting...", step: 2, totalSteps });
     const result = await dispatchInpaint(model, imageBuffer, maskBuffer, prompt);
+
+    const geminiModelId = GEMINI_MODEL_IDS[model];
+    await prisma.generation.update({
+      where: { id: generationId },
+      data: { aiModelId: geminiModelId },
+    });
 
     await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Upscaling inpainted image...", step: 3, totalSteps });
     const upscaled = await upscaleImage(result);

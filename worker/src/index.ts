@@ -72,7 +72,7 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", queue: QUEUE_NAME });
 });
 
-const STALE_THRESHOLD_MINUTES = 15;
+const STALE_THRESHOLD_MINUTES = 30;
 
 async function sweepStaleGenerations(): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000);

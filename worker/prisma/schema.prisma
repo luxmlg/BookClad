@@ -139,6 +139,7 @@ model Generation {
   model             String    @default("openai")
   parentImageId     String?
   includeLayers     Boolean   @default(false)
+  aiModelId             String?
   attributeSnapshot     Json?
   descriptionSnapshot   Json?
   textLayerSnapshot     Json?

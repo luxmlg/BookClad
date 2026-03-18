@@ -41,7 +41,13 @@ export const WS_MESSAGE_TYPE = {
 export const REF_PROMPT_KEY = "ref-instructions";
 
 export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
-  openai: 5,
-  gemini: 3,
-  ideogram: 4,
+  quick: 2,
+  detailed: 3,
+  premium: 5,
+};
+
+export const GEMINI_MODEL_IDS: Record<string, string> = {
+  quick: "gemini-2.5-flash-image",
+  detailed: "gemini-3.1-flash-image-preview",
+  premium: "gemini-3-pro-image-preview",
 };
