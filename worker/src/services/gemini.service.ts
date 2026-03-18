@@ -95,14 +95,25 @@ export async function generateImages({
       },
     };
 
-    const res = await fetch(`${geminiEndpoint(modelId)}?key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${geminiEndpoint(modelId)}?key=${GEMINI_API_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+    } catch (err) {
+      console.error(`[gemini] fetch failed for model ${modelId} (image ${i + 1}/${count}):`, err);
+      throw new Error(
+        "Could not reach the image generation service. Please try again.",
+        { cause: err },
+      );
+    }
 
     if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`[gemini] HTTP ${res.status} for model ${modelId}:`, body);
       throw new GeminiApiError(res.status);
     }
 
@@ -153,14 +164,25 @@ export async function inpaintImage({
     },
   };
 
-  const res = await fetch(`${geminiEndpoint(modelId)}?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${geminiEndpoint(modelId)}?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    console.error(`[gemini] inpaint fetch failed for model ${modelId}:`, err);
+    throw new Error(
+      "Could not reach the image generation service. Please try again.",
+      { cause: err },
+    );
+  }
 
   if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error(`[gemini] inpaint HTTP ${res.status} for model ${modelId}:`, body);
     throw new GeminiApiError(res.status);
   }
 

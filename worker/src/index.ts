@@ -40,7 +40,12 @@ const worker = new Worker<GenerationJobData>(
 );
 
 worker.on("failed", (job, err) => {
+  const cause = (err as Error & { cause?: unknown }).cause;
   console.error(`[worker] Job ${job?.id} failed:`, err.message);
+  if (cause) console.error(`[worker]   cause:`, cause);
+  if (process.env.NODE_ENV !== "production") {
+    console.error(err.stack);
+  }
 });
 
 worker.on("stalled", async (jobId) => {

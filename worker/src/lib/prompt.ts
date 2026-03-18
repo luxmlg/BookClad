@@ -111,38 +111,42 @@ function isEmpty(val: string | string[]): boolean {
 
 function buildTypographySpacing(options: PromptOptions): string {
   if (!options.includeLayers || options.textLayers.length === 0) {
-    return "- Leave uncluttered space in the upper third for title text and in the lower fifth for the author name";
+    return "- Keep the upper 20% and lower 15% of the image relatively uncluttered to allow text overlay later";
   }
 
   const visibleLayers = options.textLayers.filter((l) => l.visible);
   if (visibleLayers.length === 0) {
-    return "- Leave uncluttered space in the upper third for title text and in the lower fifth for the author name";
+    return "- Keep the upper 20% and lower 15% of the image relatively uncluttered to allow text overlay later";
   }
 
-  const layerList = visibleLayers
-    .map((l) => `  - "${l.text}" (${l.name})`)
-    .join("\n");
-
-  return `- Text will be composited onto the image. Account for the following text placement:\n${layerList}`;
+  return `- Text overlays will be composited after generation. Keep these regions clear:\n  - Upper area for title\n  - Lower area for author name`;
 }
 
 /** Fixed system instructions — no user attributes. */
 export function buildSystemPrompt(options: PromptOptions): string {
   const typographySpacing = buildTypographySpacing(options);
   const referenceClause = options.isReference
-    ? `\nYou are provided with a reference cover image. Create a new, original variation that matches its mood, composition style, and color palette. Do NOT reproduce the reference.\n`
+    ? `\nYou are provided with a reference cover image. Use it as a mood board — match its overall atmosphere, composition approach, and color temperature. Generate an original image inspired by it, not a copy.\n`
     : "";
 
   return `You are a professional book cover designer creating covers for Amazon Kindle Direct Publishing.
 ${referenceClause}
-Output requirements:
-- Portrait orientation, 1.6:1 aspect ratio (will be cropped to 1600×2560px at 300 DPI)
-- Do NOT generate any text, lettering, or typography in the image
-- No watermarks, borders, or frames
+CRITICAL — No text in the image:
+- Do NOT render any text, letters, words, numbers, titles, or typography anywhere in the image
+- This includes stylized, decorative, or partially obscured text — generate none whatsoever
+- The image must be purely visual with zero readable characters
+- Unless the user's attributes below explicitly request specific text to appear in the image
+
+Output format:
+- Portrait orientation, 1.6:1 aspect ratio (will be cropped to 1600×2560 px at 300 DPI)
+- No watermarks, logos, borders, or frames
+- Edge-to-edge artwork — no margins or blank space around the illustration
 
 Design principles:
-- Compose for thumbnail legibility — the cover must read at 120px wide on Amazon
-- Bold, high-contrast focal point
+- Thumbnail-first: the cover must be instantly readable at 120 px wide on Amazon search results
+- One dominant focal point with strong figure-ground contrast
+- Use lighting, depth of field, or color contrast to draw the eye to the subject
+- Color palette should reflect the genre and mood — avoid clashing or muddy tones
 ${typographySpacing}`;
 }
 
