@@ -67,18 +67,24 @@ export const AI_MODELS = [
   {
     value: "quick",
     label: "Quick",
+    description:
+      "Fast and efficient cover generation. Best for rapid iteration and quickly exploring different design directions.",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
     creditCost: CREDIT_COST_PER_IMAGE.quick,
   },
   {
     value: "detailed",
     label: "Detailed",
+    description:
+      "Recommended for most covers. High-efficiency generation with improved consistency and detail — the best balance of speed, quality, and cost.",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
     creditCost: CREDIT_COST_PER_IMAGE.detailed,
   },
   {
     value: "premium",
     label: "Premium",
+    description:
+      "Professional-grade cover generation with advanced reasoning. Excels at following complex instructions and rendering high-fidelity text and intricate details.",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
     creditCost: CREDIT_COST_PER_IMAGE.premium,
   },

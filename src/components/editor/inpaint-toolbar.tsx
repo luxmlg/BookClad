@@ -20,6 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { AI_MODELS } from "@/lib/constants";
 import { useCreditStore } from "@/lib/stores/credit-store";
 
@@ -188,7 +193,21 @@ export function InpaintToolbar({
         <SelectContent alignItemWithTrigger={false} className="min-w-52">
           {AI_MODELS.map((m) => (
             <SelectItem key={m.value} value={m.value}>
-              {m.label} <span className="inline-flex items-center gap-0.5 text-muted-foreground"><Coins className="size-2.5 text-yellow-500" />{m.creditCost}/img</span>
+              <HoverCard>
+                <HoverCardTrigger
+                  render={<span />}
+                  className="underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
+                >
+                  {m.label}
+                </HoverCardTrigger>
+                <HoverCardContent side="right" className="text-sm">
+                  {m.description}
+                </HoverCardContent>
+              </HoverCard>{" "}
+              <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+                <Coins className="size-2.5 text-yellow-500" />
+                {m.creditCost}/img
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
