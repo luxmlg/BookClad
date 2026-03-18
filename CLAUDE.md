@@ -138,9 +138,9 @@ Payments are handled by DodoPayments. Defined in `src/lib/dodo.ts` (SDK client +
 
 **Customer management**: DodoPayments customers are created lazily on first checkout. `User.dodoCustomerId` links to the Dodo customer. Customer portal accessible via `POST /api/customer-portal`.
 
-**Subscription fields on User**: `dodoCustomerId` (unique), `dodoSubscriptionId`, `subscriptionStatus` ("active"/"on_hold"/"cancelled"/"expired"), `currentPeriodEnd`.
+**Subscription fields on User**: `dodoCustomerId` (unique), `dodoSubscriptionId`, `subscriptionStatus` ("active"/"on_hold"/"cancelled"/"expired"), `currentPeriodEnd`, `lastPlanChangeAt` (set on plan_changed, used to suppress duplicate renewal credit grants within a 5-min window).
 
-**Post-checkout polling**: The billing tab (`src/app/settings/billing-tab.tsx`) detects `?status=succeeded` or `?checkout=success` URL params after checkout return. Polls `GET /api/credits` every 2s for up to 30s until balance/tier/transaction count changes, then stops and updates the UI.
+**Post-checkout polling**: The billing tab (`src/app/settings/billing-tab.tsx`) detects `?status=succeeded`, `?checkout=success`, or `?subscription_id` URL params after checkout return. Also triggers when an in-app plan change succeeds (`planChanged`). Polls `GET /api/credits` every 2s for up to 60s until balance/tier/transaction count changes, then stops, updates the UI, and syncs the navbar credit store via `useCreditStore.getState().refreshCredits()`.
 
 **Constants**: `SUBSCRIPTION_STATUS`, `PLAN_PRICES`, `CREDIT_PACKS` in `src/lib/constants.ts`.
 
