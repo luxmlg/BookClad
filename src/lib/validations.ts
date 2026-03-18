@@ -51,6 +51,23 @@ export const updateGenerationSchema = z.object({
   name: z.string().max(100),
 });
 
+export const feedbackSchema = z.object({
+  category: z.enum(["bug", "feature", "general"]),
+  title: z.string().min(5, "Title must be at least 5 characters").max(200),
+  description: z
+    .string()
+    .min(10, "Description must be at least 10 characters")
+    .max(5000),
+  area: z.enum(["editor", "generation", "billing", "account", "other"]).optional(),
+  attachmentUrls: z.array(z.string().url()).max(3).default([]),
+  context: z.object({
+    url: z.string(),
+    projectId: z.string().optional(),
+    userAgent: z.string(),
+    screenResolution: z.string(),
+  }),
+});
+
 export const createInpaintSchema = z.object({
   imageId: z.string().min(1),
   maskDataUrl: z.string().min(1),

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, BookOpen, Coins } from "lucide-react";
+import { Menu, BookOpen, Coins, MessageSquarePlus } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useCreditStore } from "@/lib/stores/credit-store";
+import { FeedbackDialog } from "@/components/feedback-dialog";
 
 interface MobileNavProps {
   isAuthenticated: boolean;
@@ -19,6 +20,7 @@ interface MobileNavProps {
 
 export function MobileNav({ isAuthenticated }: MobileNavProps) {
   const [open, setOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const creditBalance = useCreditStore((s) => s.balance);
 
   return (
@@ -54,6 +56,18 @@ export function MobileNav({ isAuthenticated }: MobileNavProps) {
                 <span className="tabular-nums">{creditBalance}</span>
                 <span className="text-muted-foreground">credits</span>
               </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setFeedbackOpen(true);
+                }}
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted text-left"
+              >
+                <MessageSquarePlus className="size-4 text-primary" />
+                Send Feedback
+              </button>
+              <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
             </>
           ) : (
             <>
