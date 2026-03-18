@@ -208,7 +208,7 @@ export function InpaintToolbar({
       </div>
       <div className="mx-1 h-5 w-px bg-border" />
       <span className={`inline-flex items-center gap-0.5 tabular-nums text-[10px] font-medium ${insufficientCredits ? "text-destructive" : "text-muted-foreground"}`}>
-        <Coins className="size-3 text-yellow-500" />{creditCost}
+        <Coins className="size-3 text-yellow-500 hover:text-yellow-600" />{creditCost}
       </span>
     </div>
   );

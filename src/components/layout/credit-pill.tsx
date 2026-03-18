@@ -10,9 +10,9 @@ export function CreditPill() {
   return (
     <Link
       href="/settings?tab=billing"
-      className="flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2.5 py-1 text-sm font-medium transition-colors hover:bg-muted"
+      className="group flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2.5 py-1 text-sm font-medium transition-colors hover:bg-muted"
     >
-      <Coins className="size-3.5 text-yellow-500" />
+      <Coins className="size-3.5 text-yellow-500 group-hover:text-yellow-600" />
       <span className="tabular-nums">{balance}</span>
     </Link>
   );
