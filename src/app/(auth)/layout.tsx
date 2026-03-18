@@ -13,7 +13,7 @@ export default function AuthLayout({
         className="mb-8 flex items-center gap-2 text-lg font-semibold"
       >
         <BookOpen className="size-5 text-primary" />
-        CoverCraft
+        BookClad
       </Link>
       <div className="w-full max-w-md">{children}</div>
     </div>

@@ -31,7 +31,7 @@ export function MobileNav({ isAuthenticated }: MobileNavProps) {
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <BookOpen className="size-4 text-primary" />
-            CoverCraft
+            BookClad
           </SheetTitle>
         </SheetHeader>
         <Separator className="my-4" />

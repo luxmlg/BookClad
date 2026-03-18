@@ -22,7 +22,7 @@ export async function Navbar() {
       <div className="container mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <BookOpen className="size-5 text-primary" />
-          <span className="text-lg">CoverCraft</span>
+          <span className="text-lg">BookClad</span>
         </Link>
 
         {/* Desktop nav */}

@@ -274,7 +274,7 @@ export default function LandingPage() {
           <div className="flex flex-col items-center gap-6 text-center">
             <div className="flex items-center gap-2 text-sm font-medium">
               <BookOpen className="size-4 text-primary" />
-              CoverCraft
+              BookClad
             </div>
             <p className="max-w-sm text-sm text-muted-foreground">
               AI-powered book covers for Amazon KDP. From prompt to
@@ -302,7 +302,7 @@ export default function LandingPage() {
             </div>
             <div className="h-px w-12 bg-border" />
             <p className="text-xs text-muted-foreground/70">
-              &copy; 2026 CoverCraft. All rights reserved.
+              &copy; 2026 BookClad. All rights reserved.
             </p>
           </div>
         </div>

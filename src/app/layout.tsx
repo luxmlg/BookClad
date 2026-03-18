@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CoverCraft - AI Book Cover Generator",
+  title: "BookClad - AI Book Cover Generator",
   description:
     "Generate KDP-compliant Kindle ebook covers from natural language prompts. Genre-aware AI, typography, compliance checker — all in one flow.",
 };
