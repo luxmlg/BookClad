@@ -9,6 +9,7 @@ import {
   Sparkles,
   Images,
   X,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -150,7 +151,7 @@ export function InpaintToolbar({
       >
         <RefreshCw className="size-3.5" />
         Generate
-        <span className="inline-block min-w-[4ch] tabular-nums text-[10px] text-right opacity-70">{creditCost}cr</span>
+        <span className="inline-flex items-center gap-0.5 tabular-nums text-[10px] opacity-70"><Coins className="size-2.5 text-yellow-500" />{creditCost}</span>
         {activeGenerationCount > 0 && (
           <span className="ml-0.5 inline-flex size-4 items-center justify-center rounded-full bg-primary-foreground/20 text-[10px] font-bold">
             {activeGenerationCount}
@@ -188,7 +189,7 @@ export function InpaintToolbar({
         <SelectContent alignItemWithTrigger={false} className="min-w-52">
           {AI_MODELS.map((m) => (
             <SelectItem key={m.value} value={m.value}>
-              {m.label} <span className="text-muted-foreground">({m.creditCost}cr/img)</span>
+              {m.label} <span className="inline-flex items-center gap-0.5 text-muted-foreground"><Coins className="size-2.5 text-yellow-500" />{m.creditCost}/img</span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -207,8 +208,8 @@ export function InpaintToolbar({
         <span className="text-[10px] text-muted-foreground w-3 text-right">{imageCount}</span>
       </div>
       <div className="mx-1 h-5 w-px bg-border" />
-      <span className={`inline-block min-w-[4ch] tabular-nums text-[10px] text-right font-medium ${insufficientCredits ? "text-destructive" : "text-muted-foreground"}`}>
-        {creditBalance}cr
+      <span className={`inline-flex items-center gap-0.5 tabular-nums text-[10px] font-medium ${insufficientCredits ? "text-destructive" : "text-muted-foreground"}`}>
+        <Coins className="size-3 text-yellow-500" />{creditBalance}
       </span>
     </div>
   );

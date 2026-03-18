@@ -46,7 +46,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5">
-          <Coins className="size-4 text-primary" />
+          <Coins className="size-4 text-yellow-500" />
           <span className="text-sm font-medium">{user?.creditBalance ?? 0} credits</span>
         </div>
       </div>

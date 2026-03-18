@@ -238,8 +238,8 @@ export function BillingTab() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardContent className="flex items-center gap-4 p-6">
-            <div className="rounded-lg bg-primary/10 p-3">
-              <Coins className="size-6 text-primary" />
+            <div className="rounded-lg bg-yellow-500/10 p-3">
+              <Coins className="size-6 text-yellow-500" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Credit Balance</p>
