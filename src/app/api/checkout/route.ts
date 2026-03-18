@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dodo, productIdFromTier, DODO_CREDIT_PACK_IDS } from "@/lib/dodo";
-import { CREDIT_PACKS } from "@/lib/constants";
+import { CREDIT_PACKS, SUBSCRIPTION_STATUS } from "@/lib/constants";
 
 const packIds = CREDIT_PACKS.map((p) => p.id) as [string, ...string[]];
 
@@ -45,7 +45,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: session.user.id },
-    select: { id: true, email: true, name: true, tier: true, dodoCustomerId: true },
+    select: { id: true, email: true, name: true, tier: true, dodoCustomerId: true, dodoSubscriptionId: true, subscriptionStatus: true },
   });
 
   const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/settings?tab=billing&checkout=success`;
@@ -62,6 +62,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!pid) {
       return NextResponse.json({ error: "Product not configured" }, { status: 500 });
     }
+
+    // Existing subscriber → change plan on same subscription (handles proration)
+    if (user.dodoSubscriptionId && user.subscriptionStatus === SUBSCRIPTION_STATUS.ACTIVE) {
+      await dodo.subscriptions.changePlan(user.dodoSubscriptionId, {
+        product_id: pid,
+        quantity: 1,
+        proration_billing_mode: "prorated_immediately",
+      });
+      return NextResponse.json({ planChanged: true });
+    }
+
     productId = pid;
     metadata = { type: "subscription", userId: user.id, tier: data.tier };
   } else {

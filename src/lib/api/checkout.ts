@@ -4,12 +4,16 @@ export interface CheckoutResponse {
   checkoutUrl: string;
 }
 
+export type CheckoutResult =
+  | { checkoutUrl: string; planChanged?: never }
+  | { planChanged: true; checkoutUrl?: never };
+
 export interface CustomerPortalResponse {
   portalUrl: string;
 }
 
-export async function createCheckout(tier: "STARTER" | "PRO"): Promise<CheckoutResponse> {
-  const { data } = await api.post<CheckoutResponse>("/api/checkout", { type: "subscription", tier });
+export async function createCheckout(tier: "STARTER" | "PRO"): Promise<CheckoutResult> {
+  const { data } = await api.post<CheckoutResult>("/api/checkout", { type: "subscription", tier });
   return data;
 }
 

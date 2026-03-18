@@ -123,8 +123,15 @@ export function BillingTab() {
   async function handleUpgrade(targetTier: "STARTER" | "PRO") {
     setCheckoutLoading(targetTier);
     try {
-      const { checkoutUrl } = await createCheckout(targetTier);
-      window.location.href = checkoutUrl;
+      const result = await createCheckout(targetTier);
+      if (result.planChanged) {
+        toast.success(`Upgraded to ${targetTier}!`);
+        setCheckoutLoading(null);
+        const data = await getCredits();
+        applyCreditsData(data);
+      } else {
+        window.location.href = result.checkoutUrl;
+      }
     } catch {
       toast.error("Failed to start checkout");
       setCheckoutLoading(null);
@@ -197,6 +204,31 @@ export function BillingTab() {
         </div>
       )}
 
+      {/* Cancellation banner */}
+      {isCancelled && (
+        <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-700 dark:text-yellow-400">
+          <AlertTriangle className="size-4 shrink-0" />
+          <div>
+            Your {tier} plan has been cancelled.
+            {currentPeriodEnd && (
+              <> You&apos;ll have access until <strong>{new Date(currentPeriodEnd).toLocaleDateString()}</strong>.</>
+            )}
+            {" "}After that, you&apos;ll be on the Free plan ({TIER_CREDITS.FREE} credits/month).
+          </div>
+          {hasSubscription && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto shrink-0"
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+            >
+              Resubscribe
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Balance + plan cards */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
@@ -221,11 +253,6 @@ export function BillingTab() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">{tierCredits} credits / month</p>
-              {isCancelled && currentPeriodEnd && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Active until {new Date(currentPeriodEnd).toLocaleDateString()}
-                </p>
-              )}
             </div>
             {hasSubscription && (isActive || isOnHold || isCancelled) && (
               <Button

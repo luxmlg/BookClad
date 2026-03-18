@@ -20,10 +20,10 @@ function isSubscriptionEvent(event: UnwrapWebhookEvent): event is SubscriptionEv
   );
 }
 
-async function findUserByDodoCustomer(customerId: string): Promise<{ id: string; tier: string } | null> {
+async function findUserByDodoCustomer(customerId: string): Promise<{ id: string; tier: string; dodoSubscriptionId: string | null } | null> {
   return prisma.user.findUnique({
     where: { dodoCustomerId: customerId },
-    select: { id: true, tier: true },
+    select: { id: true, tier: true, dodoSubscriptionId: true },
   });
 }
 
@@ -115,6 +115,18 @@ async function handleSubscriptionActive(
   const user = await findUserByDodoCustomer(customer.customer_id);
   if (!user) return;
 
+  // Cancel old subscription if a new one is activating (safety net for duplicate subscriptions)
+  if (user.dodoSubscriptionId && user.dodoSubscriptionId !== subscription_id) {
+    try {
+      await dodo.subscriptions.update(user.dodoSubscriptionId, {
+        cancel_at_next_billing_date: true,
+      });
+      console.log(`[webhook] Cancelled old subscription ${user.dodoSubscriptionId} for user ${user.id}`);
+    } catch (err) {
+      console.error(`[webhook] Failed to cancel old subscription ${user.dodoSubscriptionId}:`, err);
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: user.id },
@@ -131,7 +143,9 @@ async function handleSubscriptionActive(
     });
   });
 
-  await grantCredits(user.id, TIER_CREDITS[tier], `Subscription activated: ${tier} plan`);
+  // Credits are granted by handleSubscriptionRenewed, not here.
+  // DodoPayments fires both subscription.active and subscription.renewed
+  // on initial activation — granting here would double-count.
 }
 
 async function handleSubscriptionRenewed(
@@ -170,14 +184,17 @@ async function handleSubscriptionCancelled(
 ): Promise<void> {
   if (!isSubscriptionEvent(event)) return;
 
-  const { customer } = event.data;
+  const { customer, next_billing_date } = event.data;
   const user = await findUserByDodoCustomer(customer.customer_id);
   if (!user) return;
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: user.id },
-      data: { subscriptionStatus: SUBSCRIPTION_STATUS.CANCELLED },
+      data: {
+        subscriptionStatus: SUBSCRIPTION_STATUS.CANCELLED,
+        currentPeriodEnd: new Date(next_billing_date),
+      },
     });
     await tx.webhookEvent.update({
       where: { id: webhookId },
