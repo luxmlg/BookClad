@@ -23,7 +23,7 @@ export interface GenerationPollerState {
 
 export function useGenerationPoller({ generationId, onComplete }: UseGenerationPollerOptions): GenerationPollerState {
   const router = useRouter();
-  const { status, progressMessage, step, totalSteps } = useGenerationProgress(generationId);
+  const { status, progressMessage, errorMessage, step, totalSteps } = useGenerationProgress(generationId);
   const completedRef = useRef(false);
 
   const handleComplete = (failed?: string) => {
@@ -48,7 +48,7 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
         if (data.status === GENERATION_STATUS.COMPLETED) {
           handleComplete();
         } else if (data.status === GENERATION_STATUS.FAILED) {
-          handleComplete("Generation failed. Please try again.");
+          handleComplete(data.errorMessage ?? "Generation failed. Please try again.");
         }
       } catch {
         // Ignore fetch errors
@@ -64,9 +64,9 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
     if (status === GENERATION_STATUS.COMPLETED) {
       handleComplete();
     } else if (status === GENERATION_STATUS.FAILED) {
-      handleComplete("Generation failed. Please try again.");
+      handleComplete(errorMessage ?? "Generation failed. Please try again.");
     }
-  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, errorMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const progressPercent =
     totalSteps > 0 ? Math.round((step / totalSteps) * 100) : 0;

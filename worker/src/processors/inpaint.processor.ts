@@ -91,7 +91,10 @@ export async function processInpaint(job: Job<InpaintJobData>) {
   } catch (error) {
     await prisma.generation.update({
       where: { id: generationId },
-      data: { status: GENERATION_STATUS.FAILED },
+      data: {
+        status: GENERATION_STATUS.FAILED,
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+      },
     });
 
     if (job.data.creditCost > 0) {

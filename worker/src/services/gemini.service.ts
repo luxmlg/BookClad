@@ -1,6 +1,23 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FETCH_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes — premium models can be slow
 
+const GEMINI_ERROR_MESSAGES: Record<number, string> = {
+  400: "The request was invalid. Try adjusting your description or settings.",
+  403: "Access denied. Please contact support.",
+  429: "Rate limit reached. Please wait a moment and try again.",
+  500: "The AI service encountered an internal error. Please try again.",
+  503: "This model is experiencing high demand. Please try again shortly.",
+};
+
+export class GeminiApiError extends Error {
+  constructor(status: number) {
+    const message = GEMINI_ERROR_MESSAGES[status]
+      ?? "Generation failed. Please try again.";
+    super(message);
+    this.name = "GeminiApiError";
+  }
+}
+
 function geminiEndpoint(modelId: string): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`;
 }
@@ -81,14 +98,13 @@ export async function generateImages({
     });
 
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Gemini API error (${res.status}): ${text}`);
+      throw new GeminiApiError(res.status);
     }
 
     const data = (await res.json()) as GeminiResponse;
     const buffers = extractImageBuffers(data);
     if (buffers.length === 0) {
-      throw new Error("Gemini returned no images in response");
+      throw new GeminiApiError(500);
     }
     results.push(buffers[0]);
   }
@@ -140,14 +156,13 @@ export async function inpaintImage({
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Gemini inpaint error (${res.status}): ${text}`);
+    throw new GeminiApiError(res.status);
   }
 
   const data = (await res.json()) as GeminiResponse;
   const buffers = extractImageBuffers(data);
   if (buffers.length === 0) {
-    throw new Error("Gemini returned no images for inpainting");
+    throw new GeminiApiError(500);
   }
   return buffers[0];
 }

@@ -6,6 +6,7 @@ import { GENERATION_STATUS, EVENT_TYPE, WS_MESSAGE_TYPE, DEFAULT_WS_URL, WS_RECO
 interface GenerationProgress {
   status: GenerationStatus;
   progressMessage: string | null;
+  errorMessage: string | null;
   step: number;
   totalSteps: number;
 }
@@ -60,6 +61,7 @@ function getSocket(): WebSocket | null {
 
         let status: GenerationStatus = GENERATION_STATUS.QUEUED;
         let progressMessage: string | null = null;
+        let errorMessage: string | null = null;
         let step = 0;
         let totalSteps = 0;
 
@@ -78,13 +80,14 @@ function getSocket(): WebSocket | null {
             break;
           case EVENT_TYPE.FAILED:
             status = GENERATION_STATUS.FAILED;
+            errorMessage = rest.error ?? null;
             break;
           default:
             return;
         }
 
         for (const listener of genListeners) {
-          listener({ generationId, status, progressMessage, step, totalSteps });
+          listener({ generationId, status, progressMessage, errorMessage, step, totalSteps });
         }
       } catch {
         // Ignore malformed messages
@@ -155,6 +158,7 @@ function subscribe(generationId: string, listener: Listener) {
 export function useGenerationProgress(generationId: string) {
   const [status, setStatus] = useState<GenerationStatus>(GENERATION_STATUS.QUEUED);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [totalSteps, setTotalSteps] = useState(0);
   const completedRef = useRef(false);
@@ -164,6 +168,7 @@ export function useGenerationProgress(generationId: string) {
       if (completedRef.current) return;
       setStatus(event.status);
       if (event.progressMessage !== null) setProgressMessage(event.progressMessage);
+      if (event.errorMessage !== null) setErrorMessage(event.errorMessage);
       if (event.step) setStep(event.step);
       if (event.totalSteps) setTotalSteps(event.totalSteps);
       if (event.status === GENERATION_STATUS.COMPLETED || event.status === GENERATION_STATUS.FAILED) {
@@ -179,5 +184,5 @@ export function useGenerationProgress(generationId: string) {
     return unsubscribe;
   }, [generationId, handleEvent]);
 
-  return { status, progressMessage, step, totalSteps };
+  return { status, progressMessage, errorMessage, step, totalSteps };
 }

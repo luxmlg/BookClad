@@ -37,8 +37,8 @@ export async function createGeneration(params: CreateGenerationParams): Promise<
   return data;
 }
 
-export async function getGeneration(id: string): Promise<{ status: string }> {
-  const { data } = await api.get<{ status: string }>(`/api/generations/${id}`);
+export async function getGeneration(id: string): Promise<{ status: string; errorMessage: string | null }> {
+  const { data } = await api.get<{ status: string; errorMessage: string | null }>(`/api/generations/${id}`);
   return data;
 }
 
