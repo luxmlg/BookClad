@@ -74,7 +74,7 @@ export function GenerationGroup({
   const [compareTargetId, setCompareTargetId] = useState<string | null>(null);
   const [promptExpanded, setPromptExpanded] = useState(true);
   const [sysPromptExpanded, setSysPromptExpanded] = useState(false);
-  const [contextExpanded, setContextExpanded] = useState(false);
+
   const [editing, setEditing] = useState(false);
   const displayName = getDisplayName(generation);
   const [editValue, setEditValue] = useState("");
@@ -168,7 +168,7 @@ export function GenerationGroup({
   const attrs = asAttributeSnapshot(generation.attributeSnapshot);
   const hasDisplayAttrs = attrs !== null && Object.keys(attrs).length > 0;
   const descSnap = asDescriptionSnapshot(generation.descriptionSnapshot);
-  const hasDescriptions = descSnap !== null && Object.values(descSnap).some((m) => m.description);
+
   const textLayers = asTextLayerSnapshot(generation.textLayerSnapshot);
 
   return (
@@ -495,30 +495,6 @@ export function GenerationGroup({
                   </div>
                 )}
               </>
-            )}
-
-            {/* Attribute context (descriptions) */}
-            {hasDescriptions && (
-              <div>
-                <button
-                  onClick={() => setContextExpanded((e) => !e)}
-                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                >
-                  {contextExpanded ? "Hide attribute context" : "Show attribute context"}
-                </button>
-                {contextExpanded && (
-                  <div className="mt-1 text-muted-foreground border rounded-md p-2 bg-muted/30 space-y-0.5">
-                    {Object.entries(descSnap!).map(([, meta]) =>
-                      meta.description ? (
-                        <div key={meta.name}>
-                          <span className="font-medium">{meta.name}:</span>{" "}
-                          {meta.description}
-                        </div>
-                      ) : null,
-                    )}
-                  </div>
-                )}
-              </div>
             )}
 
             {/* Layers */}
