@@ -641,11 +641,24 @@ export function GenerationGroup({
                             <span className="font-medium">{label}:</span>
                           )}{" "}
                           {values.map((v, i) => {
-                            const vLabel = v === "true" ? "yes" : v === "false" ? "no" : (meta?.values[v]?.label ?? v);
-                            const vDesc = meta?.values[v]?.description;
+                            const vMeta = meta?.values[v];
+                            const vLabel = v === "true" ? "yes" : v === "false" ? "no" : (vMeta?.label ?? v);
+                            const vDesc = vMeta?.description;
+                            const vColors = vMeta?.colors;
                             return (
                               <Fragment key={v}>
                                 {i > 0 && ", "}
+                                {vColors && vColors.length > 0 && (
+                                  <span className="inline-flex items-center gap-px align-middle mr-1">
+                                    {vColors.map((color, ci) => (
+                                      <span
+                                        key={ci}
+                                        className="inline-block size-2.5 rounded-full border border-border/50"
+                                        style={{ backgroundColor: color }}
+                                      />
+                                    ))}
+                                  </span>
+                                )}
                                 {vDesc ? (
                                   <HoverCard>
                                     <HoverCardTrigger

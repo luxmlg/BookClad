@@ -48,6 +48,7 @@ export type AttributeSnapshot = Record<string, string | string[]>;
 export interface DescriptionValueMeta {
   label: string;
   description?: string;
+  colors?: string[];
 }
 
 export interface DescriptionAttrMeta {
