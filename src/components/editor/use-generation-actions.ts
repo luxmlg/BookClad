@@ -25,16 +25,11 @@ export interface UseGenerationActionsResult {
   panelOpen: boolean;
   setPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleRegenerate: () => Promise<void>;
-  handleGenerateSimilar: () => Promise<void>;
+  handleGenerateSimilar: (prompt: string) => Promise<void>;
   handleGenerationComplete: (generationId: string) => void;
   allActiveIds: string[];
   activeGenerations: Generation[];
   hasActiveGeneration: boolean;
-  refDialogOpen: boolean;
-  setRefDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  refPrompt: string;
-  setRefPrompt: React.Dispatch<React.SetStateAction<string>>;
-  refSubmitting: boolean;
 }
 
 export function useGenerationActions(
@@ -56,9 +51,6 @@ export function useGenerationActions(
   });
   const [activeTab, setActiveTab] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
-  const [refDialogOpen, setRefDialogOpen] = useState(false);
-  const [refPrompt, setRefPrompt] = useState("");
-  const [refSubmitting, setRefSubmitting] = useState(false);
   useEffect(() => {
     localStorage.setItem(`${IMAGE_COUNT_KEY_PREFIX}:${projectId}`, String(imageCount));
   }, [imageCount, projectId]);
@@ -125,40 +117,31 @@ export function useGenerationActions(
     }
   }
 
-  async function handleGenerateSimilar() {
+  async function handleGenerateSimilar(prompt: string) {
     if (!selectedImageId) return;
-    setRefSubmitting(true);
-    try {
-      const flattenedImageDataUrl = inpaintRef.current.includeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
-      const snapshot: AttributeSelection = { ...attributes };
-      if (refPrompt) snapshot[REF_PROMPT_KEY] = refPrompt;
-      const data = await createGeneration({
-        projectId,
-        imageCount,
-        model,
-        referenceImageId: selectedImageId,
-        flattenedImageDataUrl,
-        attributeSnapshot: snapshot,
-        textLayerSnapshot: canvasNodes.map((n) => ({
-          name: n.name ?? n.id,
-          text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
-          type: n.type,
-          visible: n.visible,
-        })),
-      });
-      setActiveGenerationIds((prev) => [...prev, data.generationId]);
-      setActiveTab(1);
-      setPanelOpen(true);
-      refreshCredits();
-      toast.success("Reference generation queued!");
-      setRefDialogOpen(false);
-      setRefPrompt("");
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setRefSubmitting(false);
-    }
+    const flattenedImageDataUrl = inpaintRef.current.includeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
+    const snapshot: AttributeSelection = { ...attributes };
+    if (prompt) snapshot[REF_PROMPT_KEY] = prompt;
+    const data = await createGeneration({
+      projectId,
+      imageCount,
+      model,
+      referenceImageId: selectedImageId,
+      flattenedImageDataUrl,
+      attributeSnapshot: snapshot,
+      textLayerSnapshot: canvasNodes.map((n) => ({
+        name: n.name ?? n.id,
+        text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
+        type: n.type,
+        visible: n.visible,
+      })),
+    });
+    setActiveGenerationIds((prev) => [...prev, data.generationId]);
+    setActiveTab(1);
+    setPanelOpen(true);
+    refreshCredits();
+    toast.success("Reference generation queued!");
+    router.refresh();
   }
 
   const handleGenerationComplete = useCallback(
@@ -184,8 +167,5 @@ export function useGenerationActions(
     allActiveIds,
     activeGenerations,
     hasActiveGeneration,
-    refDialogOpen, setRefDialogOpen,
-    refPrompt, setRefPrompt,
-    refSubmitting,
   };
 }

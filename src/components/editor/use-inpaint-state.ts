@@ -13,15 +13,11 @@ import { createInpaint } from "@/lib/api";
 export interface UseInpaintStateResult {
   brushMode: boolean;
   setBrushMode: React.Dispatch<React.SetStateAction<boolean>>;
-  inpaintPrompt: string;
-  setInpaintPrompt: React.Dispatch<React.SetStateAction<string>>;
   inpaintMask: string | null;
   setInpaintMask: React.Dispatch<React.SetStateAction<string | null>>;
   inpaintSubmitting: boolean;
   includeLayers: boolean;
   layerPreviewUrl: string | null;
-  inpaintDialogOpen: boolean;
-  setInpaintDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
   brushSize: number;
   setBrushSize: React.Dispatch<React.SetStateAction<number>>;
   erasing: boolean;
@@ -29,7 +25,7 @@ export interface UseInpaintStateResult {
   hasBrushMask: boolean;
   setHasBrushMask: React.Dispatch<React.SetStateAction<boolean>>;
   brushToolRef: React.RefObject<import("./brush-tool").BrushToolHandle | null>;
-  handleInpaintSubmit: () => Promise<void>;
+  handleInpaintSubmit: (prompt: string) => Promise<void>;
   handleIncludeLayersChange: (checked: boolean) => Promise<void>;
   flattenCanvasToDataUrl: () => Promise<string | undefined>;
 }
@@ -47,12 +43,10 @@ export function useInpaintState(
   router: ReturnType<typeof useRouter>,
 ): UseInpaintStateResult {
   const [brushMode, setBrushMode] = useState(false);
-  const [inpaintPrompt, setInpaintPrompt] = useState("");
   const [inpaintMask, setInpaintMask] = useState<string | null>(null);
   const [inpaintSubmitting, setInpaintSubmitting] = useState(false);
   const [includeLayers, setIncludeLayers] = useState(false);
   const [layerPreviewUrl, setLayerPreviewUrl] = useState<string | null>(null);
-  const [inpaintDialogOpen, setInpaintDialogOpen] = useState(false);
   const [brushSize, setBrushSize] = useState(30);
   const [erasing, setErasing] = useState(false);
   const [hasBrushMask, setHasBrushMask] = useState(false);
@@ -93,8 +87,8 @@ export function useInpaintState(
     }
   }
 
-  async function handleInpaintSubmit() {
-    if (!selectedImageId || !inpaintMask || !inpaintPrompt.trim()) {
+  async function handleInpaintSubmit(prompt: string) {
+    if (!selectedImageId || !inpaintMask || !prompt.trim()) {
       toast.error("Please paint a region and enter a prompt");
       return;
     }
@@ -104,7 +98,7 @@ export function useInpaintState(
       const data = await createInpaint({
         imageId: selectedImageId,
         maskDataUrl: inpaintMask,
-        prompt: inpaintPrompt,
+        prompt,
         model,
         flattenedImageDataUrl,
         attributeSnapshot: attributes,
@@ -119,10 +113,8 @@ export function useInpaintState(
       setActiveTab(1);
       setPanelOpen(true);
       toast.success("Inpainting job queued!");
-      setInpaintDialogOpen(false);
       setBrushMode(false);
       setInpaintMask(null);
-      setInpaintPrompt("");
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Inpaint failed");
@@ -133,12 +125,10 @@ export function useInpaintState(
 
   return {
     brushMode, setBrushMode,
-    inpaintPrompt, setInpaintPrompt,
     inpaintMask, setInpaintMask,
     inpaintSubmitting,
     includeLayers,
     layerPreviewUrl,
-    inpaintDialogOpen, setInpaintDialogOpen,
     brushSize, setBrushSize,
     erasing, setErasing,
     hasBrushMask, setHasBrushMask,

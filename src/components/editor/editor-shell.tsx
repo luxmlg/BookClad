@@ -6,14 +6,12 @@ import { toast } from "sonner";
 import type Konva from "konva";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode, CanvasState } from "./canvas-types";
 import { getDefaultCanvasState, parseCanvasState, CANVAS_WIDTH, CANVAS_HEIGHT, SCALE, NODE_TYPE } from "./canvas-types";
-import { KDP, GENERATION_STATUS, CREDIT_COST_PER_IMAGE } from "@/lib/constants";
+import { KDP, GENERATION_STATUS } from "@/lib/constants";
 import { DEFAULT_FONT, ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
 import { TextFloatingToolbar } from "./text-floating-toolbar";
 import { InpaintToolbar } from "./inpaint-toolbar";
-import { GenerateSimilarDialog } from "./generate-similar-dialog";
-import { InpaintDialog } from "./inpaint-dialog";
 import { EditorCenterPanel } from "./editor-center-panel";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import { buildDefaultConfig, computeAttributeDiff } from "@/lib/attributes";
@@ -650,7 +648,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         erasing={inpaint.erasing}
         brushToolRef={inpaint.brushToolRef}
         setInpaintMask={inpaint.setInpaintMask}
-        setInpaintDialogOpen={inpaint.setInpaintDialogOpen}
         setHasBrushMask={inpaint.setHasBrushMask}
         crossfadeSnapshot={crossfadeSnapshot}
         bgLoaded={bgLoaded}
@@ -697,54 +694,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         />
       </div>
 
-      {/* Generate Similar Dialog */}
-      <GenerateSimilarDialog
-        open={genActions.refDialogOpen}
-        onOpenChange={genActions.setRefDialogOpen}
-        selectedImageUrl={selectedImageUrl}
-        includeLayers={inpaint.includeLayers}
-        layerPreviewUrl={inpaint.layerPreviewUrl}
-        imageCount={genActions.imageCount}
-        setImageCount={genActions.setImageCount}
-        onIncludeLayersChange={inpaint.handleIncludeLayersChange}
-        refPrompt={genActions.refPrompt}
-        setRefPrompt={genActions.setRefPrompt}
-        submitting={genActions.refSubmitting}
-        onSubmit={genActions.handleGenerateSimilar}
-      />
-
-      {/* Inpaint Dialog */}
-      <InpaintDialog
-        open={inpaint.inpaintDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            inpaint.setInpaintDialogOpen(false);
-            inpaint.setBrushMode(false);
-            inpaint.setInpaintMask(null);
-            inpaint.setInpaintPrompt("");
-          }
-        }}
-        selectedImageUrl={selectedImageUrl}
-        includeLayers={inpaint.includeLayers}
-        layerPreviewUrl={inpaint.layerPreviewUrl}
-        inpaintMask={inpaint.inpaintMask}
-        inpaintPrompt={inpaint.inpaintPrompt}
-        setInpaintPrompt={inpaint.setInpaintPrompt}
-        onIncludeLayersChange={inpaint.handleIncludeLayersChange}
-        submitting={inpaint.inpaintSubmitting}
-        onSubmit={inpaint.handleInpaintSubmit}
-        onRepaint={() => {
-          inpaint.setInpaintMask(null);
-          inpaint.setInpaintDialogOpen(false);
-        }}
-        onCancel={() => {
-          inpaint.setInpaintDialogOpen(false);
-          inpaint.setBrushMode(false);
-          inpaint.setInpaintMask(null);
-          inpaint.setInpaintPrompt("");
-        }}
-      />
-
       {/* Fixed-position floating toolbar */}
       {selectedTextNode && toolbarPos && (
         <div
@@ -772,11 +721,11 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
           className="pointer-events-none fixed z-50"
           style={{
             top: Math.min(toolbarPos.top + CANVAS_HEIGHT + 8, toolbarPos.maxBottom - 44),
-            left: toolbarPos.left,
-            width: toolbarPos.width,
+            left: toolbarPos.left + toolbarPos.width / 2,
+            transform: "translateX(-50%)",
           }}
         >
-          <div className="pointer-events-auto flex justify-center">
+          <div className="pointer-events-auto">
             <InpaintToolbar
               brushMode={inpaint.brushMode}
               setBrushMode={inpaint.setBrushMode}
@@ -791,13 +740,22 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
               hasBrushMask={inpaint.hasBrushMask}
               onRegenerate={genActions.handleRegenerate}
               activeGenerationCount={genActions.allActiveIds.length}
-              onOpenSimilarDialog={() => genActions.setRefDialogOpen(true)}
               selectedImageId={selectedImageId}
+              inpaintMask={inpaint.inpaintMask}
+              inpaintSubmitting={inpaint.inpaintSubmitting}
+              onInpaintSubmit={inpaint.handleInpaintSubmit}
+              onCancelInpaint={() => {
+                inpaint.setBrushMode(false);
+                inpaint.setInpaintMask(null);
+              }}
+              onRepaint={() => inpaint.setInpaintMask(null)}
+              onGenerateSimilar={genActions.handleGenerateSimilar}
+              includeLayers={inpaint.includeLayers}
+              onIncludeLayersChange={inpaint.handleIncludeLayersChange}
               model={genActions.model}
               setModel={genActions.setModel}
               imageCount={genActions.imageCount}
               setImageCount={genActions.setImageCount}
-              creditCost={(CREDIT_COST_PER_IMAGE[genActions.model] ?? 5) * genActions.imageCount}
             />
           </div>
         </div>

@@ -59,7 +59,6 @@ interface EditorCenterPanelProps {
   erasing: boolean;
   brushToolRef: React.RefObject<import("./brush-tool").BrushToolHandle | null>;
   setInpaintMask: (mask: string | null) => void;
-  setInpaintDialogOpen: (open: boolean) => void;
   setHasBrushMask: (has: boolean) => void;
 
   // Crossfade
@@ -114,7 +113,6 @@ export function EditorCenterPanel({
   erasing,
   brushToolRef,
   setInpaintMask,
-  setInpaintDialogOpen,
   setHasBrushMask,
   crossfadeSnapshot,
   bgLoaded,
@@ -191,15 +189,20 @@ export function EditorCenterPanel({
                   <div className="absolute inset-0 z-20" style={{ cursor: "none", isolation: "isolate" }}>
                     <BrushTool
                       ref={brushToolRef}
-                      onExportMask={(dataUrl) => {
-                      setInpaintMask(dataUrl);
-                      setInpaintDialogOpen(true);
-                    }}
+                      onExportMask={setInpaintMask}
                       brushSize={brushSize}
                       erasing={erasing}
                       onHasMaskChange={setHasBrushMask}
                     />
                   </div>
+                )}
+                {inpaintMask && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={inpaintMask}
+                    alt=""
+                    className="absolute inset-0 z-20 h-full w-full object-cover opacity-40 pointer-events-none"
+                  />
                 )}
               </>
             ) : (
