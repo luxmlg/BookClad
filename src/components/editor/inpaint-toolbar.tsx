@@ -381,17 +381,6 @@ export function InpaintToolbar({
           {/* ── Similar mode ──────────────────────── */}
           {mode === "similar" && (
             <>
-              <button
-                onClick={handleCancelSimilar}
-                className="p-1 text-muted-foreground hover:text-foreground"
-                title="Cancel (Esc)"
-              >
-                <X className="size-3.5" />
-              </button>
-              <div className="mx-1 h-5 w-px bg-border" />
-              {modelSelector}
-              {imageCountSlider}
-              <div className="mx-1 h-5 w-px bg-border" />
               <Button
                 size="sm"
                 className="h-7 gap-1.5 text-xs"
@@ -405,31 +394,23 @@ export function InpaintToolbar({
                 )}
                 Generate Similar · {renderCostBadge(true)}
               </Button>
+              <div className="mx-1 h-5 w-px bg-border" />
+              {modelSelector}
+              {imageCountSlider}
+              <div className="mx-1 h-5 w-px bg-border" />
+              <button
+                onClick={handleCancelSimilar}
+                className="p-1 text-muted-foreground hover:text-foreground"
+                title="Cancel (Esc)"
+              >
+                <X className="size-3.5" />
+              </button>
             </>
           )}
 
           {/* ── Inpaint mode ──────────────────────── */}
           {mode === "inpaint" && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
-                onClick={onRepaint}
-              >
-                <Paintbrush className="size-3.5" />
-                Re-paint
-              </Button>
-              <button
-                onClick={handleCancelInpaint}
-                className="p-1 text-muted-foreground hover:text-foreground"
-                title="Cancel (Esc)"
-              >
-                <X className="size-3.5" />
-              </button>
-              <div className="mx-1 h-5 w-px bg-border" />
-              {modelSelector}
-              <div className="mx-1 h-5 w-px bg-border" />
               <Button
                 size="sm"
                 className="h-7 gap-1.5 text-xs"
@@ -443,6 +424,25 @@ export function InpaintToolbar({
                 )}
                 Apply · {renderCostBadge(true)}
               </Button>
+              <div className="mx-1 h-5 w-px bg-border" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={onRepaint}
+              >
+                <Paintbrush className="size-3.5" />
+                Re-paint
+              </Button>
+              {modelSelector}
+              <div className="mx-1 h-5 w-px bg-border" />
+              <button
+                onClick={handleCancelInpaint}
+                className="p-1 text-muted-foreground hover:text-foreground"
+                title="Cancel (Esc)"
+              >
+                <X className="size-3.5" />
+              </button>
             </>
           )}
         </div>
