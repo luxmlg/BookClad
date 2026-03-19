@@ -46,6 +46,21 @@ export async function updateGenerationName(id: string, name: string): Promise<vo
   await api.patch(`/api/generations/${id}`, { name });
 }
 
+export interface ExtendGenerationParams {
+  imageCount: number;
+}
+
+export async function extendGeneration(
+  generationId: string,
+  params: ExtendGenerationParams,
+): Promise<CreateGenerationResponse> {
+  const { data } = await api.post<CreateGenerationResponse>(
+    `/api/generations/${generationId}/extend`,
+    params,
+  );
+  return data;
+}
+
 export async function createInpaint(params: CreateInpaintParams): Promise<CreateGenerationResponse> {
   const { data } = await api.post<CreateGenerationResponse>("/api/inpaint", params);
   return data;

@@ -23,6 +23,8 @@ export const JOB_TYPE = {
 } as const;
 export type JobType = typeof JOB_TYPE[keyof typeof JOB_TYPE];
 
+export const MAX_IMAGES_PER_GENERATION = 8;
+
 export const DEFAULT_BUCKET = "covergen";
 
 export const EVENT_TYPE = {

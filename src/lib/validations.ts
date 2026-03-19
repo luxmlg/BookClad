@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AI_MODELS } from "./constants";
+import { AI_MODELS, MAX_IMAGES_PER_GENERATION } from "./constants";
 
 const modelValues = AI_MODELS.map((m) => m.value) as [string, ...string[]];
 
@@ -28,7 +28,7 @@ const snapshotFields = {
 
 export const createGenerationSchema = z.object({
   projectId: z.string().min(1, "Project ID is required"),
-  imageCount: z.number().int().min(1).max(8).optional().default(4),
+  imageCount: z.number().int().min(1).max(MAX_IMAGES_PER_GENERATION).optional().default(4),
   referenceImageId: z.string().optional(),
   model: z.enum(modelValues).optional().default("quick"),
   flattenedImageDataUrl: z.string().optional(),
@@ -66,6 +66,10 @@ export const feedbackSchema = z.object({
     userAgent: z.string(),
     screenResolution: z.string(),
   }),
+});
+
+export const extendGenerationSchema = z.object({
+  imageCount: z.number().int().min(1).max(MAX_IMAGES_PER_GENERATION),
 });
 
 export const createInpaintSchema = z.object({

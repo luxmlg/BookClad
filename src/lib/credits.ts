@@ -66,6 +66,57 @@ export async function reserveCredits(
   });
 }
 
+/**
+ * Atomically check balance, deduct credits, and update an existing generation for extension.
+ * Uses updateMany with status=COMPLETED to prevent concurrent extensions.
+ * Throws InsufficientCreditsError if balance is too low.
+ */
+export async function reserveExtensionCredits(
+  userId: string,
+  generationId: string,
+  creditCost: number,
+  additionalImageCount: number,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+
+    if (user.creditBalance < creditCost) {
+      throw new InsufficientCreditsError(creditCost, user.creditBalance);
+    }
+
+    const newBalance = user.creditBalance - creditCost;
+
+    await tx.user.update({
+      where: { id: userId },
+      data: { creditBalance: newBalance },
+    });
+
+    const updated = await tx.generation.updateMany({
+      where: { id: generationId, status: "COMPLETED" },
+      data: {
+        imageCount: { increment: additionalImageCount },
+        creditCost: { increment: creditCost },
+        status: "QUEUED",
+      },
+    });
+
+    if (updated.count === 0) {
+      throw new Error("Generation is not available for extension");
+    }
+
+    await tx.creditTransaction.create({
+      data: {
+        userId,
+        amount: -creditCost,
+        balanceAfter: newBalance,
+        type: "RESERVE",
+        description: `Extend generation: +${additionalImageCount} images`,
+        generationId,
+      },
+    });
+  });
+}
+
 export async function grantCredits(
   userId: string,
   amount: number,

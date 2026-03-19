@@ -8,7 +8,7 @@ import { NODE_TYPE } from "./canvas-types";
 import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, DEFAULT_MODEL } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
 import { REF_PROMPT_KEY } from "@/lib/attributes";
-import { createGeneration } from "@/lib/api";
+import { createGeneration, extendGeneration } from "@/lib/api";
 import { useCreditStore } from "@/lib/stores/credit-store";
 import type { Generation } from "./types";
 import type { UseInpaintStateResult } from "./use-inpaint-state";
@@ -120,20 +120,12 @@ export function useGenerationActions(
 
   async function handleGenerateMore(gen: Generation, count: number) {
     try {
-      const snapshot = gen.attributeSnapshot as AttributeSelection | undefined;
-      const textLayers = gen.textLayerSnapshot as Array<{ name: string; text: string; type: string; visible: boolean }> | undefined;
-      const data = await createGeneration({
-        projectId,
-        imageCount: count,
-        model: gen.model ?? DEFAULT_MODEL,
-        ...(snapshot && { attributeSnapshot: snapshot }),
-        ...(textLayers && { textLayerSnapshot: textLayers }),
-      });
+      const data = await extendGeneration(gen.id, { imageCount: count });
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setActiveTab(1);
       setPanelOpen(true);
       refreshCredits();
-      toast.success("Generation queued!");
+      toast.success("Generating more images...");
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate");

@@ -101,6 +101,8 @@ export const KDP = {
   format: "jpeg" as const,
 } as const;
 
+export const MAX_IMAGES_PER_GENERATION = 8;
+
 export const QUEUE_NAME = "cover-generation";
 
 export const DEFAULT_BUCKET = "covergen";

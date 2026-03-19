@@ -18,4 +18,5 @@ export interface GenerationJobData {
   referenceImageKey: string | null;
   flattenedImageDataUrl?: string | null;
   creditCost: number;
+  isExtension?: boolean;
 }

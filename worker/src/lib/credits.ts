@@ -1,6 +1,6 @@
 import { prisma } from "./prisma.js";
 import { redisPublisher } from "./redis.js";
-import { EVENT_TYPE, GENERATION_STATUS } from "./constants.js";
+import { EVENT_TYPE, GENERATION_STATUS, CREDIT_COST_PER_IMAGE } from "./constants.js";
 
 export async function refundCredits(
   userId: string,
@@ -38,7 +38,9 @@ export async function refundStaleGeneration(generationId: string): Promise<boole
       id: true,
       status: true,
       creditCost: true,
+      model: true,
       project: { select: { userId: true } },
+      _count: { select: { images: true } },
     },
   });
 
@@ -50,13 +52,36 @@ export async function refundStaleGeneration(generationId: string): Promise<boole
     return false;
   }
 
-  await prisma.generation.update({
-    where: { id: generationId },
-    data: { status: GENERATION_STATUS.FAILED },
-  });
+  const hasExistingImages = generation._count.images > 0;
 
-  if (generation.creditCost && generation.creditCost > 0) {
-    await refundCredits(generation.project.userId, generationId, generation.creditCost);
+  if (hasExistingImages) {
+    // Extension that stalled — revert to COMPLETED, refund only extension portion
+    const perImageCost = CREDIT_COST_PER_IMAGE[generation.model ?? "quick"] ?? 2;
+    const costForExisting = perImageCost * generation._count.images;
+    const extensionRefund = Math.max(0, (generation.creditCost ?? 0) - costForExisting);
+
+    await prisma.generation.update({
+      where: { id: generationId },
+      data: {
+        status: GENERATION_STATUS.COMPLETED,
+        imageCount: generation._count.images,
+        creditCost: costForExisting,
+      },
+    });
+
+    if (extensionRefund > 0) {
+      await refundCredits(generation.project.userId, generationId, extensionRefund);
+    }
+  } else {
+    // Normal stale generation — mark FAILED, full refund
+    await prisma.generation.update({
+      where: { id: generationId },
+      data: { status: GENERATION_STATUS.FAILED },
+    });
+
+    if (generation.creditCost && generation.creditCost > 0) {
+      await refundCredits(generation.project.userId, generationId, generation.creditCost);
+    }
   }
 
   // Notify connected clients so UI reflects the failure

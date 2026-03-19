@@ -92,15 +92,17 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       rawImages = await dispatchGenerate(model, fullPrompt, imageCount);
     }
 
-    await prisma.generation.update({
-      where: { id: generationId },
-      data: {
-        prompt: systemPrompt,
-        userPrompt,
-        descriptionSnapshot: descriptions ? JSON.parse(JSON.stringify(descriptions)) : undefined,
-        aiModelId: geminiModelId,
-      },
-    });
+    if (!job.data.isExtension) {
+      await prisma.generation.update({
+        where: { id: generationId },
+        data: {
+          prompt: systemPrompt,
+          userPrompt,
+          descriptionSnapshot: descriptions ? JSON.parse(JSON.stringify(descriptions)) : undefined,
+          aiModelId: geminiModelId,
+        },
+      });
+    }
 
     for (let i = 0; i < rawImages.length; i++) {
       step++;
@@ -133,13 +135,27 @@ export async function processGeneration(job: Job<GenerationJobData>) {
 
     await publishProgress(job, generationId, { type: EVENT_TYPE.COMPLETED });
   } catch (error) {
-    await prisma.generation.update({
-      where: { id: generationId },
-      data: {
-        status: GENERATION_STATUS.FAILED,
-        errorMessage: error instanceof Error ? error.message : "Unknown error",
-      },
-    });
+    if (job.data.isExtension) {
+      const actualCount = await prisma.generatedImage.count({
+        where: { generationId },
+      });
+      await prisma.generation.update({
+        where: { id: generationId },
+        data: {
+          status: GENERATION_STATUS.COMPLETED,
+          imageCount: actualCount,
+          creditCost: { decrement: job.data.creditCost },
+        },
+      });
+    } else {
+      await prisma.generation.update({
+        where: { id: generationId },
+        data: {
+          status: GENERATION_STATUS.FAILED,
+          errorMessage: error instanceof Error ? error.message : "Unknown error",
+        },
+      });
+    }
 
     if (job.data.creditCost > 0) {
       await refundCredits(job.data.userId, generationId, job.data.creditCost);
