@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ChevronRight, Sparkles, Pencil, Layers, Coins, Minus, Plus, ArrowLeftRight, X, Loader2, Check, Images, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronRight, Sparkles, Pencil, Ellipsis, Layers, Coins, Minus, Plus, ArrowLeftRight, X, Loader2, Check, Images, RefreshCw, Trash2 } from "lucide-react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { updateGenerationName } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -92,7 +92,6 @@ export function GenerationGroup({
   const [promptExpanded, setPromptExpanded] = useState(true);
   const [sysPromptExpanded, setSysPromptExpanded] = useState(false);
 
-  const [editing, setEditing] = useState(false);
   const displayName = getDisplayName(generation);
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +104,8 @@ export function GenerationGroup({
   const regenerateAnchorRef = useRef<HTMLSpanElement | null>(null);
   const deleteAnchorRef = useRef<HTMLSpanElement | null>(null);
   const compareAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const [morePopover, setMorePopover] = useState<"menu" | "rename" | "confirm-delete" | null>(null);
+  const moreAnchorRef = useRef<HTMLSpanElement | null>(null);
 
   const parentGeneration = generation.parentImageId
     ? allGenerations.find((g) =>
@@ -127,11 +128,11 @@ export function GenerationGroup({
     : null;
 
   useEffect(() => {
-    if (editing && inputRef.current) {
+    if (morePopover === "rename" && inputRef.current) {
       inputRef.current.focus();
       inputRef.current.select();
     }
-  }, [editing]);
+  }, [morePopover]);
 
   // Render-time state adjustment: auto-expand when selected image is in this group
   const [prevSelectedImageId, setPrevSelectedImageId] = useState(selectedImageId);
@@ -169,7 +170,6 @@ export function GenerationGroup({
   async function saveName(value: string) {
     const trimmed = value.trim();
     onNameChange(generation.id, trimmed);
-    setEditing(false);
     try {
       await updateGenerationName(generation.id, trimmed);
     } catch {
@@ -219,42 +219,18 @@ export function GenerationGroup({
         <ChevronRight
           className={`size-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`}
         />
-        {editing ? (
-          <input
-            ref={inputRef}
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Enter") saveName(editValue);
-              if (e.key === "Escape") {
-                setEditing(false);
-                setEditValue("");
-              }
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onBlur={() => saveName(editValue)}
-            className="h-5 w-28 rounded border bg-background px-1.5 text-sm font-medium outline-none focus:ring-1 focus:ring-ring"
-            placeholder={`#${index}`}
-          />
-        ) : (
-          <>
-            <span className="font-medium">
-              {displayName ? `${displayName} · #${index}` : `#${index}`}
-            </span>
-            <span
-              role="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditValue(displayName);
-                setEditing(true);
-              }}
-              className="opacity-0 group-hover/gen:opacity-100 transition-opacity cursor-pointer"
-            >
-              <Pencil className="size-3 text-muted-foreground hover:text-foreground" />
-            </span>
-          </>
-        )}
+        <span className="font-medium shrink-0">#{index}</span>
+        <span
+          ref={moreAnchorRef}
+          role="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMorePopover(morePopover ? null : "menu");
+          }}
+          className="opacity-0 group-hover/gen:opacity-100 transition-opacity cursor-pointer"
+        >
+          <Ellipsis className="size-3.5 text-muted-foreground hover:text-foreground" />
+        </span>
         {parentGenIndex && (
           <span
             role="button"
@@ -375,7 +351,12 @@ export function GenerationGroup({
             )}
           </div>
         )}
-        <span className="ml-auto text-xs text-muted-foreground" title={date.toLocaleString()}>{timeStr}</span>
+        {displayName && (
+          <span className="absolute inset-x-0 text-center text-sm font-medium truncate pointer-events-none px-[30%]">
+            {displayName}
+          </span>
+        )}
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground" title={date.toLocaleString()}>{timeStr}</span>
         {generation.includeLayers && (
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
             <Layers className="size-2.5" />
@@ -818,6 +799,111 @@ export function GenerationGroup({
                     </button>
                   );
                 })}
+            </PopoverPrimitive.Popup>
+          </PopoverPrimitive.Positioner>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
+      {/* More menu popover (rename / delete generation) */}
+      <PopoverPrimitive.Root
+        open={morePopover !== null}
+        onOpenChange={(open) => { if (!open) setMorePopover(null); }}
+      >
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Positioner
+            className="isolate z-50"
+            anchor={moreAnchorRef.current ?? undefined}
+            side="bottom"
+            sideOffset={4}
+            align="start"
+          >
+            <PopoverPrimitive.Popup className="z-50 rounded-lg border bg-popover shadow-md text-xs">
+              {morePopover === "menu" ? (
+                <div className="p-1 w-36">
+                  <button
+                    className="w-full rounded-md px-2 py-1.5 text-left hover:bg-muted/50 transition-colors cursor-pointer flex items-center gap-2"
+                    onClick={() => {
+                      setEditValue(displayName);
+                      setMorePopover("rename");
+                    }}
+                  >
+                    <Pencil className="size-3 text-muted-foreground" />
+                    Rename
+                  </button>
+                  <button
+                    className="w-full rounded-md px-2 py-1.5 text-left hover:bg-destructive/10 text-destructive transition-colors cursor-pointer flex items-center gap-2"
+                    onClick={() => setMorePopover("confirm-delete")}
+                  >
+                    <Trash2 className="size-3" />
+                    Delete
+                  </button>
+                </div>
+              ) : morePopover === "rename" ? (
+                <div className="p-3 w-48 space-y-2">
+                  <p className="font-medium">Rename</p>
+                  <input
+                    ref={inputRef}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        saveName(editValue);
+                        setMorePopover(null);
+                      }
+                      if (e.key === "Escape") setMorePopover(null);
+                    }}
+                    className="w-full rounded border bg-background px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    placeholder={`#${index}`}
+                  />
+                  <div className="flex gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="flex-1"
+                      onClick={() => setMorePopover(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        saveName(editValue);
+                        setMorePopover(null);
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 w-48 space-y-2.5">
+                  <p className="font-medium">
+                    Delete {generation.images.length === 1 ? "this image" : `all ${generation.images.length} images`}?
+                  </p>
+                  <p className="text-muted-foreground">This cannot be undone.</p>
+                  <div className="flex gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="flex-1"
+                      onClick={() => setMorePopover("menu")}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={() => {
+                        setMorePopover(null);
+                        onDeleteImages(generation.images.map(img => img.id));
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              )}
             </PopoverPrimitive.Popup>
           </PopoverPrimitive.Positioner>
         </PopoverPrimitive.Portal>
