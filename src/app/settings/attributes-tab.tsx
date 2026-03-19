@@ -62,7 +62,7 @@ export function AttributesTab({ config, onSave }: AttributesTabProps) {
   function handleUpdateValue(
     attributeId: string,
     value: string,
-    updates: Partial<Pick<AttributeValue, "description" | "disabled">>,
+    updates: Partial<Pick<AttributeValue, "description" | "disabled" | "colors">>,
   ) {
     onSave(updateValueInAttribute(config, attributeId, value, updates));
   }
@@ -187,7 +187,7 @@ interface AttributeCardProps {
   onRemoveValue: (value: string) => void;
   onUpdateValue: (
     value: string,
-    updates: Partial<Pick<AttributeValue, "description" | "disabled">>,
+    updates: Partial<Pick<AttributeValue, "description" | "disabled" | "colors">>,
   ) => void;
   onUpdateAttributeDescription: (description: string) => void;
   onRemoveAttribute: () => void;
@@ -316,7 +316,7 @@ function AttributeCard({
               )}
 
               {/* Value rows (not applicable for text attributes) */}
-              {(attribute.type === "single" || attribute.type === "multi") && (
+              {(attribute.type === "single" || attribute.type === "multi" || attribute.type === "palette") && (
                 <>
                   {attribute.values.map((v) => (
                     <ValueRow

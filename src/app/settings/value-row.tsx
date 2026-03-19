@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2Icon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
+import { Trash2Icon, ChevronRightIcon, RotateCcwIcon, PlusIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -14,7 +14,7 @@ import {
 interface ValueRowProps {
   attributeId: string;
   value: AttributeValue;
-  onUpdateValue: (updates: Partial<Pick<AttributeValue, "description" | "disabled">>) => void;
+  onUpdateValue: (updates: Partial<Pick<AttributeValue, "description" | "disabled" | "colors">>) => void;
   onRemoveValue: () => void;
 }
 
@@ -26,6 +26,7 @@ export function ValueRow({
 }: ValueRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(value.description ?? "");
+  const [colorsDraft, setColorsDraft] = useState<string[]>(value.colors ?? []);
 
   const defaultDesc = value.builtIn
     ? getDefaultDescription(attributeId, value.value)
@@ -47,6 +48,26 @@ export function ValueRow({
     }
   }
 
+  function updateColor(index: number, color: string) {
+    const next = colorsDraft.map((c, i) => (i === index ? color : c));
+    setColorsDraft(next);
+    onUpdateValue({ colors: next });
+  }
+
+  function addColor() {
+    if (colorsDraft.length >= 6) return;
+    const next = [...colorsDraft, "#888888"];
+    setColorsDraft(next);
+    onUpdateValue({ colors: next });
+  }
+
+  function removeColor(index: number) {
+    if (colorsDraft.length <= 3) return;
+    const next = colorsDraft.filter((_, i) => i !== index);
+    setColorsDraft(next);
+    onUpdateValue({ colors: next });
+  }
+
   return (
     <div
       className={`rounded-md border text-sm${value.disabled ? " opacity-50" : ""}`}
@@ -60,6 +81,17 @@ export function ValueRow({
           <ChevronRightIcon
             className={`size-3 shrink-0 text-muted-foreground transition-transform${expanded ? " rotate-90" : ""}`}
           />
+          {value.colors && value.colors.length > 0 && (
+            <span className="flex shrink-0 items-center gap-0.5">
+              {value.colors.map((color, i) => (
+                <span
+                  key={i}
+                  className="size-3 rounded-full border border-border/50"
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </span>
+          )}
           <span className="truncate">{value.label}</span>
           {value.builtIn && (
             <Badge variant="outline" className="shrink-0 text-[10px]">
@@ -103,6 +135,43 @@ export function ValueRow({
             onBlur={handleBlur}
             className="text-xs"
           />
+          {colorsDraft.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {colorsDraft.map((color, i) => (
+                <div key={i} className="group/color relative">
+                  <label
+                    className="block size-6 cursor-pointer rounded-full border border-border shadow-sm"
+                    style={{ backgroundColor: color }}
+                  >
+                    <input
+                      type="color"
+                      value={color}
+                      onChange={(e) => updateColor(i, e.target.value)}
+                      className="sr-only"
+                    />
+                  </label>
+                  {colorsDraft.length > 3 && (
+                    <button
+                      type="button"
+                      className="absolute -top-1 -right-1 hidden size-3.5 items-center justify-center rounded-full bg-destructive text-destructive-foreground group-hover/color:flex"
+                      onClick={() => removeColor(i)}
+                    >
+                      <XIcon className="size-2" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {colorsDraft.length < 6 && (
+                <button
+                  type="button"
+                  className="flex size-6 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-foreground hover:text-foreground"
+                  onClick={addColor}
+                >
+                  <PlusIcon className="size-3" />
+                </button>
+              )}
+            </div>
+          )}
           {canRestore && (
             <Button
               variant="ghost"

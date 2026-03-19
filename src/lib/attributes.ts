@@ -314,7 +314,7 @@ export function updateValueInAttribute(
   config: AttributeConfigJson,
   attributeId: string,
   value: string,
-  updates: Partial<Pick<AttributeValue, "label" | "description" | "disabled">>,
+  updates: Partial<Pick<AttributeValue, "label" | "description" | "disabled" | "colors">>,
 ): AttributeConfigJson {
   return {
     ...config,
