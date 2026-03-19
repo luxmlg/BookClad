@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type Konva from "konva";
 import type { CanvasNode, CanvasState } from "./canvas-types";
 import { parseCanvasState } from "./canvas-types";
+import type { AttributeSelection } from "@/lib/attributes";
 import {
   getImageUrl,
   updateImage,
@@ -68,6 +69,7 @@ export function useAutoSave(
   nodes: CanvasNode[],
   selectedImageId: string | null,
   projectId: string,
+  attributes: AttributeSelection,
 ): void {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -80,12 +82,12 @@ export function useAutoSave(
       if (imageIdToSave) {
         fireAndForget(updateImage(imageIdToSave, { canvasState }));
       }
-      fireAndForget(updateProject(projectId, { canvasState }));
+      fireAndForget(updateProject(projectId, { canvasState, attributes }));
     }, 3000);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [nodes, selectedImageId, projectId]);
+  }, [nodes, selectedImageId, projectId, attributes]);
 }
 
 // ── useToolbarPosition ──────────────────────────────────────

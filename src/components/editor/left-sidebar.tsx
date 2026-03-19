@@ -74,9 +74,9 @@ export function LeftSidebar({
     onClearActivePreset();
   }
 
-  function addCustomValue(attributeId: string, value: string, label: string, description?: string) {
+  function addCustomValue(attributeId: string, value: string, label: string, description?: string, colors?: string[]) {
     onConfigChange(
-      addValueToAttribute(attributeConfig, attributeId, value, label, description),
+      addValueToAttribute(attributeConfig, attributeId, value, label, description, colors),
     );
   }
 
@@ -252,11 +252,7 @@ export function LeftSidebar({
                   onUpdateDescription={(desc) =>
                     handleUpdateDescription(attribute.id, desc)
                   }
-                  onRemove={
-                    !attribute.builtIn
-                      ? () => removeFromProject(attribute.id)
-                      : undefined
-                  }
+                  onRemove={() => removeFromProject(attribute.id)}
                   onUpdateValue={(valueId, updates) =>
                     handleUpdateValue(attribute.id, valueId, updates)
                   }
@@ -276,8 +272,8 @@ export function LeftSidebar({
                     onChange={(v) =>
                       updateAttribute(attribute.id, v)
                     }
-                    onAddCustomValue={(value, label, description) =>
-                      addCustomValue(attribute.id, value, label, description)
+                    onAddCustomValue={(value, label, description, colors) =>
+                      addCustomValue(attribute.id, value, label, description, colors)
                     }
                     onRemoveCustomValue={(value) =>
                       removeCustomValue(attribute.id, value)

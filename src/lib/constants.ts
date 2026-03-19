@@ -137,6 +137,19 @@ export const CREDIT_PACKS = [
 
 export type CreditPackId = typeof CREDIT_PACKS[number]["id"];
 
+export const COLOR_PALETTES = [
+  { value: "dark-moody", label: "Dark & Moody", colors: ["#0a0a0f", "#1a1a2e", "#2d1b3d", "#8b0000", "#d4d4d4"], description: "Deep shadows and high contrast with a blood-red accent. Thriller, horror, dark fantasy." },
+  { value: "warm-inviting", label: "Warm & Inviting", colors: ["#8b4513", "#cd853f", "#daa520", "#ffd700", "#fff8dc"], description: "Soft golds, ambers, and cream. Romance, cozy fiction, warm-hearted stories." },
+  { value: "cool-ethereal", label: "Cool & Ethereal", colors: ["#0d1b2a", "#1b2838", "#415a77", "#778da9", "#e0e1dd"], description: "Icy blues, slate, and silver. Sci-fi, mystery, literary fiction." },
+  { value: "vibrant-bold", label: "Vibrant & Bold", colors: ["#e63946", "#f77f00", "#fcbf49", "#2a9d8f", "#264653"], description: "Saturated, eye-catching contrasts. Children's, YA, action-adventure." },
+  { value: "earth-stone", label: "Earth & Stone", colors: ["#3d2b1f", "#5c4033", "#8b7355", "#b5a888", "#e8dcc8"], description: "Natural browns, tans, and warm grays. Literary fiction, historical, memoir." },
+  { value: "pastel-soft", label: "Pastel Soft", colors: ["#ffd1dc", "#b5ead7", "#c7ceea", "#ffdac1", "#e2f0cb"], description: "Light, gentle pastels. Cozy mystery, light romance, feel-good fiction." },
+  { value: "jewel-tones", label: "Jewel Tones", colors: ["#4a0e4e", "#0c2461", "#006266", "#8e1600", "#cc8e35"], description: "Rich, deep saturation. Epic fantasy, historical drama, opulent settings." },
+  { value: "neon-electric", label: "Neon Electric", colors: ["#0d0221", "#0f084b", "#ff006e", "#00f5d4", "#ffbe0b"], description: "High-energy neon on dark backgrounds. Cyberpunk, tech thriller, urban sci-fi." },
+  { value: "monochrome", label: "Monochrome", colors: ["#0a0a0a", "#333333", "#666666", "#999999", "#f5f5f5"], description: "Black-to-white grayscale. Minimalist, business, literary, typographic covers." },
+  { value: "golden-luxe", label: "Golden Luxe", colors: ["#1a1a1a", "#8b6914", "#daa520", "#ffd700", "#f5f0e1"], description: "Premium golds against deep black. Business, self-help, luxury non-fiction." },
+] as const;
+
 export const EVENT_TYPE = {
   STATUS: "status",
   PROGRESS: "progress",

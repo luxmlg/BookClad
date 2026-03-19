@@ -10,6 +10,7 @@ interface SeedValue {
   builtIn: boolean;
   description: string;
   disabled?: boolean;
+  colors?: string[];
 }
 
 interface SeedAttribute {
@@ -92,6 +93,26 @@ const DEFAULT_CONFIG: { attributes: SeedAttribute[] } = {
       description: "Specific objects, symbols, or scene details to include in the cover image",
       values: [],
     },
+    {
+      id: "color-palette",
+      name: "Color Palette",
+      type: "palette",
+      builtIn: true,
+      enabled: false,
+      description: "A curated set of colors that guides the overall palette of the cover image",
+      values: [
+        { value: "dark-moody", label: "Dark & Moody", builtIn: true, description: "Deep shadows and high contrast with a blood-red accent. Thriller, horror, dark fantasy.", colors: ["#0a0a0f", "#1a1a2e", "#2d1b3d", "#8b0000", "#d4d4d4"] },
+        { value: "warm-inviting", label: "Warm & Inviting", builtIn: true, description: "Soft golds, ambers, and cream. Romance, cozy fiction, warm-hearted stories.", colors: ["#8b4513", "#cd853f", "#daa520", "#ffd700", "#fff8dc"] },
+        { value: "cool-ethereal", label: "Cool & Ethereal", builtIn: true, description: "Icy blues, slate, and silver. Sci-fi, mystery, literary fiction.", colors: ["#0d1b2a", "#1b2838", "#415a77", "#778da9", "#e0e1dd"] },
+        { value: "vibrant-bold", label: "Vibrant & Bold", builtIn: true, description: "Saturated, eye-catching contrasts. Children's, YA, action-adventure.", colors: ["#e63946", "#f77f00", "#fcbf49", "#2a9d8f", "#264653"] },
+        { value: "earth-stone", label: "Earth & Stone", builtIn: true, description: "Natural browns, tans, and warm grays. Literary fiction, historical, memoir.", colors: ["#3d2b1f", "#5c4033", "#8b7355", "#b5a888", "#e8dcc8"] },
+        { value: "pastel-soft", label: "Pastel Soft", builtIn: true, description: "Light, gentle pastels. Cozy mystery, light romance, feel-good fiction.", colors: ["#ffd1dc", "#b5ead7", "#c7ceea", "#ffdac1", "#e2f0cb"] },
+        { value: "jewel-tones", label: "Jewel Tones", builtIn: true, description: "Rich, deep saturation. Epic fantasy, historical drama, opulent settings.", colors: ["#4a0e4e", "#0c2461", "#006266", "#8e1600", "#cc8e35"] },
+        { value: "neon-electric", label: "Neon Electric", builtIn: true, description: "High-energy neon on dark backgrounds. Cyberpunk, tech thriller, urban sci-fi.", colors: ["#0d0221", "#0f084b", "#ff006e", "#00f5d4", "#ffbe0b"] },
+        { value: "monochrome", label: "Monochrome", builtIn: true, description: "Black-to-white grayscale. Minimalist, business, literary, typographic covers.", colors: ["#0a0a0a", "#333333", "#666666", "#999999", "#f5f5f5"] },
+        { value: "golden-luxe", label: "Golden Luxe", builtIn: true, description: "Premium golds against deep black. Business, self-help, luxury non-fiction.", colors: ["#1a1a1a", "#8b6914", "#daa520", "#ffd700", "#f5f0e1"] },
+      ],
+    },
   ],
 };
 
@@ -127,13 +148,23 @@ function ensureDefaults(config: { attributes: SeedAttribute[] }): {
 
     const valLookup = defaultLookup.get(attr.id);
     let values = attr.values.map((v) => {
+      let updated = v;
       if (!v.description && v.builtIn && valLookup) {
         const def = valLookup.get(v.value);
         if (def?.description) {
           changed = true;
-          return { ...v, description: def.description };
+          updated = { ...updated, description: def.description };
         }
       }
+      // Backfill missing colors from defaults
+      if (!v.colors && v.builtIn && valLookup) {
+        const def = valLookup.get(v.value);
+        if (def?.colors) {
+          changed = true;
+          updated = { ...updated, colors: def.colors };
+        }
+      }
+      if (updated !== v) return updated;
       return v;
     });
 

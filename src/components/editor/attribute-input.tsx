@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { PlusIcon, XIcon } from "lucide-react";
+import { useState, useRef } from "react";
+import { CheckIcon, PencilIcon, PlusIcon, XIcon } from "lucide-react";
+import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/hover-card";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { AddValuePopover } from "@/components/add-value-popover";
+import { AddPalettePopover } from "@/components/add-palette-popover";
 import { slugify, getDefaultValue, getActiveValues, type Attribute } from "@/lib/attributes";
 
 function AttributeLabel({ attribute, onRemove, isDraft, onDiscardDraft }: { attribute: Attribute; onRemove?: () => void; isDraft?: boolean; onDiscardDraft?: () => void }) {
@@ -71,7 +73,7 @@ interface AttributeInputProps {
   attribute: Attribute;
   value: string | string[];
   onChange: (value: string | string[]) => void;
-  onAddCustomValue?: (value: string, label: string, description?: string) => void;
+  onAddCustomValue?: (value: string, label: string, description?: string, colors?: string[]) => void;
   onRemoveCustomValue?: (value: string) => void;
   onRemove?: () => void;
   isDraft?: boolean;
@@ -160,6 +162,21 @@ export function AttributeInput({
           onChange={(e) => onChange(e.target.value)}
         />
       </div>
+    );
+  }
+
+  if (attribute.type === "palette") {
+    return (
+      <PaletteSelect
+        attribute={attribute}
+        value={value as string}
+        onChange={(v) => onChange(v)}
+        onAddCustomValue={onAddCustomValue}
+        onRemoveCustomValue={onRemoveCustomValue}
+        onRemove={onRemove}
+        isDraft={isDraft}
+        onDiscardDraft={onDiscardDraft}
+      />
     );
   }
 
@@ -343,6 +360,171 @@ function MultiSelect({
           </Badge>
         </AddValuePopover>
       </div>
+    </div>
+  );
+}
+
+function PaletteSelect({
+  attribute,
+  value,
+  onChange,
+  onAddCustomValue,
+  onRemoveCustomValue,
+  onRemove,
+  isDraft,
+  onDiscardDraft,
+}: {
+  attribute: Attribute;
+  value: string;
+  onChange: (value: string) => void;
+  onAddCustomValue?: (value: string, label: string, description?: string, colors?: string[]) => void;
+  onRemoveCustomValue?: (value: string) => void;
+  onRemove?: () => void;
+  isDraft?: boolean;
+  onDiscardDraft?: () => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+
+  function handleAdd(label: string, description?: string, colors?: string[]): void {
+    const slug = slugify(label);
+    onAddCustomValue?.(slug, label, description, colors);
+    onChange(slug);
+  }
+
+  const activeValues = getActiveValues(attribute);
+  const selected = activeValues.find((v) => v.value === value);
+
+  return (
+    <div className="group/attr space-y-1.5">
+      <AttributeLabel attribute={attribute} onRemove={onRemove} isDraft={isDraft} onDiscardDraft={onDiscardDraft} />
+      {/* Compact display: selected palette + edit button */}
+      <div ref={anchorRef}>
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 rounded-md border border-input bg-transparent px-2.5 py-1.5 transition-colors hover:bg-muted/50"
+          onClick={() => setPickerOpen(true)}
+        >
+          {selected?.colors && (
+            <div className="flex shrink-0 items-center gap-0.5">
+              {selected.colors.map((color, i) => (
+                <span
+                  key={i}
+                  className="size-3 rounded-full border border-border/50"
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          )}
+          <span className="min-w-0 flex-1 truncate text-left text-xs">
+            {selected?.label ?? "Select palette..."}
+          </span>
+          <PencilIcon className="size-3 shrink-0 text-muted-foreground" />
+        </button>
+      </div>
+
+      {/* Picker popover */}
+      <PopoverPrimitive.Root open={pickerOpen} onOpenChange={setPickerOpen}>
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Positioner
+            anchor={anchorRef}
+            side="bottom"
+            sideOffset={4}
+            align="start"
+          >
+            <PopoverPrimitive.Popup className="z-50 w-64 rounded-lg border bg-popover p-2 shadow-md">
+              <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                {activeValues.map((v) => {
+                  const isSelected = value === v.value;
+                  const row = (
+                    <button
+                      type="button"
+                      key={v.value}
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+                        isSelected
+                          ? "bg-accent ring-1 ring-ring/30"
+                          : "hover:bg-muted/50"
+                      }`}
+                      onClick={() => {
+                        onChange(v.value);
+                        setPickerOpen(false);
+                      }}
+                    >
+                      <div className="flex w-[5.25rem] shrink-0 items-center gap-0.5">
+                        {v.colors?.map((color, i) => (
+                          <span
+                            key={i}
+                            className="size-3 rounded-full border border-border/50"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                      <span className="min-w-0 flex-1 truncate text-xs">{v.label}</span>
+                      {isSelected && <CheckIcon className="size-3 shrink-0 text-primary" />}
+                      {!v.builtIn && onRemoveCustomValue && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground opacity-0 hover:text-destructive [div:hover>&]:opacity-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isSelected && activeValues.length > 1) {
+                              const next = activeValues.find((av) => av.value !== v.value);
+                              if (next) onChange(next.value);
+                            }
+                            onRemoveCustomValue(v.value);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (isSelected && activeValues.length > 1) {
+                                const next = activeValues.find((av) => av.value !== v.value);
+                                if (next) onChange(next.value);
+                              }
+                              onRemoveCustomValue(v.value);
+                            }
+                          }}
+                        >
+                          <XIcon className="size-3" />
+                        </span>
+                      )}
+                    </button>
+                  );
+
+                  return v.description ? (
+                    <HoverCard key={v.value}>
+                      <HoverCardTrigger render={<span className="block" />}>{row}</HoverCardTrigger>
+                      <HoverCardContent side="right" className="text-sm max-w-48">{v.description}</HoverCardContent>
+                    </HoverCard>
+                  ) : (
+                    row
+                  );
+                })}
+              </div>
+              {onAddCustomValue && (
+                <div className="mt-1 border-t pt-1">
+                  <AddPalettePopover
+                    open={addOpen}
+                    onOpenChange={setAddOpen}
+                    onAdd={handleAdd}
+                  >
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                      onClick={() => setAddOpen(true)}
+                    >
+                      <PlusIcon className="size-3" />
+                      Add Custom
+                    </button>
+                  </AddPalettePopover>
+                </div>
+              )}
+            </PopoverPrimitive.Popup>
+          </PopoverPrimitive.Positioner>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
     </div>
   );
 }

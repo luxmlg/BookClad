@@ -1,4 +1,4 @@
-import { GENRES, MOODS, ART_STYLES } from "./constants";
+import { GENRES, MOODS, ART_STYLES, COLOR_PALETTES } from "./constants";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -8,12 +8,13 @@ export interface AttributeValue {
   builtIn: boolean;
   description?: string;
   disabled?: boolean;
+  colors?: string[];
 }
 
 export interface Attribute {
   id: string;
   name: string;
-  type: "single" | "multi" | "text" | "toggle" | "scale" | "color";
+  type: "single" | "multi" | "text" | "toggle" | "scale" | "color" | "palette";
   builtIn: boolean;
   enabled: boolean;
   description?: string;
@@ -54,6 +55,7 @@ export function getDefaultValue(
     case "color":
       return "#6366f1";
     case "single":
+    case "palette":
       return firstValue ?? "";
     case "text":
       return "";
@@ -134,6 +136,7 @@ export function addValueToAttribute(
   value: string,
   label: string,
   description?: string,
+  colors?: string[],
 ): AttributeConfigJson {
   return {
     ...config,
@@ -143,7 +146,13 @@ export function addValueToAttribute(
             ...c,
             values: [
               ...c.values,
-              { value, label, builtIn: false, description: description || undefined },
+              {
+                value,
+                label,
+                builtIn: false,
+                description: description || undefined,
+                colors: colors?.length ? colors : undefined,
+              },
             ],
           }
         : c,
@@ -265,6 +274,21 @@ export function buildDefaultConfig(): AttributeConfigJson {
         enabled: true,
         description: "Specific objects, symbols, or scene details to include in the cover image",
         values: [],
+      },
+      {
+        id: "color-palette",
+        name: "Color Palette",
+        type: "palette",
+        builtIn: true,
+        enabled: false,
+        description: "A curated set of colors that guides the overall palette of the cover image",
+        values: COLOR_PALETTES.map((p) => ({
+          value: p.value,
+          label: p.label,
+          builtIn: true,
+          description: p.description,
+          colors: [...p.colors],
+        })),
       },
     ],
   };

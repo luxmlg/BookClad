@@ -6,12 +6,13 @@ const attributeValueSchema = z.object({
   builtIn: z.boolean(),
   description: z.string().optional(),
   disabled: z.boolean().optional(),
+  colors: z.array(z.string()).optional(),
 });
 
 const attributeSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(50),
-  type: z.enum(["single", "multi", "text", "toggle", "scale", "color"]),
+  type: z.enum(["single", "multi", "text", "toggle", "scale", "color", "palette"]),
   builtIn: z.boolean(),
   enabled: z.boolean(),
   description: z.string().max(200).optional(),

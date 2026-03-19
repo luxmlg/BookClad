@@ -5,6 +5,7 @@ import { REF_PROMPT_KEY } from "./constants.js";
 export interface ValueMeta {
   label: string;
   description?: string;
+  colors?: string[];
 }
 
 export interface AttrMeta {
@@ -47,15 +48,17 @@ export function extractDescriptions(configJson: unknown): DescriptionsMap {
     if (Array.isArray(values)) {
       for (const v of values) {
         if (!v || typeof v !== "object") continue;
-        const { value, label, description: vDesc } = v as {
+        const { value, label, description: vDesc, colors } = v as {
           value: unknown;
           label: unknown;
           description: unknown;
+          colors: unknown;
         };
         if (typeof value !== "string") continue;
         valueMeta[value] = {
           label: typeof label === "string" ? label : attributeLabel(value),
           description: typeof vDesc === "string" && vDesc ? vDesc : undefined,
+          colors: Array.isArray(colors) ? (colors as string[]) : undefined,
         };
       }
     }
@@ -207,12 +210,23 @@ export function buildAttributeValues(
       })
       .filter((d): d is string => d !== null);
 
+    // Collect colors from selected values
+    const allColors: string[] = [];
+    for (const v of values) {
+      const vColors = meta?.values[v]?.colors;
+      if (vColors?.length) allColors.push(...vColors);
+    }
+
     if (valueDescs.length > 0) {
       // Include value descriptions inline
       parts.push(`${label}: ${formatted}`);
       parts.push(valueDescs.join(". "));
     } else {
       parts.push(`${label}: ${formatted}`);
+    }
+
+    if (allColors.length > 0) {
+      parts.push(`Target hex colors: ${allColors.join(", ")}`);
     }
   }
 

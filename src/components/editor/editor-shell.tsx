@@ -196,7 +196,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   inpaintRef.current = inpaint;
 
   // Auto-save
-  useAutoSave(nodes, selectedImageId, project.id);
+  useAutoSave(nodes, selectedImageId, project.id, attributes);
 
   // Kindle preview
   const kindlePreview = useKindlePreview(stageRef, nodes, selectedImageUrl, bgLoaded);
@@ -414,12 +414,14 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     );
     const genSnap = ownerGen ? asAttributeSnapshot(ownerGen.attributeSnapshot) : null;
 
-    // Restore stashed drafts if any, otherwise restore generation snapshot
+    // Restore stashed drafts if any, otherwise restore generation snapshot.
+    // Merge with current attributes so that attributes added after the
+    // generation (e.g. Color Palette) are preserved.
     const stashed = draftStashRef.current.get(imageId);
     if (stashed) {
-      setAttributes(stashed);
+      setAttributes((prev) => ({ ...prev, ...stashed }));
     } else if (genSnap) {
-      setAttributes(genSnap);
+      setAttributes((prev) => ({ ...prev, ...genSnap }));
     }
 
     setBaseSnapshot(genSnap);

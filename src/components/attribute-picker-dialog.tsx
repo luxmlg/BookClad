@@ -21,6 +21,7 @@ const TYPE_LABELS: Record<Attribute["type"], string> = {
   toggle: "Toggle",
   scale: "Scale",
   color: "Color",
+  palette: "Palette",
 };
 
 interface AttributePickerDialogProps {

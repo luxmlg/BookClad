@@ -28,6 +28,7 @@ const ATTRIBUTE_TYPES = [
   "toggle",
   "scale",
   "color",
+  "palette",
 ] as const;
 
 const TYPE_LABELS: Record<Attribute["type"], string> = {
@@ -37,11 +38,15 @@ const TYPE_LABELS: Record<Attribute["type"], string> = {
   toggle: "Toggle",
   scale: "Scale",
   color: "Color",
+  palette: "Palette",
 };
+
+const DEFAULT_VALUE_COLORS = ["#6366f1", "#ec4899", "#f59e0b"];
 
 interface ValueEntry {
   label: string;
   description: string;
+  colors: string[];
 }
 
 interface CreateAttributeDialogProps {
@@ -64,13 +69,13 @@ export function CreateAttributeDialog({
   const [type, setType] = useState<Attribute["type"]>("single");
   const [description, setDescription] = useState("");
   const [values, setValues] = useState<ValueEntry[]>([
-    { label: "", description: "" },
+    { label: "", description: "", colors: [...DEFAULT_VALUE_COLORS] },
   ]);
   const [scaleMinLabel, setScaleMinLabel] = useState("");
   const [scaleMaxLabel, setScaleMaxLabel] = useState("");
   const [duplicateError, setDuplicateError] = useState("");
 
-  const hasValues = type === "single" || type === "multi";
+  const hasValues = type === "single" || type === "multi" || type === "palette";
   const nonEmptyValues = values.filter((v) => v.label.trim() !== "");
   const canCreate =
     name.trim() !== "" && !duplicateError && (!hasValues || nonEmptyValues.length > 0);
@@ -79,7 +84,7 @@ export function CreateAttributeDialog({
     setName("");
     setType("single");
     setDescription("");
-    setValues([{ label: "", description: "" }]);
+    setValues([{ label: "", description: "", colors: [...DEFAULT_VALUE_COLORS] }]);
     setScaleMinLabel("");
     setScaleMaxLabel("");
     setDuplicateError("");
@@ -108,11 +113,35 @@ export function CreateAttributeDialog({
   }
 
   function addValueRow() {
-    setValues([...values, { label: "", description: "" }]);
+    setValues([...values, { label: "", description: "", colors: [...DEFAULT_VALUE_COLORS] }]);
   }
 
-  function updateValue(index: number, field: keyof ValueEntry, val: string) {
+  function updateValue(index: number, field: "label" | "description", val: string) {
     setValues(values.map((v, i) => (i === index ? { ...v, [field]: val } : v)));
+  }
+
+  function updateValueColor(index: number, colorIndex: number, color: string) {
+    setValues(values.map((v, i) =>
+      i === index
+        ? { ...v, colors: v.colors.map((c, ci) => (ci === colorIndex ? color : c)) }
+        : v,
+    ));
+  }
+
+  function addValueColor(index: number) {
+    setValues(values.map((v, i) =>
+      i === index && v.colors.length < 6
+        ? { ...v, colors: [...v.colors, "#888888"] }
+        : v,
+    ));
+  }
+
+  function removeValueColor(valueIndex: number, colorIndex: number) {
+    setValues(values.map((v, i) =>
+      i === valueIndex && v.colors.length > 3
+        ? { ...v, colors: v.colors.filter((_, ci) => ci !== colorIndex) }
+        : v,
+    ));
   }
 
   function removeValue(index: number) {
@@ -135,6 +164,9 @@ export function CreateAttributeDialog({
           label: v.label.trim(),
           builtIn: false,
           description: v.description.trim() || undefined,
+          ...(type === "palette" && v.colors.length > 0
+            ? { colors: v.colors }
+            : {}),
         }))
       : [];
 
@@ -275,6 +307,43 @@ export function CreateAttributeDialog({
                         placeholder="Description (optional)"
                         className="h-7 text-xs text-muted-foreground"
                       />
+                      {type === "palette" && (
+                        <div className="flex items-center gap-1">
+                          {v.colors.map((color, ci) => (
+                            <div key={ci} className="group/color relative">
+                              <label
+                                className="block size-5 cursor-pointer rounded-full border border-border shadow-sm"
+                                style={{ backgroundColor: color }}
+                              >
+                                <input
+                                  type="color"
+                                  value={color}
+                                  onChange={(e) => updateValueColor(i, ci, e.target.value)}
+                                  className="sr-only"
+                                />
+                              </label>
+                              {v.colors.length > 3 && (
+                                <button
+                                  type="button"
+                                  className="absolute -top-1 -right-1 hidden size-3 items-center justify-center rounded-full bg-destructive text-destructive-foreground group-hover/color:flex"
+                                  onClick={() => removeValueColor(i, ci)}
+                                >
+                                  <XIcon className="size-1.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {v.colors.length < 6 && (
+                            <button
+                              type="button"
+                              className="flex size-5 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-foreground hover:text-foreground"
+                              onClick={() => addValueColor(i)}
+                            >
+                              <PlusIcon className="size-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
