@@ -396,7 +396,7 @@ export function GenerationGroup({
                       )}
                     </button>
                     {isUnseen && (
-                      <span className="absolute -top-1 -left-1 flex size-3 items-center justify-center">
+                      <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center">
                         <span className="absolute size-2.5 animate-ping rounded-full bg-primary/40" />
                         <span className="size-1.5 rounded-full bg-primary ring-1 ring-background" />
                       </span>
