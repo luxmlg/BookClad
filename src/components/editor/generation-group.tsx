@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ChevronRight, Sparkles, Pencil, Layers, Coins, Minus, Plus } from "lucide-react";
+import { ChevronRight, Sparkles, Pencil, Layers, Coins, Minus, Plus, ArrowLeftRight, X } from "lucide-react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { updateGenerationName } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +83,8 @@ export function GenerationGroup({
   const [ghostPopoverIdx, setGhostPopoverIdx] = useState<number | null>(null);
   const [ghostImageCount, setGhostImageCount] = useState(1);
   const ghostRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [comparePopoverOpen, setComparePopoverOpen] = useState(false);
+  const compareAnchorRef = useRef<HTMLButtonElement | null>(null);
 
   const parentGeneration = generation.parentImageId
     ? allGenerations.find((g) =>
@@ -93,6 +95,16 @@ export function GenerationGroup({
   const compareTarget = compareTargetId
     ? allGenerations.find((g) => g.id === compareTargetId)
     : undefined;
+
+  const compareTargetIndex = compareTarget
+    ? allGenerations.length - allGenerations.indexOf(compareTarget)
+    : null;
+  const compareTargetName = compareTarget
+    ? (() => {
+        const name = getDisplayName(compareTarget);
+        return name ? `${name} #${compareTargetIndex}` : `#${compareTargetIndex}`;
+      })()
+    : null;
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -173,7 +185,7 @@ export function GenerationGroup({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} ref={groupRef}>
-      <CollapsibleTrigger className="group/gen flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 transition-colors">
+      <CollapsibleTrigger className="group/gen relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 transition-colors">
         <ChevronRight
           className={`size-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`}
         />
@@ -245,6 +257,53 @@ export function GenerationGroup({
           {generation.images.length}{" "}
           {generation.images.length === 1 ? "image" : "images"}
         </span>
+        {allGenerations.length > 1 && open && (
+          <div className="absolute left-[15rem] flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <span className="h-3.5 w-px bg-border" />
+            <span
+              ref={compareAnchorRef}
+              role="button"
+              onClick={() => {
+                if (compareTargetId !== null) {
+                  setCompareTargetId(null);
+                  setComparePopoverOpen(false);
+                } else {
+                  setCompareTargetId("");
+                  setComparePopoverOpen(true);
+                  setOpen(true);
+                }
+              }}
+              className={`cursor-pointer transition-colors ${
+                compareTargetId !== null
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ArrowLeftRight className="size-3.5" />
+            </span>
+            {compareTarget && compareTargetName && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 gap-0.5 cursor-pointer hover:bg-muted/50"
+                onClick={() => setComparePopoverOpen(true)}
+              >
+                vs {compareTargetName}
+              </Badge>
+            )}
+            {compareTargetId !== null && (
+              <span
+                role="button"
+                onClick={() => {
+                  setCompareTargetId(null);
+                  setComparePopoverOpen(false);
+                }}
+                className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="size-3" />
+              </span>
+            )}
+          </div>
+        )}
         <span className="ml-auto text-xs text-muted-foreground" title={date.toLocaleString()}>{timeStr}</span>
         {generation.includeLayers && (
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
@@ -423,22 +482,29 @@ export function GenerationGroup({
           <div className="min-w-0 flex-1 space-y-1 text-xs">
             {/* Inpaint: edit prompt */}
             {jobType === JOB_TYPE.INPAINT && generation.prompt ? (
-              <div>
-                <span className="font-medium text-muted-foreground">
-                  Edit prompt:{" "}
-                </span>
-                <span className={!promptExpanded ? "line-clamp-2" : ""}>
-                  {generation.prompt}
-                </span>
-                {generation.prompt.length > 120 && (
-                  <button
-                    onClick={() => setPromptExpanded((e) => !e)}
-                    className="ml-1 text-muted-foreground hover:text-foreground"
-                  >
-                    {promptExpanded ? "less" : "more"}
-                  </button>
+              <>
+                <div>
+                  <span className="font-medium text-muted-foreground">
+                    Edit prompt:{" "}
+                  </span>
+                  <span className={!promptExpanded ? "line-clamp-2" : ""}>
+                    {generation.prompt}
+                  </span>
+                  {generation.prompt.length > 120 && (
+                    <button
+                      onClick={() => setPromptExpanded((e) => !e)}
+                      className="ml-1 text-muted-foreground hover:text-foreground"
+                    >
+                      {promptExpanded ? "less" : "more"}
+                    </button>
+                  )}
+                </div>
+                {compareTarget && (
+                  <DiffDisplay current={generation} target={compareTarget} />
                 )}
-              </div>
+              </>
+            ) : compareTarget ? (
+              <DiffDisplay current={generation} target={compareTarget} />
             ) : (
               <>
                 {/* Structured attributes */}
@@ -565,62 +631,69 @@ export function GenerationGroup({
                 )}
               </div>
             )}
-
-            {/* Compare */}
-            {allGenerations.length > 1 && <div>
-              {compareTargetId === null ? (
-                <button
-                  onClick={() => setCompareTargetId("")}
-                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
-                >
-                  Compare
-                </button>
-              ) : (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-muted-foreground font-medium">
-                      Compare with:
-                    </span>
-                    <select
-                      value={compareTargetId}
-                      onChange={(e) => setCompareTargetId(e.target.value)}
-                      className="h-6 rounded border bg-background px-1.5 text-xs outline-none focus:ring-1 focus:ring-ring"
-                    >
-                      <option value="">Select...</option>
-                      {allGenerations
-                        .filter((g) => g.id !== generation.id)
-                        .map((g) => {
-                          const gIdx = findParentGenerationIndex(
-                            g.images[0]?.id,
-                            allGenerations
-                          );
-                          const name = getDisplayName(g);
-                          return (
-                            <option key={g.id} value={g.id}>
-                              {name ? `${name} #${gIdx}` : `#${gIdx}`}
-                            </option>
-                          );
-                        })}
-                    </select>
-                    <button
-                      onClick={() => setCompareTargetId(null)}
-                      className="text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
-                    >
-                      Hide
-                    </button>
-                  </div>
-                  {compareTarget && (
-                    <DiffDisplay
-                      current={generation}
-                      target={compareTarget}
-                    />
-                  )}
-                </div>
-              )}
-            </div>}
           </div>
         </div>
       </CollapsibleContent>
+      <PopoverPrimitive.Root
+        open={comparePopoverOpen}
+        onOpenChange={setComparePopoverOpen}
+      >
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Positioner
+            className="isolate z-50"
+            anchor={compareAnchorRef.current ?? undefined}
+            side="bottom"
+            sideOffset={4}
+            align="start"
+          >
+            <PopoverPrimitive.Popup className="z-50 w-64 max-h-60 overflow-y-auto rounded-lg border bg-popover p-1 shadow-md text-xs">
+              {allGenerations
+                .filter((g) => g.id !== generation.id)
+                .map((g) => {
+                  const gIdx = allGenerations.length - allGenerations.indexOf(g);
+                  const name = getDisplayName(g);
+                  const gModel = getModelLabel(g.model);
+                  const gIcon = JOB_TYPE_ICON[g.jobType ?? JOB_TYPE.GENERATE] ?? Sparkles;
+                  const GIcon = gIcon;
+                  const gDate = typeof g.createdAt === "string" ? new Date(g.createdAt) : g.createdAt;
+                  const isSelected = compareTargetId === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => {
+                        setCompareTargetId(g.id);
+                        setComparePopoverOpen(false);
+                      }}
+                      className={`w-full rounded-md px-2 py-1.5 text-left hover:bg-muted/50 transition-colors cursor-pointer ${
+                        isSelected ? "bg-muted" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <GIcon className="size-3 text-muted-foreground shrink-0" />
+                        <span className="font-medium truncate">
+                          {name ? `#${gIdx} · ${name}` : `#${gIdx}`}
+                        </span>
+                        <span className="ml-auto text-muted-foreground shrink-0">
+                          {formatRelativeTime(gDate)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 ml-[18px] text-muted-foreground">
+                        {gModel && (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                            {gModel}
+                          </Badge>
+                        )}
+                        <span>
+                          {g.images.length} {g.images.length === 1 ? "image" : "images"}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+            </PopoverPrimitive.Popup>
+          </PopoverPrimitive.Positioner>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
     </Collapsible>
   );
 }
