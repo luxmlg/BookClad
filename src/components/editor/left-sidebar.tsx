@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Save, Loader2, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,7 @@ export function LeftSidebar({
 }: LeftSidebarProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragHandleActiveRef = useRef(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -139,6 +140,10 @@ export function LeftSidebar({
   // ── Drag-and-drop handlers ──────────────────────────────────────
 
   function handleItemDragStart(e: React.DragEvent, index: number) {
+    if (!dragHandleActiveRef.current) {
+      e.preventDefault();
+      return;
+    }
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = "move";
   }
@@ -180,6 +185,7 @@ export function LeftSidebar({
   function handleItemDragEnd() {
     setDraggedIndex(null);
     setDragOverIndex(null);
+    dragHandleActiveRef.current = false;
   }
 
   // ── Render ──────────────────────────────────────────────────────
@@ -225,12 +231,16 @@ export function LeftSidebar({
               <div
                 key={attribute.id}
                 draggable
+                onMouseDown={(e) => {
+                  const target = e.target as HTMLElement;
+                  dragHandleActiveRef.current = !!target.closest("[data-drag-handle]");
+                }}
                 onDragStart={(e) => handleItemDragStart(e, index)}
                 onDragOver={(e) => handleItemDragOver(e, index)}
                 onDragLeave={() => setDragOverIndex(null)}
                 onDrop={(e) => handleItemDrop(e, index)}
                 onDragEnd={handleItemDragEnd}
-                className={`cursor-grab active:cursor-grabbing ${
+                className={`${
                   isDragOver ? "border-t-2 border-primary" : ""
                 } ${isDragged ? "opacity-40" : ""}`}
               >

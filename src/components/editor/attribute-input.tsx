@@ -37,7 +37,7 @@ function AttributeLabel({ attribute, onRemove, isDraft, onDiscardDraft }: { attr
 
   return (
     <Label>
-      <span className="flex items-center gap-1">
+      <span className="flex items-center gap-1 cursor-grab active:cursor-grabbing" data-drag-handle>
         {nameNode}
         {isDraft && (
           <TooltipProvider>
