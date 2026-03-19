@@ -219,7 +219,6 @@ export function GenerationGroup({
         <ChevronRight
           className={`size-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`}
         />
-        <span className="font-medium shrink-0">#{index}</span>
         <span
           ref={moreAnchorRef}
           role="button"
@@ -227,9 +226,10 @@ export function GenerationGroup({
             e.stopPropagation();
             setMorePopover(morePopover ? null : "menu");
           }}
-          className="opacity-0 group-hover/gen:opacity-100 transition-opacity cursor-pointer"
+          className="font-medium shrink-0 tabular-nums w-8 mr-1 inline-flex items-center justify-end cursor-pointer"
         >
-          <Ellipsis className="size-3.5 text-muted-foreground hover:text-foreground" />
+          <span className="group-hover/gen:hidden">#{index}</span>
+          <Ellipsis className="size-3.5 text-muted-foreground hidden group-hover/gen:block" />
         </span>
         {parentGenIndex && (
           <span
