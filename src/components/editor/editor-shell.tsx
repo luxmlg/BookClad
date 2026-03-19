@@ -63,6 +63,9 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   );
   const allImages = completedGenerations.flatMap((g) => g.images);
 
+  // historyGenerations: all non-FAILED generations (completed + in-progress + local stubs)
+  // Computed after genActions is created, see below.
+
   // ── Hooks ─────────────────────────────────────────────────
   const { layersCacheRef, getLayersForImage, setNodes, setNodesRaw, nodes, selectedImageIdRef } =
     useLayerCache(allImages, initialCanvas);
@@ -130,6 +133,8 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
 
   const prevImageCountRef = useRef(0);
   const pendingAutoSelectRef = useRef<string | null>(null);
+  const [unseenImageIds, setUnseenImageIds] = useState<Set<string>>(new Set());
+  const knownImageIdsRef = useRef<Set<string> | null>(null);
 
   // Asset and font state
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
@@ -156,6 +161,17 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     inpaintRef, router,
   );
 
+  const historyGenerations = useMemo(() => {
+    const projectIds = new Set(project.generations.map(g => g.id));
+    const localStubs = genActions.activeGenerations.filter(g => !projectIds.has(g.id));
+    return [
+      ...localStubs,
+      ...project.generations.filter(g => g.status !== GENERATION_STATUS.FAILED),
+    ];
+  }, [project.generations, genActions.activeGenerations]);
+
+  const activeIdSet = useMemo(() => new Set(genActions.allActiveIds), [genActions.allActiveIds]);
+
   // Wrap generation complete to also refresh credits
   const { handleGenerationComplete } = genActions;
   const handleGenerationCompleteWithCredits = useCallback(
@@ -170,8 +186,8 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   const inpaint = useInpaintState(
     stageRef, selectedImageId, setSelectedNodeId,
     genActions.setActiveGenerationIds,
-    genActions.setActiveTab,
     genActions.setPanelOpen,
+    genActions.setPendingSlotCounts,
     genActions.model,
     attributes, nodes, router,
   );
@@ -273,6 +289,21 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     const prevCount = prevImageCountRef.current;
     prevImageCountRef.current = allImages.length;
 
+    // Track unseen images
+    if (knownImageIdsRef.current === null) {
+      knownImageIdsRef.current = new Set(allImages.map(img => img.id));
+    } else if (allImages.length > prevCount) {
+      const newIds = allImages.filter(img => !knownImageIdsRef.current!.has(img.id)).map(img => img.id);
+      for (const id of newIds) knownImageIdsRef.current.add(id);
+      if (newIds.length > 0) {
+        setUnseenImageIds(prev => {
+          const next = new Set(prev);
+          for (const id of newIds) next.add(id);
+          return next;
+        });
+      }
+    }
+
     if (allImages.length > prevCount && completedGenerations.length > 0) {
       const newestGen = completedGenerations[0];
       if (newestGen?.images?.length > 0) {
@@ -369,6 +400,12 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     setNodesRaw(newLayers);
     setSelectedNodeId(null);
     setSelectedImageId(imageId);
+    setUnseenImageIds(prev => {
+      if (!prev.has(imageId)) return prev;
+      const next = new Set(prev);
+      next.delete(imageId);
+      return next;
+    });
     fireAndForget(updateImage(imageId, { selected: true }));
 
     // Resolve base snapshot for the new image
@@ -664,6 +701,9 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         activeTab={genActions.activeTab}
         setActiveTab={genActions.setActiveTab}
         completedGenerations={completedGenerations}
+        historyGenerations={historyGenerations}
+        pendingSlotCounts={genActions.pendingSlotCounts}
+        activeIdSet={activeIdSet}
         selectedImageId={selectedImageId}
         selectImage={selectImage}
         allActiveIds={genActions.allActiveIds}
@@ -671,6 +711,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         handleGenerationComplete={handleGenerationCompleteWithCredits}
         showPrompt={showPrompt}
         draftImageIds={draftImageIds}
+        unseenImageIds={unseenImageIds}
         onDiscardDrafts={discardAllDrafts}
         onGenerateMore={genActions.handleGenerateMore}
       />

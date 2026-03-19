@@ -24,6 +24,8 @@ export interface UseGenerationActionsResult {
   setActiveTab: React.Dispatch<React.SetStateAction<number>>;
   panelOpen: boolean;
   setPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  pendingSlotCounts: Map<string, number>;
+  setPendingSlotCounts: React.Dispatch<React.SetStateAction<Map<string, number>>>;
   handleRegenerate: () => Promise<void>;
   handleGenerateSimilar: (prompt: string) => Promise<void>;
   handleGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
@@ -52,6 +54,7 @@ export function useGenerationActions(
   });
   const [activeTab, setActiveTab] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [pendingSlotCounts, setPendingSlotCounts] = useState<Map<string, number>>(new Map());
   useEffect(() => {
     localStorage.setItem(`${IMAGE_COUNT_KEY_PREFIX}:${projectId}`, String(imageCount));
   }, [imageCount, projectId]);
@@ -108,7 +111,7 @@ export function useGenerationActions(
         })),
       });
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
-      setActiveTab(1);
+      setPendingSlotCounts(prev => new Map(prev).set(data.generationId, imageCount));
       setPanelOpen(true);
       refreshCredits();
       toast.success("Regeneration queued!");
@@ -122,7 +125,7 @@ export function useGenerationActions(
     try {
       const data = await extendGeneration(gen.id, { imageCount: count });
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
-      setActiveTab(1);
+      setPendingSlotCounts(prev => new Map(prev).set(data.generationId, count));
       setPanelOpen(true);
       refreshCredits();
       toast.success("Generating more images...");
@@ -152,7 +155,7 @@ export function useGenerationActions(
       })),
     });
     setActiveGenerationIds((prev) => [...prev, data.generationId]);
-    setActiveTab(1);
+    setPendingSlotCounts(prev => new Map(prev).set(data.generationId, imageCount));
     setPanelOpen(true);
     refreshCredits();
     toast.success("Reference generation queued!");
@@ -161,9 +164,10 @@ export function useGenerationActions(
 
   const handleGenerationComplete = useCallback(
     (generationId: string) => {
-      setActiveGenerationIds((prev) => {
-        const next = prev.filter((id) => id !== generationId);
-        if (next.length === 0) setActiveTab(0);
+      setActiveGenerationIds((prev) => prev.filter((id) => id !== generationId));
+      setPendingSlotCounts(prev => {
+        const next = new Map(prev);
+        next.delete(generationId);
         return next;
       });
     },
@@ -176,6 +180,7 @@ export function useGenerationActions(
     imageCount, setImageCount,
     activeTab, setActiveTab,
     panelOpen, setPanelOpen,
+    pendingSlotCounts, setPendingSlotCounts,
     handleRegenerate,
     handleGenerateSimilar,
     handleGenerateMore,

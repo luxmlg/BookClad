@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ChevronRight, Sparkles, Pencil, Layers, Coins, Minus, Plus, ArrowLeftRight, X } from "lucide-react";
+import { ChevronRight, Sparkles, Pencil, Layers, Coins, Minus, Plus, ArrowLeftRight, X, Loader2 } from "lucide-react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { updateGenerationName } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { JOB_TYPE, AI_MODELS } from "@/lib/constants";
+import { JOB_TYPE, AI_MODELS, GENERATION_STATUS } from "@/lib/constants";
 import type { Generation } from "./types";
 import { asAttributeSnapshot, asDescriptionSnapshot, asTextLayerSnapshot } from "./types";
 import {
@@ -50,6 +50,9 @@ export interface GenerationGroupProps {
   draftImageIds: Set<string>;
   onDiscardDrafts: () => void;
   onGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
+  activeIds: Set<string>;
+  pendingSlotCounts: Map<string, number>;
+  unseenImageIds: Set<string>;
 }
 
 export function GenerationGroup({
@@ -68,6 +71,9 @@ export function GenerationGroup({
   draftImageIds,
   onDiscardDrafts,
   onGenerateMore,
+  activeIds,
+  pendingSlotCounts,
+  unseenImageIds,
 }: GenerationGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showDiff, setShowDiff] = useState(false);
@@ -172,8 +178,18 @@ export function GenerationGroup({
 
   const modelLabel = getModelLabel(generation.model);
   const perImageCost = AI_MODELS.find((m) => m.value === generation.model)?.creditCost ?? 5;
+
+  const isActive = activeIds.has(generation.id)
+    || generation.status === GENERATION_STATUS.QUEUED
+    || generation.status === GENERATION_STATUS.PROCESSING;
+
+  const pendingCount = isActive
+    ? (pendingSlotCounts.get(generation.id)
+        ?? Math.max(0, (generation.imageCount ?? 0) - generation.images.length))
+    : 0;
+
   const ghostCount =
-    jobType === JOB_TYPE.GENERATE && generation.images.length < MAX_GRID_SLOTS
+    !isActive && jobType === JOB_TYPE.GENERATE && generation.images.length < MAX_GRID_SLOTS
       ? MAX_GRID_SLOTS - generation.images.length
       : 0;
 
@@ -184,7 +200,7 @@ export function GenerationGroup({
   const textLayers = asTextLayerSnapshot(generation.textLayerSnapshot);
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} ref={groupRef}>
+    <Collapsible open={open || isActive} onOpenChange={setOpen} ref={groupRef}>
       <CollapsibleTrigger className="group/gen relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 transition-colors">
         <ChevronRight
           className={`size-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`}
@@ -254,8 +270,9 @@ export function GenerationGroup({
           </span>
         )}
         <span className="text-xs text-muted-foreground">
-          {generation.images.length}{" "}
-          {generation.images.length === 1 ? "image" : "images"}
+          {isActive
+            ? `${generation.images.length + pendingCount} images`
+            : `${generation.images.length} ${generation.images.length === 1 ? "image" : "images"}`}
         </span>
         {allGenerations.length > 1 && open && (
           <div className="absolute left-[15rem] flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -317,6 +334,7 @@ export function GenerationGroup({
           </Badge>
         )}
         <Icon className="size-3.5 text-muted-foreground" />
+        {isActive && <Loader2 className="size-3 animate-spin text-primary" />}
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="flex gap-3 px-2 py-1.5">
@@ -352,6 +370,7 @@ export function GenerationGroup({
               {generation.images.map((img) => {
                 const hasDraft = draftImageIds.has(img.id);
                 const isSelected = selectedImageId === img.id;
+                const isUnseen = unseenImageIds.has(img.id) && !isSelected;
                 return (
                   <div key={img.id} className="relative">
                     <button
@@ -376,6 +395,12 @@ export function GenerationGroup({
                         <Skeleton className="h-full w-full" />
                       )}
                     </button>
+                    {isUnseen && (
+                      <span className="absolute -top-1 -left-1 flex size-3 items-center justify-center">
+                        <span className="absolute size-2.5 animate-ping rounded-full bg-primary/40" />
+                        <span className="size-1.5 rounded-full bg-primary ring-1 ring-background" />
+                      </span>
+                    )}
                     {hasDraft && (
                       <TooltipProvider>
                         <Tooltip>
@@ -397,6 +422,17 @@ export function GenerationGroup({
                   </div>
                 );
               })}
+              {Array.from({ length: pendingCount }, (_, i) => (
+                <div
+                  key={`loading-${i}`}
+                  className="w-full rounded-lg border-2 border-dashed border-primary/20 overflow-hidden"
+                  style={{ aspectRatio: "1600/2560" }}
+                >
+                  <div className="h-full w-full animate-pulse bg-primary/5 flex items-center justify-center">
+                    <Loader2 className="size-3.5 animate-spin text-primary/30" />
+                  </div>
+                </div>
+              ))}
               {Array.from({ length: ghostCount }, (_, i) => (
                 <button
                   key={`ghost-${i}`}

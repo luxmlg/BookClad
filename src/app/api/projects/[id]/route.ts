@@ -20,7 +20,7 @@ export async function GET(
       where: { id, userId: session.user.id },
       include: {
         generations: {
-          include: { images: true },
+          include: { images: { orderBy: { id: "asc" } } },
           orderBy: { createdAt: "desc" },
         },
       },

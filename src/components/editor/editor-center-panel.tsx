@@ -83,6 +83,9 @@ interface EditorCenterPanelProps {
   activeTab: number;
   setActiveTab: (tab: number) => void;
   completedGenerations: Generation[];
+  historyGenerations: Generation[];
+  pendingSlotCounts: Map<string, number>;
+  activeIdSet: Set<string>;
   selectedImageId: string | null;
   selectImage: (id: string) => void;
   allActiveIds: string[];
@@ -90,6 +93,7 @@ interface EditorCenterPanelProps {
   handleGenerationComplete: (generationId: string) => void;
   showPrompt: boolean;
   draftImageIds: Set<string>;
+  unseenImageIds: Set<string>;
   onDiscardDrafts: () => void;
   onGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
 }
@@ -130,6 +134,9 @@ export function EditorCenterPanel({
   activeTab,
   setActiveTab,
   completedGenerations,
+  historyGenerations,
+  pendingSlotCounts,
+  activeIdSet,
   selectedImageId,
   selectImage,
   allActiveIds,
@@ -137,6 +144,7 @@ export function EditorCenterPanel({
   handleGenerationComplete,
   showPrompt,
   draftImageIds,
+  unseenImageIds,
   onDiscardDrafts,
   onGenerateMore,
 }: EditorCenterPanelProps) {
@@ -222,7 +230,7 @@ export function EditorCenterPanel({
                 Generation in progress
               </p>
               <p className="text-sm text-muted-foreground">
-                Check the Queue tab below
+                Your images will appear below
               </p>
             </div>
           ) : (
@@ -275,9 +283,9 @@ export function EditorCenterPanel({
             <TabsList variant="line">
               <TabsTrigger value={0}>
                 History
-                {completedGenerations.length > 0 && (
+                {historyGenerations.length > 0 && (
                   <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
-                    {completedGenerations.length}
+                    {historyGenerations.length}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -295,7 +303,7 @@ export function EditorCenterPanel({
         <CollapsibleContent>
           <div className={activeTab !== 0 ? "hidden" : undefined}>
             <GenerationHistory
-              generations={completedGenerations}
+              generations={historyGenerations}
               imageUrls={imageUrls}
               selectedImageId={selectedImageId}
               onSelect={selectImage}
@@ -303,6 +311,9 @@ export function EditorCenterPanel({
               draftImageIds={draftImageIds}
               onDiscardDrafts={onDiscardDrafts}
               onGenerateMore={onGenerateMore}
+              activeIds={activeIdSet}
+              pendingSlotCounts={pendingSlotCounts}
+              unseenImageIds={unseenImageIds}
             />
           </div>
           <div className={activeTab !== 1 ? "hidden" : undefined}>

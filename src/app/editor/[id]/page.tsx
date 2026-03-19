@@ -19,7 +19,7 @@ export default async function EditorPage({
       include: {
         generations: {
           include: {
-            images: true,
+            images: { orderBy: { id: "asc" } },
             parentImage: { select: { id: true, storageKey: true } },
           },
           orderBy: { createdAt: "desc" },

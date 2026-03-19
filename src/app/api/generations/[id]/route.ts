@@ -21,7 +21,7 @@ export async function GET(
         project: { userId: session.user.id },
       },
       include: {
-        images: true,
+        images: { orderBy: { id: "asc" } },
       },
     });
 

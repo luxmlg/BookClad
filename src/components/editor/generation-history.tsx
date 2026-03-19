@@ -14,6 +14,9 @@ interface GenerationHistoryProps {
   draftImageIds: Set<string>;
   onDiscardDrafts: () => void;
   onGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
+  activeIds: Set<string>;
+  pendingSlotCounts: Map<string, number>;
+  unseenImageIds: Set<string>;
 }
 
 export function GenerationHistory({
@@ -25,6 +28,9 @@ export function GenerationHistory({
   draftImageIds,
   onDiscardDrafts,
   onGenerateMore,
+  activeIds,
+  pendingSlotCounts,
+  unseenImageIds,
 }: GenerationHistoryProps) {
   const expandSeqRef = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -52,7 +58,7 @@ export function GenerationHistory({
   if (generations.length === 0) {
     return (
       <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-        No completed generations yet
+        No generations yet
       </div>
     );
   }
@@ -74,7 +80,7 @@ export function GenerationHistory({
             onSelect={onSelect}
             onExpandImage={handleExpandImage}
             expandRequest={expandRequest}
-            defaultOpen={idx === 0}
+            defaultOpen={idx === 0 || activeIds.has(gen.id)}
             allGenerations={generations}
             onNameChange={handleNameChange}
             getDisplayName={getDisplayName}
@@ -83,6 +89,9 @@ export function GenerationHistory({
             draftImageIds={draftImageIds}
             onDiscardDrafts={onDiscardDrafts}
             onGenerateMore={onGenerateMore}
+            activeIds={activeIds}
+            pendingSlotCounts={pendingSlotCounts}
+            unseenImageIds={unseenImageIds}
           />
         ))}
       </div>
