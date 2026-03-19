@@ -26,6 +26,7 @@ export interface UseGenerationActionsResult {
   setPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleRegenerate: () => Promise<void>;
   handleGenerateSimilar: (prompt: string) => Promise<void>;
+  handleGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
   handleGenerationComplete: (generationId: string) => void;
   allActiveIds: string[];
   activeGenerations: Generation[];
@@ -117,6 +118,28 @@ export function useGenerationActions(
     }
   }
 
+  async function handleGenerateMore(gen: Generation, count: number) {
+    try {
+      const snapshot = gen.attributeSnapshot as AttributeSelection | undefined;
+      const textLayers = gen.textLayerSnapshot as Array<{ name: string; text: string; type: string; visible: boolean }> | undefined;
+      const data = await createGeneration({
+        projectId,
+        imageCount: count,
+        model: gen.model ?? DEFAULT_MODEL,
+        ...(snapshot && { attributeSnapshot: snapshot }),
+        ...(textLayers && { textLayerSnapshot: textLayers }),
+      });
+      setActiveGenerationIds((prev) => [...prev, data.generationId]);
+      setActiveTab(1);
+      setPanelOpen(true);
+      refreshCredits();
+      toast.success("Generation queued!");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate");
+    }
+  }
+
   async function handleGenerateSimilar(prompt: string) {
     if (!selectedImageId) return;
     const flattenedImageDataUrl = inpaintRef.current.includeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
@@ -163,6 +186,7 @@ export function useGenerationActions(
     panelOpen, setPanelOpen,
     handleRegenerate,
     handleGenerateSimilar,
+    handleGenerateMore,
     handleGenerationComplete,
     allActiveIds,
     activeGenerations,

@@ -13,6 +13,7 @@ interface GenerationHistoryProps {
   showPrompt: boolean;
   draftImageIds: Set<string>;
   onDiscardDrafts: () => void;
+  onGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
 }
 
 export function GenerationHistory({
@@ -23,6 +24,7 @@ export function GenerationHistory({
   showPrompt,
   draftImageIds,
   onDiscardDrafts,
+  onGenerateMore,
 }: GenerationHistoryProps) {
   const expandSeqRef = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -80,6 +82,7 @@ export function GenerationHistory({
             showPrompt={showPrompt}
             draftImageIds={draftImageIds}
             onDiscardDrafts={onDiscardDrafts}
+            onGenerateMore={onGenerateMore}
           />
         ))}
       </div>

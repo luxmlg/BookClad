@@ -2,9 +2,11 @@
 
 import { Fragment, useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ChevronRight, Sparkles, Pencil, Layers } from "lucide-react";
+import { ChevronRight, Sparkles, Pencil, Layers, Coins, Minus, Plus } from "lucide-react";
+import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { updateGenerationName } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   HoverCard,
   HoverCardTrigger,
@@ -17,7 +19,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { JOB_TYPE } from "@/lib/constants";
+import { JOB_TYPE, AI_MODELS } from "@/lib/constants";
 import type { Generation } from "./types";
 import { asAttributeSnapshot, asDescriptionSnapshot, asTextLayerSnapshot } from "./types";
 import {
@@ -27,6 +29,9 @@ import {
   formatRelativeTime,
 } from "./generation-helpers";
 import { DiffDisplay } from "./diff-display";
+
+const THUMB_SIZE = 48; // px — grid cells auto-size from this minimum
+const MAX_GRID_SLOTS = 8;
 
 export interface GenerationGroupProps {
   generation: Generation;
@@ -44,6 +49,7 @@ export interface GenerationGroupProps {
   showPrompt: boolean;
   draftImageIds: Set<string>;
   onDiscardDrafts: () => void;
+  onGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
 }
 
 export function GenerationGroup({
@@ -61,6 +67,7 @@ export function GenerationGroup({
   scrollContainerRef,
   draftImageIds,
   onDiscardDrafts,
+  onGenerateMore,
 }: GenerationGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showDiff, setShowDiff] = useState(false);
@@ -73,6 +80,9 @@ export function GenerationGroup({
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const groupRef = useRef<HTMLDivElement>(null);
+  const [ghostPopoverIdx, setGhostPopoverIdx] = useState<number | null>(null);
+  const [ghostImageCount, setGhostImageCount] = useState(1);
+  const ghostRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const parentGeneration = generation.parentImageId
     ? allGenerations.find((g) =>
@@ -149,6 +159,11 @@ export function GenerationGroup({
   );
 
   const modelLabel = getModelLabel(generation.model);
+  const perImageCost = AI_MODELS.find((m) => m.value === generation.model)?.creditCost ?? 5;
+  const ghostCount =
+    jobType === JOB_TYPE.GENERATE && generation.images.length < MAX_GRID_SLOTS
+      ? MAX_GRID_SLOTS - generation.images.length
+      : 0;
 
   const attrs = asAttributeSnapshot(generation.attributeSnapshot);
   const hasDisplayAttrs = attrs !== null && Object.keys(attrs).length > 0;
@@ -247,10 +262,10 @@ export function GenerationGroup({
       <CollapsibleContent>
         <div className="flex gap-3 px-2 py-1.5">
           {/* Left: thumbnails */}
-          <div className="flex shrink-0 self-start gap-1.5">
+          <div className="w-56 shrink-0 self-start">
             {generation.parentImage &&
               imageUrls[generation.parentImage.id] && (
-                <>
+                <div className="mb-1.5 flex items-center gap-1.5">
                   <button
                     onClick={() => {
                       onSelect(generation.parentImage!.id);
@@ -268,59 +283,140 @@ export function GenerationGroup({
                       unoptimized
                     />
                   </button>
-                  <div className="flex items-center text-muted-foreground">
-                    <ChevronRight className="size-3" />
-                  </div>
-                </>
-              )}
-            {generation.images.map((img) => {
-              const hasDraft = draftImageIds.has(img.id);
-              const isSelected = selectedImageId === img.id;
-              return (
-                <div key={img.id} className="relative">
-                  <button
-                    onClick={() => onSelect(img.id)}
-                    className={`origin-center overflow-hidden rounded-lg border-2 transition-all ${
-                      isSelected
-                        ? "border-primary shadow-md ring-2 ring-primary/20 scale-105"
-                        : "border-transparent hover:border-muted-foreground/30"
-                    }`}
-                    style={{ width: 44, aspectRatio: "1600/2560" }}
-                  >
-                    {imageUrls[img.id] ? (
-                      <Image
-                        src={imageUrls[img.id]}
-                        alt={`Option ${img.id.slice(0, 4)}`}
-                        width={44}
-                        height={70}
-                        className="h-full w-full object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      <Skeleton className="h-full w-full" />
-                    )}
-                  </button>
-                  {hasDraft && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={<button type="button" />}
-                          className="absolute -top-1 -right-1 flex items-center justify-center size-3.5 cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelect(img.id);
-                            onDiscardDrafts();
-                          }}
-                        >
-                          <span className="size-2 rounded-full bg-amber-500 ring-1 ring-background" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top">Click to reset to generated values</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
+                  <ChevronRight className="size-3 text-muted-foreground rotate-90" />
                 </div>
-              );
-            })}
+              )}
+            <div
+              className="grid gap-1.5"
+              style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${THUMB_SIZE}px, 1fr))` }}
+            >
+              {generation.images.map((img) => {
+                const hasDraft = draftImageIds.has(img.id);
+                const isSelected = selectedImageId === img.id;
+                return (
+                  <div key={img.id} className="relative">
+                    <button
+                      onClick={() => onSelect(img.id)}
+                      className={`w-full origin-center overflow-hidden rounded-lg border-2 transition-all ${
+                        isSelected
+                          ? "border-primary shadow-md ring-2 ring-primary/20 scale-105"
+                          : "border-transparent hover:border-muted-foreground/30"
+                      }`}
+                      style={{ aspectRatio: "1600/2560" }}
+                    >
+                      {imageUrls[img.id] ? (
+                        <Image
+                          src={imageUrls[img.id]}
+                          alt={`Option ${img.id.slice(0, 4)}`}
+                          width={THUMB_SIZE}
+                          height={Math.round(THUMB_SIZE * (2560 / 1600))}
+                          className="h-full w-full object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <Skeleton className="h-full w-full" />
+                      )}
+                    </button>
+                    {hasDraft && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={<button type="button" />}
+                            className="absolute -top-1 -right-1 flex items-center justify-center size-3.5 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelect(img.id);
+                              onDiscardDrafts();
+                            }}
+                          >
+                            <span className="size-2 rounded-full bg-amber-500 ring-1 ring-background" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top">Click to reset to generated values</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                );
+              })}
+              {Array.from({ length: ghostCount }, (_, i) => (
+                <button
+                  key={`ghost-${i}`}
+                  ref={(el) => { ghostRefs.current[i] = el; }}
+                  onClick={() => setGhostPopoverIdx(i)}
+                  className="w-full rounded-lg border-2 border-dashed border-muted-foreground/20
+                             flex items-center justify-center cursor-pointer
+                             hover:border-muted-foreground/40 hover:bg-muted/30 transition-colors"
+                  style={{ aspectRatio: "1600/2560" }}
+                >
+                  <Sparkles className="size-3.5 text-muted-foreground/30" />
+                </button>
+              ))}
+            </div>
+            <PopoverPrimitive.Root
+              open={ghostPopoverIdx !== null}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setGhostPopoverIdx(null);
+                  setGhostImageCount(1);
+                }
+              }}
+            >
+              <PopoverPrimitive.Portal>
+                <PopoverPrimitive.Positioner
+                  className="isolate z-50"
+                  anchor={ghostPopoverIdx !== null ? ghostRefs.current[ghostPopoverIdx] ?? undefined : undefined}
+                  side="right"
+                  sideOffset={8}
+                  align="center"
+                >
+                  <PopoverPrimitive.Popup className="z-50 w-48 rounded-lg border bg-popover p-3 shadow-md text-xs space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">Generate more?</p>
+                      <Badge variant="secondary">{modelLabel}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Images</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setGhostImageCount((c) => Math.max(1, c - 1))}
+                          disabled={ghostImageCount <= 1}
+                          className="flex size-5 items-center justify-center rounded border bg-background hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Minus className="size-2.5" />
+                        </button>
+                        <span className="w-5 text-center font-medium tabular-nums">{ghostImageCount}</span>
+                        <button
+                          onClick={() => setGhostImageCount((c) => Math.min(ghostCount, c + 1))}
+                          disabled={ghostImageCount >= ghostCount}
+                          className="flex size-5 items-center justify-center rounded border bg-background hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Plus className="size-2.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={async () => {
+                          const count = ghostImageCount;
+                          setGhostPopoverIdx(null);
+                          setGhostImageCount(1);
+                          await onGenerateMore(generation, count);
+                        }}
+                      >
+                        <Sparkles className="size-3.5 mr-1.5" />
+                        Generate
+                      </Button>
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground">
+                        <Coins className="size-3 text-yellow-500" />
+                        <span>{ghostImageCount * perImageCost} credits</span>
+                      </div>
+                    </div>
+                  </PopoverPrimitive.Popup>
+                </PopoverPrimitive.Positioner>
+              </PopoverPrimitive.Portal>
+            </PopoverPrimitive.Root>
           </div>
 
           {/* Right: details */}

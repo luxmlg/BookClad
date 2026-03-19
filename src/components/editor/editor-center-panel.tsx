@@ -91,6 +91,7 @@ interface EditorCenterPanelProps {
   showPrompt: boolean;
   draftImageIds: Set<string>;
   onDiscardDrafts: () => void;
+  onGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
 }
 
 export function EditorCenterPanel({
@@ -137,6 +138,7 @@ export function EditorCenterPanel({
   showPrompt,
   draftImageIds,
   onDiscardDrafts,
+  onGenerateMore,
 }: EditorCenterPanelProps) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-muted/20">
@@ -300,6 +302,7 @@ export function EditorCenterPanel({
               showPrompt={showPrompt}
               draftImageIds={draftImageIds}
               onDiscardDrafts={onDiscardDrafts}
+              onGenerateMore={onGenerateMore}
             />
           </div>
           <div className={activeTab !== 1 ? "hidden" : undefined}>

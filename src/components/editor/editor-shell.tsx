@@ -672,6 +672,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         showPrompt={showPrompt}
         draftImageIds={draftImageIds}
         onDiscardDrafts={discardAllDrafts}
+        onGenerateMore={genActions.handleGenerateMore}
       />
 
       {/* Right sidebar */}
