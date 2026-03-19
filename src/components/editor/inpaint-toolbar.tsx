@@ -186,6 +186,7 @@ export function InpaintToolbar({
 
   const imageCountSlider = (
     <div className="flex items-center gap-1.5" title="Images per generation">
+      <span className="text-[10px] text-muted-foreground w-3 text-right tabular-nums">{imageCount}</span>
       <Images className="size-3.5 text-muted-foreground" />
       <div className="w-16">
         <Slider
@@ -196,7 +197,6 @@ export function InpaintToolbar({
           step={1}
         />
       </div>
-      <span className="text-[10px] text-muted-foreground w-3 text-right">{imageCount}</span>
     </div>
   );
 
