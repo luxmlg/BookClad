@@ -96,6 +96,7 @@ interface EditorCenterPanelProps {
   unseenImageIds: Set<string>;
   onDiscardDrafts: () => void;
   onGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
+  onDeletedImages: (deletedIds: string[], removedGenerationIds: string[]) => void;
 }
 
 export function EditorCenterPanel({
@@ -147,6 +148,7 @@ export function EditorCenterPanel({
   unseenImageIds,
   onDiscardDrafts,
   onGenerateMore,
+  onDeletedImages,
 }: EditorCenterPanelProps) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-muted/20">
@@ -314,6 +316,7 @@ export function EditorCenterPanel({
               activeIds={activeIdSet}
               pendingSlotCounts={pendingSlotCounts}
               unseenImageIds={unseenImageIds}
+              onDeletedImages={onDeletedImages}
             />
           </div>
           <div className={activeTab !== 1 ? "hidden" : undefined}>

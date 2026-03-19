@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ChevronRight, Sparkles, Pencil, Layers, Coins, Minus, Plus, ArrowLeftRight, X, Loader2 } from "lucide-react";
+import { ChevronRight, Sparkles, Pencil, Layers, Coins, Minus, Plus, ArrowLeftRight, X, Loader2, Check, Images, RefreshCw, Trash2 } from "lucide-react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { updateGenerationName } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import {
   formatRelativeTime,
 } from "./generation-helpers";
 import { DiffDisplay } from "./diff-display";
+import { ImageContextMenu } from "./image-context-menu";
 
 const THUMB_SIZE = 48; // px — grid cells auto-size from this minimum
 const MAX_GRID_SLOTS = 8;
@@ -53,6 +54,11 @@ export interface GenerationGroupProps {
   activeIds: Set<string>;
   pendingSlotCounts: Map<string, number>;
   unseenImageIds: Set<string>;
+  multiSelectIds: Set<string>;
+  onMultiSelectToggle: (imageId: string) => void;
+  onMultiSelectClear: () => void;
+  onDeleteImages: (imageIds: string[]) => void;
+  onRegenerateImages: (imageIds: string[]) => void;
 }
 
 export function GenerationGroup({
@@ -74,6 +80,11 @@ export function GenerationGroup({
   activeIds,
   pendingSlotCounts,
   unseenImageIds,
+  multiSelectIds,
+  onMultiSelectToggle,
+  onMultiSelectClear,
+  onDeleteImages,
+  onRegenerateImages,
 }: GenerationGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [showDiff, setShowDiff] = useState(false);
@@ -90,6 +101,9 @@ export function GenerationGroup({
   const [ghostImageCount, setGhostImageCount] = useState(1);
   const ghostRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [comparePopoverOpen, setComparePopoverOpen] = useState(false);
+  const [headerPopover, setHeaderPopover] = useState<"regenerate" | "delete" | null>(null);
+  const regenerateAnchorRef = useRef<HTMLSpanElement | null>(null);
+  const deleteAnchorRef = useRef<HTMLSpanElement | null>(null);
   const compareAnchorRef = useRef<HTMLButtonElement | null>(null);
 
   const parentGeneration = generation.parentImageId
@@ -269,11 +283,51 @@ export function GenerationGroup({
             })()}
           </span>
         )}
-        <span className="text-xs text-muted-foreground">
-          {isActive
-            ? `${generation.images.length + pendingCount} images`
-            : `${generation.images.length} ${generation.images.length === 1 ? "image" : "images"}`}
-        </span>
+        {multiSelectIds.size > 0 ? (
+          <span className="flex items-center gap-1.5 text-xs text-primary font-medium" onClick={(e) => e.stopPropagation()}>
+            <span className="flex items-center gap-1">
+              <span className="font-semibold">{multiSelectIds.size}</span>
+              <Images className="size-3.5" />
+              selected
+            </span>
+            {jobType === JOB_TYPE.GENERATE && (
+              <span
+                ref={regenerateAnchorRef}
+                role="button"
+                onClick={() => setHeaderPopover(headerPopover === "regenerate" ? null : "regenerate")}
+                className="rounded-sm cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+                title="Regenerate selected"
+              >
+                <RefreshCw className="size-3" />
+              </span>
+            )}
+            <span
+              ref={deleteAnchorRef}
+              role="button"
+              onClick={() => setHeaderPopover(headerPopover === "delete" ? null : "delete")}
+              className="rounded-sm cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+              title="Delete selected"
+            >
+              <Trash2 className="size-3" />
+            </span>
+            <span className="h-3 w-px bg-border" />
+            <span
+              role="button"
+              onClick={onMultiSelectClear}
+              className="rounded-sm cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+              title="Clear selection"
+            >
+              <X className="size-3" />
+            </span>
+          </span>
+        ) : (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            {isActive
+              ? (generation.images.length + pendingCount)
+              : generation.images.length}
+            <Images className="size-3.5" />
+          </span>
+        )}
         {allGenerations.length > 1 && open && (
           <div className="absolute left-[15rem] flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <span className="h-3.5 w-px bg-border" />
@@ -363,22 +417,42 @@ export function GenerationGroup({
                   <ChevronRight className="size-3 text-muted-foreground rotate-90" />
                 </div>
               )}
+            <ImageContextMenu
+              generationJobType={jobType}
+              perImageCost={perImageCost}
+              multiSelectIds={multiSelectIds}
+              onMultiSelectClear={onMultiSelectClear}
+              onDeleteImages={onDeleteImages}
+              onRegenerateImages={onRegenerateImages}
+            >
             <div
               className="grid gap-1.5"
               style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${THUMB_SIZE}px, 1fr))` }}
             >
               {generation.images.map((img) => {
                 const hasDraft = draftImageIds.has(img.id);
-                const isSelected = selectedImageId === img.id;
-                const isUnseen = unseenImageIds.has(img.id) && !isSelected;
+                const isCanvasSelected = selectedImageId === img.id;
+                const isMultiSelected = multiSelectIds.has(img.id);
+                const hasAnyMultiSelect = multiSelectIds.size > 0;
+                const isUnseen = unseenImageIds.has(img.id) && !isCanvasSelected;
                 return (
-                  <div key={img.id} className="relative">
+                  <div key={img.id} className="group/thumb relative">
                     <button
-                      onClick={() => onSelect(img.id)}
+                      data-image-id={img.id}
+                      onClick={(e) => {
+                        if (e.metaKey || e.ctrlKey) {
+                          onMultiSelectToggle(img.id);
+                        } else {
+                          onMultiSelectClear();
+                          onSelect(img.id);
+                        }
+                      }}
                       className={`w-full origin-center overflow-hidden rounded-lg border-2 transition-all ${
-                        isSelected
+                        isCanvasSelected
                           ? "border-primary shadow-md ring-2 ring-primary/20 scale-105"
-                          : "border-transparent hover:border-muted-foreground/30"
+                          : isMultiSelected
+                            ? "border-primary/60 ring-1 ring-primary/20"
+                            : "border-transparent hover:border-muted-foreground/30"
                       }`}
                       style={{ aspectRatio: "1600/2560" }}
                     >
@@ -395,6 +469,23 @@ export function GenerationGroup({
                         <Skeleton className="h-full w-full" />
                       )}
                     </button>
+                    {/* Selection circle — top-left */}
+                    <span
+                      role="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMultiSelectToggle(img.id);
+                      }}
+                      className={`absolute -top-1 -left-1 flex size-3.5 items-center justify-center rounded-full cursor-pointer transition-all ${
+                        isMultiSelected
+                          ? "bg-primary ring-1 ring-background opacity-100"
+                          : hasAnyMultiSelect
+                            ? "border border-muted-foreground/40 bg-background/80 ring-1 ring-background opacity-100 hover:border-primary"
+                            : "border border-muted-foreground/30 bg-background/60 ring-1 ring-background opacity-0 group-hover/thumb:opacity-100 hover:border-primary"
+                      }`}
+                    >
+                      {isMultiSelected && <Check className="size-2 text-primary-foreground" strokeWidth={3} />}
+                    </span>
                     {isUnseen && (
                       <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center">
                         <span className="absolute size-2.5 animate-ping rounded-full bg-primary/40" />
@@ -447,6 +538,7 @@ export function GenerationGroup({
                 </button>
               ))}
             </div>
+            </ImageContextMenu>
             <PopoverPrimitive.Root
               open={ghostPopoverIdx !== null}
               onOpenChange={(open) => {
@@ -726,6 +818,74 @@ export function GenerationGroup({
                     </button>
                   );
                 })}
+            </PopoverPrimitive.Popup>
+          </PopoverPrimitive.Positioner>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
+      {/* Header action popovers */}
+      <PopoverPrimitive.Root
+        open={headerPopover !== null}
+        onOpenChange={(open) => { if (!open) setHeaderPopover(null); }}
+      >
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Positioner
+            className="isolate z-50"
+            anchor={(headerPopover === "regenerate" ? regenerateAnchorRef : deleteAnchorRef).current ?? undefined}
+            side="bottom"
+            sideOffset={6}
+            align="center"
+          >
+            <PopoverPrimitive.Popup className="z-50 w-48 rounded-lg border bg-popover p-3 shadow-md text-xs space-y-2.5">
+              {headerPopover === "regenerate" ? (
+                <>
+                  <p className="font-medium">
+                    Regenerate {multiSelectIds.size} {multiSelectIds.size === 1 ? "image" : "images"}?
+                  </p>
+                  <p className="text-muted-foreground">
+                    Will delete and regenerate with the same settings.
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        const ids = [...multiSelectIds];
+                        setHeaderPopover(null);
+                        onRegenerateImages(ids);
+                      }}
+                    >
+                      <RefreshCw className="size-3 mr-1" />
+                      Regenerate
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-center gap-1 text-muted-foreground">
+                    <Coins className="size-3 text-yellow-500" />
+                    <span>{multiSelectIds.size * perImageCost} credits</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">
+                    Delete {multiSelectIds.size} {multiSelectIds.size === 1 ? "image" : "images"}?
+                  </p>
+                  <p className="text-muted-foreground">
+                    This cannot be undone.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => {
+                      const ids = [...multiSelectIds];
+                      setHeaderPopover(null);
+                      onDeleteImages(ids);
+                    }}
+                  >
+                    <Trash2 className="size-3 mr-1" />
+                    Delete
+                  </Button>
+                </>
+              )}
             </PopoverPrimitive.Popup>
           </PopoverPrimitive.Positioner>
         </PopoverPrimitive.Portal>

@@ -68,6 +68,10 @@ export const feedbackSchema = z.object({
   }),
 });
 
+export const deleteImagesSchema = z.object({
+  imageIds: z.array(z.string()).min(1).max(MAX_IMAGES_PER_GENERATION),
+});
+
 export const extendGenerationSchema = z.object({
   imageCount: z.number().int().min(1).max(MAX_IMAGES_PER_GENERATION),
 });

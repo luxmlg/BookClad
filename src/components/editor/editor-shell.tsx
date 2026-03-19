@@ -641,6 +641,41 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     }
   }
 
+  function handleDeletedImages(deletedIds: string[], _removedGenerationIds: string[]) {
+    const deletedSet = new Set(deletedIds);
+
+    // Clean up layer cache
+    for (const id of deletedIds) layersCacheRef.current.delete(id);
+
+    // Clean up draft stash
+    for (const id of deletedIds) draftStashRef.current.delete(id);
+
+    // Clean up unseen image tracking
+    setUnseenImageIds((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const id of deletedIds) {
+        if (next.delete(id)) changed = true;
+      }
+      return changed ? next : prev;
+    });
+
+    // Clean up known image IDs
+    if (knownImageIdsRef.current) {
+      for (const id of deletedIds) knownImageIdsRef.current.delete(id);
+    }
+
+    // If selected image was deleted, auto-select the nearest available
+    if (selectedImageId && deletedSet.has(selectedImageId)) {
+      const remaining = allImages.filter((img) => !deletedSet.has(img.id));
+      if (remaining.length > 0) {
+        selectImage(remaining[0].id);
+      } else {
+        setSelectedImageId(null);
+      }
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────
 
   return (
@@ -714,6 +749,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         unseenImageIds={unseenImageIds}
         onDiscardDrafts={discardAllDrafts}
         onGenerateMore={genActions.handleGenerateMore}
+        onDeletedImages={handleDeletedImages}
       />
 
       {/* Right sidebar */}
