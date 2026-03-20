@@ -64,6 +64,24 @@ cd worker && npx tsc --noEmit  # Type-check worker (separate tsconfig)
 
 No test framework is configured.
 
+## Generation Pipeline
+
+Three job types in BullMQ, each routed to a processor in the worker:
+- `JOB_TYPE.GENERATE` → `generation.processor.ts` — text-to-image from attribute prompt
+- `JOB_TYPE.GENERATE_FROM_REFERENCE` → `generation.processor.ts` — image-to-image using `referenceImageKey`
+- `JOB_TYPE.INPAINT` → `inpaint.processor.ts` — masked region editing via Gemini
+
+All processors follow the same pipeline: generate → upscale (Replicate) → crop to KDP → upload to R2 → create `GeneratedImage` rows.
+
+**Extension flow**: `POST /api/generations/[id]/extend` adds more images to an existing generation. Routes to the correct processor based on `generation.jobType`:
+- Inpaint extensions → `JOB_TYPE.INPAINT` with persisted `maskImage` key and `prompt`
+- Similar/reference extensions → `JOB_TYPE.GENERATE` with `referenceImage` key
+- Regular extensions → `JOB_TYPE.GENERATE` without reference
+
+Both processors support `isExtension` flag for partial-failure handling: if some images succeed before an error, mark COMPLETED with `imageCount` set to actual images created, then refund extension credits.
+
+**Mask persistence**: Inpaint masks are uploaded to R2 as `projects/{projectId}/masks/{uuid}.png` and stored in `Generation.maskImage`. Original inpaints send the mask as base64 in job data (`maskBase64`); extensions download it from storage via `maskKey`.
+
 ## Editor Architecture
 
 `EditorShell` (`src/components/editor/editor-shell.tsx`) is the main client-side state orchestrator. It wires together extracted hooks and sub-components:
@@ -80,12 +98,9 @@ No test framework is configured.
   - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking
 - **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's attribute configuration, fetched from `/api/attributes`)
 - **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot`, `descriptionSnapshot`, and `textLayerSnapshot` with each generation for diff tracking and history display
-- **Draft attribute system**: When switching between history images, attribute edits are stashed per-image in `draftStashRef` (a `Map<imageId, AttributeSelection>`) and restored on return. `baseSnapshot` holds the generation's original attributes; `draftKeys` (derived via `computeAttributeDiff`) drives amber dot indicators on modified attributes. Clicking an amber dot reverts that single attribute; clicking the amber dot on a history thumbnail resets all drafts. The stash lives in a ref (no renders on write) and is cleaned up when edits are reverted to match the snapshot.
-
-- **Inline generation progress**: Active generations render directly in the History tab with animated loading placeholders — no auto-tab-switching. `useGenerationActions` tracks `pendingSlotCounts` (Map<generationId, imageCount>) so `GenerationGroup` knows how many placeholder slots to show before server data arrives. Ghost slots (extend-generation popover) are hidden while a generation is active. The Queue tab remains as a passive status indicator.
+- **Draft attribute system**: When switching between history images, attribute edits are stashed per-image in `draftStashRef` and restored on return. `baseSnapshot` holds the generation's original attributes; `draftKeys` (derived via `computeAttributeDiff`) drives amber dot indicators on modified attributes.
 - **Bottom panel tabs**: Both History and Queue tabs are **always mounted** (CSS `hidden`, not conditional rendering) in `EditorCenterPanel`. The Queue's `useGenerationPoller` hooks stay alive regardless of active tab — no duplicate pollers needed in History.
-- **Unseen image tracking**: `unseenImageIds` (Set) in `EditorShell` tracks images the user hasn't selected yet. `knownImageIdsRef` seeds with initial images; new arrivals are marked unseen. Selecting an image clears it. `GenerationGroup` renders a pulsing primary dot (top-right) on unseen thumbnails.
-- **Multi-select & context menu**: Cmd/Ctrl+click toggles multi-select (scoped per-generation via `useMultiSelect` hook in `use-multi-select.ts`). Right-click on thumbnails opens `ImageContextMenu` (`image-context-menu.tsx`) with regenerate/delete actions + confirmation dialog. Header icons for the active selection show inline popover confirmations. `handleDeletedImages` in `EditorShell` cleans up all caches (layers, drafts, unseen, knownImageIds) and auto-selects the next image when the selected one is deleted. Batch delete endpoint: `DELETE /api/images/batch` — deletes entire generations when all images removed, decrements `imageCount` on partial deletes.
+- **Batch delete**: `DELETE /api/images/batch` — deletes entire generations when all images removed, decrements `imageCount` on partial deletes. `handleDeletedImages` in `EditorShell` cleans up all caches and auto-selects the next image.
 
 Key sub-components: `EditorCenterPanel` (canvas viewport + bottom panel), `LeftSidebar` (attribute inputs, presets, brief), `RightSidebar` (layers, properties, export), `CoverCanvas` (Konva canvas), `GenerationHistory` → `GenerationGroup` (past generations with diffs via `DiffDisplay`), `GenerationQueue` (active jobs with WebSocket progress). Shared generation helpers (`getModelLabel`, `formatRelativeTime`, `JOB_TYPE_ICON`) live in `generation-helpers.ts`.
 
@@ -140,13 +155,9 @@ Payments are handled by DodoPayments. Defined in `src/lib/dodo.ts` (SDK client +
 
 **SDK client**: Singleton `dodo` in `src/lib/dodo.ts`. Uses `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, and `DODO_PAYMENTS_ENVIRONMENT` ("test_mode" or "live_mode") from env. Subscription product IDs in `DODO_PRODUCT_ID_STARTER` and `DODO_PRODUCT_ID_PRO`. Helpers: `tierFromProductId()`, `productIdFromTier()`, `creditsFromProductId()`.
 
-**Webhook handler**: `src/app/api/webhooks/dodo/route.ts` — verifies signature via SDK `unwrap()`, handles subscription events (active, renewed, cancelled, expired, on_hold, plan_changed) and `payment.succeeded` for credit packs. Uses `WebhookEvent` model for idempotency (webhook-id as primary key, exactly-once processing). Checkout session metadata propagates to payment webhooks — credit packs are identified by `metadata.type === "credit_pack"`.
+**Webhook handler**: `src/app/api/webhooks/dodo/route.ts` — verifies signature via SDK `unwrap()`, handles subscription and payment events. Uses `WebhookEvent` model for idempotency (webhook-id as primary key, exactly-once processing).
 
 **Customer management**: DodoPayments customers are created lazily on first checkout. `User.dodoCustomerId` links to the Dodo customer. Customer portal accessible via `POST /api/customer-portal`.
-
-**Subscription fields on User**: `dodoCustomerId` (unique), `dodoSubscriptionId`, `subscriptionStatus` ("active"/"on_hold"/"cancelled"/"expired"), `currentPeriodEnd`, `lastPlanChangeAt` (set on plan_changed, used to suppress duplicate renewal credit grants within a 5-min window).
-
-**Post-checkout polling**: The billing tab (`src/app/settings/billing-tab.tsx`) detects `?status=succeeded`, `?checkout=success`, or `?subscription_id` URL params after checkout return. Also triggers when an in-app plan change succeeds (`planChanged`). Polls `GET /api/credits` every 2s for up to 60s until balance/tier/transaction count changes, then stops, updates the UI, and syncs the navbar credit store via `useCreditStore.getState().refreshCredits()`.
 
 **Constants**: `SUBSCRIPTION_STATUS`, `PLAN_PRICES`, `CREDIT_PACKS` in `src/lib/constants.ts`.
 
