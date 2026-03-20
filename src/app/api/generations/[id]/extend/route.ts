@@ -40,6 +40,9 @@ export async function POST(
         model: true,
         jobType: true,
         projectId: true,
+        referenceImage: true,
+        maskImage: true,
+        prompt: true,
       },
     });
 
@@ -50,13 +53,6 @@ export async function POST(
     if (generation.status !== GENERATION_STATUS.COMPLETED) {
       return NextResponse.json(
         { error: "Only completed generations can be extended" },
-        { status: 400 },
-      );
-    }
-
-    if (generation.jobType !== JOB_TYPE.GENERATE) {
-      return NextResponse.json(
-        { error: "Only standard generations can be extended" },
         { status: 400 },
       );
     }
@@ -83,17 +79,36 @@ export async function POST(
       imageCount,
     );
 
-    await generationQueue.add(JOB_TYPE.GENERATE, {
-      generationId,
-      projectId: generation.projectId,
-      userId: session.user.id,
-      imageCount,
-      model: generation.model ?? "quick",
-      referenceImageKey: null,
-      flattenedImageDataUrl: null,
-      creditCost,
-      isExtension: true,
-    });
+    const isInpaintExtension =
+      generation.jobType === JOB_TYPE.INPAINT && !!generation.maskImage;
+
+    if (isInpaintExtension) {
+      await generationQueue.add(JOB_TYPE.INPAINT, {
+        generationId,
+        projectId: generation.projectId,
+        userId: session.user.id,
+        sourceImageKey: generation.referenceImage!,
+        maskBase64: null,
+        maskKey: generation.maskImage,
+        prompt: generation.prompt,
+        model: generation.model ?? "quick",
+        imageCount,
+        creditCost,
+        isExtension: true,
+      });
+    } else {
+      await generationQueue.add(JOB_TYPE.GENERATE, {
+        generationId,
+        projectId: generation.projectId,
+        userId: session.user.id,
+        imageCount,
+        model: generation.model ?? "quick",
+        referenceImageKey: generation.referenceImage ?? null,
+        flattenedImageDataUrl: null,
+        creditCost,
+        isExtension: true,
+      });
+    }
 
     return NextResponse.json({ generationId }, { status: 202 });
   } catch (err) {

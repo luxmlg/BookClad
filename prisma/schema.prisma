@@ -136,6 +136,7 @@ model Generation {
   creditCost        Int?
   imageCount        Int       @default(4)
   referenceImage    String?
+  maskImage         String?
   jobType           String    @default("generate")
   model             String    @default("openai")
   parentImageId     String?

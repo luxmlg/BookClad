@@ -449,10 +449,7 @@ export function InpaintToolbar({
       </div>
 
       {/* ── Similar popover ─────────────────────── */}
-      <PopoverPrimitive.Root
-        open={mode === "similar"}
-        onOpenChange={(open) => { if (!open) handleCancelSimilar(); }}
-      >
+      <PopoverPrimitive.Root open={mode === "similar"}>
         <PopoverPrimitive.Portal>
           <PopoverPrimitive.Positioner className="isolate z-50" anchor={toolbarRef} side="top" sideOffset={8} align="center">
             <PopoverPrimitive.Popup className="z-50 w-72 rounded-lg border bg-popover p-3 shadow-md">

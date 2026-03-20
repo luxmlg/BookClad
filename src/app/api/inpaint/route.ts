@@ -5,6 +5,7 @@ import { generationQueue } from "@/lib/queue";
 import { createInpaintSchema } from "@/lib/validations";
 import { JOB_TYPE, GENERATION_STATUS } from "@/lib/constants";
 import { calculateCreditCost, reserveCredits, InsufficientCreditsError } from "@/lib/credits";
+import { uploadToStorage } from "@/lib/storage";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -47,6 +48,13 @@ export async function POST(request: Request) {
 
     const creditCost = calculateCreditCost(model, 1);
 
+    const maskBuffer = Buffer.from(
+      maskDataUrl.replace(/^data:image\/\w+;base64,/, ""),
+      "base64",
+    );
+    const maskKey = `projects/${image.generation.projectId}/masks/${crypto.randomUUID()}.png`;
+    await uploadToStorage(maskKey, maskBuffer, "image/png");
+
     const { generationId } = await reserveCredits(session.user.id, creditCost, {
       projectId: image.generation.projectId,
       prompt,
@@ -55,6 +63,7 @@ export async function POST(request: Request) {
       jobType: JOB_TYPE.INPAINT,
       model,
       referenceImage: image.storageKey,
+      maskImage: maskKey,
       parentImageId: imageId,
       includeLayers: !!flattenedImageDataUrl,
       attributeSnapshot: attributeSnapshot ?? undefined,

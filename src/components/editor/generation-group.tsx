@@ -20,6 +20,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { JOB_TYPE, AI_MODELS, GENERATION_STATUS } from "@/lib/constants";
+import { REF_PROMPT_KEY } from "@/lib/attributes";
 import type { Generation } from "./types";
 import { asAttributeSnapshot, asDescriptionSnapshot, asTextLayerSnapshot } from "./types";
 import {
@@ -87,7 +88,6 @@ export function GenerationGroup({
   onRegenerateImages,
 }: GenerationGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
-  const [showDiff, setShowDiff] = useState(false);
   const [compareTargetId, setCompareTargetId] = useState<string | null>(null);
   const [promptExpanded, setPromptExpanded] = useState(true);
   const [sysPromptExpanded, setSysPromptExpanded] = useState(false);
@@ -106,12 +106,6 @@ export function GenerationGroup({
   const compareAnchorRef = useRef<HTMLButtonElement | null>(null);
   const [morePopover, setMorePopover] = useState<"menu" | "rename" | "confirm-delete" | null>(null);
   const moreAnchorRef = useRef<HTMLSpanElement | null>(null);
-
-  const parentGeneration = generation.parentImageId
-    ? allGenerations.find((g) =>
-        g.images.some((img) => img.id === generation.parentImageId)
-      )
-    : undefined;
 
   const compareTarget = compareTargetId
     ? allGenerations.find((g) => g.id === compareTargetId)
@@ -203,11 +197,15 @@ export function GenerationGroup({
     : 0;
 
   const ghostCount =
-    !isActive && jobType === JOB_TYPE.GENERATE && generation.images.length < MAX_GRID_SLOTS
+    !isActive && generation.images.length < MAX_GRID_SLOTS
       ? MAX_GRID_SLOTS - generation.images.length
       : 0;
 
-  const attrs = asAttributeSnapshot(generation.attributeSnapshot);
+  const rawAttrs = asAttributeSnapshot(generation.attributeSnapshot);
+  const refPrompt = rawAttrs?.[REF_PROMPT_KEY];
+  const attrs = rawAttrs
+    ? Object.fromEntries(Object.entries(rawAttrs).filter(([k]) => k !== REF_PROMPT_KEY))
+    : null;
   const hasDisplayAttrs = attrs !== null && Object.keys(attrs).length > 0;
   const descSnap = asDescriptionSnapshot(generation.descriptionSnapshot);
 
@@ -231,34 +229,6 @@ export function GenerationGroup({
           <span className="group-hover/gen:hidden">#{index}</span>
           <Ellipsis className="size-3.5 text-muted-foreground hidden group-hover/gen:block" />
         </span>
-        {parentGenIndex && (
-          <span
-            role="button"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (generation.parentImageId) {
-                onSelect(generation.parentImageId);
-                onExpandImage(generation.parentImageId);
-              }
-            }}
-          >
-            {jobType === JOB_TYPE.INPAINT ? "edit on" : "from"}{" "}
-            {(() => {
-              const parentGen = allGenerations.find((g) =>
-                g.images.some(
-                  (img) => img.id === generation.parentImageId
-                )
-              );
-              const parentName = parentGen
-                ? getDisplayName(parentGen)
-                : "";
-              return parentName
-                ? `${parentName} #${parentGenIndex}`
-                : `#${parentGenIndex}`;
-            })()}
-          </span>
-        )}
         {multiSelectIds.size > 0 ? (
           <span className="flex items-center gap-1.5 text-xs text-primary font-medium" onClick={(e) => e.stopPropagation()}>
             <span className="flex items-center gap-1">
@@ -375,29 +345,6 @@ export function GenerationGroup({
         <div className="flex gap-3 px-2 py-1.5">
           {/* Left: thumbnails */}
           <div className="w-56 shrink-0 self-start">
-            {generation.parentImage &&
-              imageUrls[generation.parentImage.id] && (
-                <div className="mb-1.5 flex items-center gap-1.5">
-                  <button
-                    onClick={() => {
-                      onSelect(generation.parentImage!.id);
-                      onExpandImage(generation.parentImage!.id);
-                    }}
-                    className="overflow-hidden rounded-lg border-2 border-dashed border-muted-foreground/30 opacity-60 hover:opacity-100 cursor-pointer transition-opacity"
-                    style={{ width: 36, aspectRatio: "1600/2560" }}
-                  >
-                    <Image
-                      src={imageUrls[generation.parentImage.id]}
-                      alt="Source"
-                      width={36}
-                      height={58}
-                      className="h-full w-full object-cover"
-                      unoptimized
-                    />
-                  </button>
-                  <ChevronRight className="size-3 text-muted-foreground rotate-90" />
-                </div>
-              )}
             <ImageContextMenu
               generationJobType={jobType}
               perImageCost={perImageCost}
@@ -589,100 +536,116 @@ export function GenerationGroup({
 
           {/* Right: details */}
           <div className="min-w-0 flex-1 space-y-1 text-xs">
-            {/* Inpaint: edit prompt */}
-            {jobType === JOB_TYPE.INPAINT && generation.prompt ? (
-              <>
+            {/* Prompt (for inpaint/similar) */}
+            {(jobType === JOB_TYPE.INPAINT || jobType === JOB_TYPE.GENERATE_FROM_REFERENCE) && (() => {
+              const userText = jobType === JOB_TYPE.INPAINT
+                ? generation.prompt
+                : (typeof refPrompt === "string" ? refPrompt : undefined);
+              return (
                 <div>
-                  <span className="font-medium text-muted-foreground">
-                    Edit prompt:{" "}
-                  </span>
-                  <span className={!promptExpanded ? "line-clamp-2" : ""}>
-                    {generation.prompt}
-                  </span>
-                  {generation.prompt.length > 120 && (
-                    <button
-                      onClick={() => setPromptExpanded((e) => !e)}
-                      className="ml-1 text-muted-foreground hover:text-foreground"
-                    >
-                      {promptExpanded ? "less" : "more"}
-                    </button>
-                  )}
+                  <span
+                    role="button"
+                    className="font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (generation.parentImageId) {
+                        onSelect(generation.parentImageId);
+                        onExpandImage(generation.parentImageId);
+                      }
+                    }}
+                  >
+                    {jobType === JOB_TYPE.INPAINT ? `Edit on #${parentGenIndex}:` : `Similar to #${parentGenIndex}:`}
+                  </span>{" "}
+                  {userText ? (
+                    <>
+                      <span className={!promptExpanded ? "line-clamp-2" : ""}>
+                        {userText}
+                      </span>
+                      {userText.length > 120 && (
+                        <button
+                          onClick={() => setPromptExpanded((e) => !e)}
+                          className="ml-1 text-muted-foreground hover:text-foreground"
+                        >
+                          {promptExpanded ? "less" : "more"}
+                        </button>
+                      )}
+                    </>
+                  ) : jobType === JOB_TYPE.GENERATE_FROM_REFERENCE ? (
+                    <span className="text-muted-foreground italic">no additional instructions</span>
+                  ) : null}
                 </div>
-                {compareTarget && (
-                  <DiffDisplay current={generation} target={compareTarget} />
-                )}
-              </>
-            ) : compareTarget ? (
+              );
+            })()}
+
+            {/* Compare diff (only when explicit compare target selected) */}
+            {compareTarget && (
               <DiffDisplay current={generation} target={compareTarget} />
-            ) : (
-              <>
-                {/* Structured attributes */}
-                {hasDisplayAttrs && (
-                  <div className="space-y-0.5">
-                    {Object.entries(attrs!).map(([key, val]) => {
-                      const meta = descSnap?.[key];
-                      const label = meta?.name ?? key.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-                      const values = Array.isArray(val) ? val : [val];
-                      return (
-                        <div key={key}>
-                          {meta?.description ? (
-                            <HoverCard>
-                              <HoverCardTrigger
-                                render={<span />}
-                                className="font-medium underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
-                              >
-                                {label}:
-                              </HoverCardTrigger>
-                              <HoverCardContent side="right" className="text-sm">
-                                {meta.description}
-                              </HoverCardContent>
-                            </HoverCard>
-                          ) : (
-                            <span className="font-medium">{label}:</span>
-                          )}{" "}
-                          {values.map((v, i) => {
-                            const vMeta = meta?.values[v];
-                            const vLabel = v === "true" ? "yes" : v === "false" ? "no" : (vMeta?.label ?? v);
-                            const vDesc = vMeta?.description;
-                            const vColors = vMeta?.colors;
-                            return (
-                              <Fragment key={v}>
-                                {i > 0 && ", "}
-                                {vColors && vColors.length > 0 && (
-                                  <span className="inline-flex items-center gap-px align-middle mr-1">
-                                    {vColors.map((color, ci) => (
-                                      <span
-                                        key={ci}
-                                        className="inline-block size-2.5 rounded-full border border-border/50"
-                                        style={{ backgroundColor: color }}
-                                      />
-                                    ))}
-                                  </span>
-                                )}
-                                {vDesc ? (
-                                  <HoverCard>
-                                    <HoverCardTrigger
-                                      render={<span />}
-                                      className="underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
-                                    >
-                                      {vLabel}
-                                    </HoverCardTrigger>
-                                    <HoverCardContent className="text-sm">
-                                      {vDesc}
-                                    </HoverCardContent>
-                                  </HoverCard>
-                                ) : (
-                                  vLabel
-                                )}
-                              </Fragment>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
+            )}
+
+            {/* Attributes (always shown) */}
+            {hasDisplayAttrs && !compareTarget && (
+              <div className="space-y-0.5">
+                {Object.entries(attrs!).map(([key, val]) => {
+                  const meta = descSnap?.[key];
+                  const label = meta?.name ?? key.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                  const values = Array.isArray(val) ? val : [val];
+                  return (
+                    <div key={key}>
+                      {meta?.description ? (
+                        <HoverCard>
+                          <HoverCardTrigger
+                            render={<span />}
+                            className="font-medium underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
+                          >
+                            {label}:
+                          </HoverCardTrigger>
+                          <HoverCardContent side="right" className="text-sm">
+                            {meta.description}
+                          </HoverCardContent>
+                        </HoverCard>
+                      ) : (
+                        <span className="font-medium">{label}:</span>
+                      )}{" "}
+                      {values.map((v, i) => {
+                        const vMeta = meta?.values[v];
+                        const vLabel = v === "true" ? "yes" : v === "false" ? "no" : (vMeta?.label ?? v);
+                        const vDesc = vMeta?.description;
+                        const vColors = vMeta?.colors;
+                        return (
+                          <Fragment key={v}>
+                            {i > 0 && ", "}
+                            {vColors && vColors.length > 0 && (
+                              <span className="inline-flex items-center gap-px align-middle mr-1">
+                                {vColors.map((color, ci) => (
+                                  <span
+                                    key={ci}
+                                    className="inline-block size-2.5 rounded-full border border-border/50"
+                                    style={{ backgroundColor: color }}
+                                  />
+                                ))}
+                              </span>
+                            )}
+                            {vDesc ? (
+                              <HoverCard>
+                                <HoverCardTrigger
+                                  render={<span />}
+                                  className="underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
+                                >
+                                  {vLabel}
+                                </HoverCardTrigger>
+                                <HoverCardContent className="text-sm">
+                                  {vDesc}
+                                </HoverCardContent>
+                              </HoverCard>
+                            ) : (
+                              vLabel
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
             {/* Layers */}
@@ -705,7 +668,7 @@ export function GenerationGroup({
               </div>
             )}
 
-            {/* System prompt */}
+            {/* System prompt (non-inpaint) */}
             {jobType !== JOB_TYPE.INPAINT && generation.prompt && (
               <div>
                 <button
@@ -720,36 +683,6 @@ export function GenerationGroup({
                   <div className="mt-1 whitespace-pre-wrap text-muted-foreground border rounded-md p-2 bg-muted/30">
                     {generation.prompt}
                   </div>
-                )}
-              </div>
-            )}
-
-
-            {/* Changes from parent */}
-            {parentGeneration && (
-              <div>
-                <button
-                  onClick={() => setShowDiff((d) => !d)}
-                  className="text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
-                >
-                  {showDiff
-                    ? "Hide changes"
-                    : `Changes from ${(() => {
-                        const name = getDisplayName(parentGeneration);
-                        const pIdx = findParentGenerationIndex(
-                          generation.parentImageId,
-                          allGenerations
-                        );
-                        return name
-                          ? `${name} #${pIdx}`
-                          : `#${pIdx}`;
-                      })()}`}
-                </button>
-                {showDiff && (
-                  <DiffDisplay
-                    current={generation}
-                    target={parentGeneration}
-                  />
                 )}
               </div>
             )}
