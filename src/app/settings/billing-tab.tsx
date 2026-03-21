@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { Coins, ExternalLink, AlertTriangle, Check } from "lucide-react";
+import { Coins, ExternalLink, AlertTriangle, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,9 @@ export function BillingTab() {
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [txnPage, setTxnPage] = useState(1);
+  const [txnTotalPages, setTxnTotalPages] = useState(1);
+  const [txnLoading, setTxnLoading] = useState(false);
 
   const [showSuccess, setShowSuccess] = useState(false);
   const initialSnapshotRef = useRef<{ balance: number; tier: string; txnCount: number } | null>(null);
@@ -51,6 +54,8 @@ export function BillingTab() {
     setCurrentPeriodEnd(data.currentPeriodEnd);
     setHasSubscription(!!data.dodoSubscriptionId);
     setTransactions(data.transactions);
+    setTxnPage(data.page);
+    setTxnTotalPages(data.totalPages);
   }, []);
 
   // Detect checkout=success in URL
@@ -151,6 +156,20 @@ export function BillingTab() {
     } catch {
       toast.error("Failed to start checkout");
       setCheckoutLoading(null);
+    }
+  }
+
+  async function handleTxnPageChange(page: number) {
+    setTxnLoading(true);
+    try {
+      const data = await getCredits(page);
+      setTransactions(data.transactions);
+      setTxnPage(data.page);
+      setTxnTotalPages(data.totalPages);
+    } catch {
+      toast.error("Failed to load transactions");
+    } finally {
+      setTxnLoading(false);
     }
   }
 
@@ -351,37 +370,73 @@ export function BillingTab() {
       {/* Transaction history */}
       <div>
         <h3 className="mb-3 text-sm font-medium">Transaction History</h3>
-        {transactions.length === 0 ? (
+        {transactions.length === 0 && txnPage === 1 ? (
           <p className="text-sm text-muted-foreground">No transactions yet.</p>
         ) : (
-          <div className="rounded-lg border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="px-4 py-2 font-medium">Type</th>
-                  <th className="px-4 py-2 font-medium">Amount</th>
-                  <th className="px-4 py-2 font-medium">Balance</th>
-                  <th className="px-4 py-2 font-medium">Description</th>
-                  <th className="px-4 py-2 font-medium">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((txn) => (
-                  <tr key={txn.id} className="border-b last:border-0">
-                    <td className="px-4 py-2">{TXN_TYPE_LABEL[txn.type] ?? txn.type}</td>
-                    <td className={`px-4 py-2 font-medium ${txn.amount > 0 ? "text-green-600" : "text-red-500"}`}>
-                      {txn.amount > 0 ? "+" : ""}{txn.amount}
-                    </td>
-                    <td className="px-4 py-2">{txn.balanceAfter}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{txn.description ?? "—"}</td>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {new Date(txn.createdAt).toLocaleDateString()}
-                    </td>
+          <>
+            <div className={`rounded-lg border${txnLoading ? " opacity-50" : ""}`}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="px-4 py-2 font-medium">Type</th>
+                    <th className="px-4 py-2 font-medium">Amount</th>
+                    <th className="px-4 py-2 font-medium">Balance</th>
+                    <th className="px-4 py-2 font-medium">Description</th>
+                    <th className="px-4 py-2 font-medium">Date</th>
                   </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((txn) => (
+                    <tr key={txn.id} className="border-b last:border-0">
+                      <td className="px-4 py-2">{TXN_TYPE_LABEL[txn.type] ?? txn.type}</td>
+                      <td className={`px-4 py-2 font-medium ${txn.amount > 0 ? "text-green-600" : "text-red-500"}`}>
+                        {txn.amount > 0 ? "+" : ""}{txn.amount}
+                      </td>
+                      <td className="px-4 py-2">{txn.balanceAfter}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{txn.description ?? "—"}</td>
+                      <td className="px-4 py-2 text-muted-foreground">
+                        {new Date(txn.createdAt).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {txnTotalPages > 1 && (
+              <div className="mt-3 flex items-center justify-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  disabled={txnPage <= 1 || txnLoading}
+                  onClick={() => handleTxnPageChange(txnPage - 1)}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                {Array.from({ length: txnTotalPages }, (_, i) => i + 1).map((p) => (
+                  <Button
+                    key={p}
+                    variant={p === txnPage ? "default" : "outline"}
+                    size="icon"
+                    className="size-8 text-xs"
+                    disabled={txnLoading}
+                    onClick={() => handleTxnPageChange(p)}
+                  >
+                    {p}
+                  </Button>
                 ))}
-              </tbody>
-            </table>
-          </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  disabled={txnPage >= txnTotalPages || txnLoading}
+                  onClick={() => handleTxnPageChange(txnPage + 1)}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -1,14 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+const PAGE_SIZE = 20;
+
+export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [user, transactions] = await Promise.all([
+  const page = Math.max(1, Number(request.nextUrl.searchParams.get("page")) || 1);
+
+  const [user, transactions, totalCount] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -22,7 +26,8 @@ export async function GET() {
     prisma.creditTransaction.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: PAGE_SIZE,
+      skip: (page - 1) * PAGE_SIZE,
       select: {
         id: true,
         amount: true,
@@ -31,6 +36,9 @@ export async function GET() {
         description: true,
         createdAt: true,
       },
+    }),
+    prisma.creditTransaction.count({
+      where: { userId: session.user.id },
     }),
   ]);
 
@@ -41,5 +49,7 @@ export async function GET() {
     currentPeriodEnd: user?.currentPeriodEnd?.toISOString() ?? null,
     dodoSubscriptionId: user?.dodoSubscriptionId ?? null,
     transactions,
+    page,
+    totalPages: Math.ceil(totalCount / PAGE_SIZE),
   });
 }

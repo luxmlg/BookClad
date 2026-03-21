@@ -16,9 +16,13 @@ export interface CreditsResponse {
   currentPeriodEnd: string | null;
   dodoSubscriptionId: string | null;
   transactions: CreditTransaction[];
+  page: number;
+  totalPages: number;
 }
 
-export async function getCredits(): Promise<CreditsResponse> {
-  const { data } = await api.get<CreditsResponse>("/api/credits");
+export async function getCredits(page = 1): Promise<CreditsResponse> {
+  const { data } = await api.get<CreditsResponse>("/api/credits", {
+    params: page > 1 ? { page } : undefined,
+  });
   return data;
 }
