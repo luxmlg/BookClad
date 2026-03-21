@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
-import IORedis from "ioredis";
+import Redis from "ioredis";
 import { WS_MESSAGE_TYPE } from "./constants.js";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
@@ -10,7 +10,7 @@ export function setupWebSocket(server: Server) {
 
   wss.on("connection", (ws) => {
     // Each WS connection gets its own Redis subscriber for pubsub isolation
-    const subscriber = new IORedis(REDIS_URL);
+    const subscriber = new Redis.default(REDIS_URL);
     const subscribedChannels = new Set<string>();
 
     subscriber.on("message", (channel: string, message: string) => {
