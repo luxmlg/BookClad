@@ -161,9 +161,8 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
     name: string;
     text: string;
     type?: string;
-    visible?: boolean;
   }): string =>
-    `${l.type ?? "text"}|${l.text || l.name}|${l.visible ?? true}`;
+    `${l.type ?? "text"}|${l.text || l.name}`;
   const prevStr = (prevLayers ?? []).map(layerKey).join(",");
   const curStr = (curTextLayers ?? []).map(layerKey).join(",");
   const textLayersChanged =
@@ -381,7 +380,7 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
       {includeLayersChanged && (
         <div>
           <span className="font-medium text-muted-foreground">
-            Layers baked in:{" "}
+            Layers included:{" "}
           </span>
           <span className="text-muted-foreground mr-1">
             {target.includeLayers ? "yes" : "no"}
@@ -399,8 +398,7 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
               {(prevLayers ?? [])
                 .map((l) => {
                   const label = `"${l.text || l.name}"`;
-                  const vis = l.visible === false ? " hidden" : "";
-                  return l.type ? `${label} (${l.type}${vis})` : label;
+                  return l.type ? `${label} (${l.type})` : label;
                 })
                 .join(", ")}
             </span>
@@ -412,8 +410,7 @@ export function DiffDisplay({ current, target }: DiffDisplayProps) {
                 {(curTextLayers ?? [])
                   .map((l) => {
                     const label = `"${l.text || l.name}"`;
-                    const vis = l.visible === false ? " hidden" : "";
-                    return l.type ? `${label} (${l.type}${vis})` : label;
+                    return l.type ? `${label} (${l.type})` : label;
                   })
                   .join(", ")}
               </span>

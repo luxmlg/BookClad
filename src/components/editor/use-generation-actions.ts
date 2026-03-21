@@ -103,12 +103,6 @@ export function useGenerationActions(
         imageCount,
         model,
         attributeSnapshot: attributes,
-        textLayerSnapshot: canvasNodes.map((n) => ({
-          name: n.name ?? n.id,
-          text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
-          type: n.type,
-          visible: n.visible,
-        })),
       });
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setPendingSlotCounts(prev => new Map(prev).set(data.generationId, imageCount));
@@ -137,7 +131,8 @@ export function useGenerationActions(
 
   async function handleGenerateSimilar(prompt: string) {
     if (!selectedImageId) return;
-    const flattenedImageDataUrl = inpaintRef.current.includeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
+    const shouldIncludeLayers = inpaintRef.current.includeLayers;
+    const flattenedImageDataUrl = shouldIncludeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
     const snapshot: AttributeSelection = { ...attributes };
     if (prompt) snapshot[REF_PROMPT_KEY] = prompt;
     const data = await createGeneration({
@@ -147,12 +142,13 @@ export function useGenerationActions(
       referenceImageId: selectedImageId,
       flattenedImageDataUrl,
       attributeSnapshot: snapshot,
-      textLayerSnapshot: canvasNodes.map((n) => ({
-        name: n.name ?? n.id,
-        text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
-        type: n.type,
-        visible: n.visible,
-      })),
+      textLayerSnapshot: shouldIncludeLayers
+        ? canvasNodes.filter(n => n.visible !== false).map((n) => ({
+            name: n.name ?? n.id,
+            text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
+            type: n.type,
+          }))
+        : undefined,
     });
     setActiveGenerationIds((prev) => [...prev, data.generationId]);
     setPendingSlotCounts(prev => new Map(prev).set(data.generationId, imageCount));

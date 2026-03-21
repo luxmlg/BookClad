@@ -5,7 +5,7 @@ interface TextLayerEntry {
   name: string;
   text: string;
   type: string;
-  visible: boolean;
+  visible?: boolean;
 }
 
 export interface CreateGenerationParams {

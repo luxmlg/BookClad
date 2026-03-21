@@ -121,9 +121,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   const [saving, setSaving] = useState(false);
   const refreshCredits = useCreditStore((s) => s.refreshCredits);
 
-  const [keepLayersOnGenerate, setKeepLayersOnGenerate] = useState(true);
-  const keepLayersRef = useRef(true);
-  useEffect(() => { keepLayersRef.current = keepLayersOnGenerate; }, [keepLayersOnGenerate]);
 
   const [bgLoaded, setBgLoaded] = useState(false);
   const [crossfadeSnapshot, setCrossfadeSnapshot] = useState<string | null>(null);
@@ -307,17 +304,14 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     if (allImages.length > prevCount && completedGenerations.length > 0) {
       const newestGen = completedGenerations[0];
       if (newestGen?.images?.length > 0) {
-        const layersWereBakedIn = newestGen.includeLayers === true;
-        if (!keepLayersRef.current) {
-          for (const img of newestGen.images) {
-            layersCacheRef.current.set(img.id, []);
-          }
-        } else if (layersWereBakedIn) {
+        if (newestGen.includeLayers === true) {
+          // Baked-in (visible) layers must not persist — only keep hidden ones
           const hiddenNodes = nodes.filter(n => !n.visible);
           for (const img of newestGen.images) {
             layersCacheRef.current.set(img.id, hiddenNodes);
           }
         }
+        // If includeLayers=false → no cache set → all current layers preserved
         pendingAutoSelectRef.current = newestGen.images[0].id;
       }
     }
@@ -769,8 +763,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
           hasSelectedImage={!!selectedImageUrl}
           onExportJpeg={() => handleExport("jpeg")}
           onExportPng={() => handleExport("png")}
-          keepLayersOnGenerate={keepLayersOnGenerate}
-          onKeepLayersOnGenerateChange={setKeepLayersOnGenerate}
         />
       </div>
 

@@ -17,7 +17,6 @@ export interface UseInpaintStateResult {
   setInpaintMask: React.Dispatch<React.SetStateAction<string | null>>;
   inpaintSubmitting: boolean;
   includeLayers: boolean;
-  layerPreviewUrl: string | null;
   brushSize: number;
   setBrushSize: React.Dispatch<React.SetStateAction<number>>;
   erasing: boolean;
@@ -26,7 +25,7 @@ export interface UseInpaintStateResult {
   setHasBrushMask: React.Dispatch<React.SetStateAction<boolean>>;
   brushToolRef: React.RefObject<import("./brush-tool").BrushToolHandle | null>;
   handleInpaintSubmit: (prompt: string) => Promise<void>;
-  handleIncludeLayersChange: (checked: boolean) => Promise<void>;
+  handleIncludeLayersChange: (checked: boolean) => void;
   flattenCanvasToDataUrl: () => Promise<string | undefined>;
 }
 
@@ -46,7 +45,6 @@ export function useInpaintState(
   const [inpaintMask, setInpaintMask] = useState<string | null>(null);
   const [inpaintSubmitting, setInpaintSubmitting] = useState(false);
   const [includeLayers, setIncludeLayers] = useState(false);
-  const [layerPreviewUrl, setLayerPreviewUrl] = useState<string | null>(null);
   const [brushSize, setBrushSize] = useState(30);
   const [erasing, setErasing] = useState(false);
   const [hasBrushMask, setHasBrushMask] = useState(false);
@@ -77,14 +75,8 @@ export function useInpaintState(
     return dataUrl;
   }
 
-  async function handleIncludeLayersChange(checked: boolean) {
+  function handleIncludeLayersChange(checked: boolean) {
     setIncludeLayers(checked);
-    if (checked) {
-      const url = await flattenCanvasToDataUrl();
-      setLayerPreviewUrl(url ?? null);
-    } else {
-      setLayerPreviewUrl(null);
-    }
   }
 
   async function handleInpaintSubmit(prompt: string) {
@@ -102,12 +94,13 @@ export function useInpaintState(
         model,
         flattenedImageDataUrl,
         attributeSnapshot: attributes,
-        textLayerSnapshot: canvasNodes.map((n) => ({
-          name: n.name ?? n.id,
-          text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
-          type: n.type,
-          visible: n.visible,
-        })),
+        textLayerSnapshot: includeLayers
+          ? canvasNodes.filter(n => n.visible !== false).map((n) => ({
+              name: n.name ?? n.id,
+              text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
+              type: n.type,
+            }))
+          : undefined,
       });
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setPendingSlotCounts(prev => new Map(prev).set(data.generationId, 1));
@@ -128,7 +121,6 @@ export function useInpaintState(
     inpaintMask, setInpaintMask,
     inpaintSubmitting,
     includeLayers,
-    layerPreviewUrl,
     brushSize, setBrushSize,
     erasing, setErasing,
     hasBrushMask, setHasBrushMask,
