@@ -7,5 +7,7 @@ export const generationQueue = new Queue(QUEUE_NAME, {
   connection: {
     host: redisUrl.hostname,
     port: parseInt(redisUrl.port || "6379"),
+    password: redisUrl.password || undefined,
+    username: redisUrl.username || undefined,
   },
 });

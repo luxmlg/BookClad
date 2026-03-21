@@ -18,6 +18,8 @@ const redisUrl = new URL(REDIS_URL);
 const connection = {
   host: redisUrl.hostname,
   port: parseInt(redisUrl.port || "6379"),
+  password: redisUrl.password || undefined,
+  username: redisUrl.username || undefined,
 };
 
 const worker = new Worker<GenerationJobData>(
