@@ -63,5 +63,5 @@ export interface GeminiModelConfig {
 export const GEMINI_MODEL_CONFIG: Record<string, GeminiModelConfig> = {
   quick: {},
   detailed: { aspectRatio: "9:16", imageSize: "4K", thinkingLevel: "High" },
-  premium: { aspectRatio: "9:16", imageSize: "4K", thinkingLevel: "High" },
+  premium: { aspectRatio: "9:16", imageSize: "4K" },
 };

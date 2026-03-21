@@ -97,7 +97,7 @@ export async function generateImages({
     parts.push({ text: prompt });
 
     const generationConfig: Record<string, unknown> = {
-      responseModalities: ["TEXT", "IMAGE"],
+      responseModalities: ["IMAGE", "TEXT"],
     };
 
     if (config?.aspectRatio || config?.imageSize) {
@@ -181,7 +181,7 @@ export async function inpaintImage({
   ];
 
   const generationConfig: Record<string, unknown> = {
-    responseModalities: ["TEXT", "IMAGE"],
+    responseModalities: ["IMAGE", "TEXT"],
   };
 
   if (config?.thinkingLevel) {
