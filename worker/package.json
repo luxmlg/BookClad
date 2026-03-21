@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "prisma generate && tsc",
+    "build": "npx prisma generate && tsc",
     "start": "node dist/index.js"
   },
   "dependencies": {
@@ -27,6 +27,7 @@
     "@types/pg": "^8.18.0",
     "@types/ws": "^8.18.1",
     "dotenv": "latest",
+    "prisma": "^7.5.0",
     "tsx": "latest",
     "typescript": "latest"
   }
