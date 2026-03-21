@@ -53,3 +53,15 @@ export const GEMINI_MODEL_IDS: Record<string, string> = {
   detailed: "gemini-3.1-flash-image-preview",
   premium: "gemini-3-pro-image-preview",
 };
+
+export interface GeminiModelConfig {
+  aspectRatio?: string;
+  imageSize?: string;
+  thinkingLevel?: string;
+}
+
+export const GEMINI_MODEL_CONFIG: Record<string, GeminiModelConfig> = {
+  quick: {},
+  detailed: { aspectRatio: "9:16", imageSize: "4K", thinkingLevel: "High" },
+  premium: { aspectRatio: "9:16", imageSize: "4K", thinkingLevel: "High" },
+};

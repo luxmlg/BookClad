@@ -5,7 +5,7 @@ import { inpaintImage as geminiInpaint } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
-import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
 import { extractDescriptions } from "../lib/prompt.js";
 
@@ -32,7 +32,8 @@ async function dispatchInpaint(
 ): Promise<Buffer> {
   const geminiModelId = GEMINI_MODEL_IDS[model];
   if (!geminiModelId) throw new Error(`Unknown model: ${model}`);
-  return geminiInpaint({ imageBuffer, prompt, modelId: geminiModelId });
+  const config = GEMINI_MODEL_CONFIG[model];
+  return geminiInpaint({ imageBuffer, prompt, modelId: geminiModelId, config });
 }
 
 export async function processInpaint(job: Job<InpaintJobData>) {

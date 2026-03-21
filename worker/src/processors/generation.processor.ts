@@ -7,7 +7,7 @@ import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
 import { buildSystemPrompt, buildAttributeContext, buildAttributeValues, extractDescriptions, type TextLayerInfo } from "../lib/prompt.js";
-import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
 
 async function dispatchGenerate(
@@ -18,7 +18,8 @@ async function dispatchGenerate(
 ): Promise<Buffer[]> {
   const geminiModelId = GEMINI_MODEL_IDS[model];
   if (!geminiModelId) throw new Error(`Unknown model: ${model}`);
-  return geminiGenerate({ prompt, count, referenceImage, modelId: geminiModelId });
+  const config = GEMINI_MODEL_CONFIG[model];
+  return geminiGenerate({ prompt, count, referenceImage, modelId: geminiModelId, config });
 }
 
 export async function processGeneration(job: Job<GenerationJobData>) {

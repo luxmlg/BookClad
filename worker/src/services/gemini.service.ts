@@ -57,11 +57,18 @@ function extractImageBuffers(response: GeminiResponse): Buffer[] {
   return buffers;
 }
 
+export interface GeminiImageConfig {
+  aspectRatio?: string;
+  imageSize?: string;
+  thinkingLevel?: string;
+}
+
 export interface GeminiGenerateParams {
   prompt: string;
   count: number;
   referenceImage?: Buffer;
   modelId: string;
+  config?: GeminiImageConfig;
 }
 
 export async function generateImages({
@@ -69,6 +76,7 @@ export async function generateImages({
   count,
   referenceImage,
   modelId,
+  config,
 }: GeminiGenerateParams): Promise<Buffer[]> {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
@@ -88,11 +96,24 @@ export async function generateImages({
 
     parts.push({ text: prompt });
 
+    const generationConfig: Record<string, unknown> = {
+      responseModalities: ["TEXT", "IMAGE"],
+    };
+
+    if (config?.aspectRatio || config?.imageSize) {
+      const imageConfig: Record<string, string> = {};
+      if (config.aspectRatio) imageConfig.aspectRatio = config.aspectRatio;
+      if (config.imageSize) imageConfig.imageSize = config.imageSize;
+      generationConfig.imageConfig = imageConfig;
+    }
+
+    if (config?.thinkingLevel) {
+      generationConfig.thinkingConfig = { thinkingLevel: config.thinkingLevel };
+    }
+
     const body = {
       contents: [{ role: "user", parts }],
-      generationConfig: {
-        responseModalities: ["TEXT", "IMAGE"],
-      },
+      generationConfig,
     };
 
     let res: Response;
@@ -133,6 +154,7 @@ export interface GeminiInpaintParams {
   maskBuffer?: Buffer;
   prompt: string;
   modelId: string;
+  config?: GeminiImageConfig;
 }
 
 /**
@@ -144,6 +166,7 @@ export async function inpaintImage({
   imageBuffer,
   prompt,
   modelId,
+  config,
 }: GeminiInpaintParams): Promise<Buffer> {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
@@ -157,11 +180,17 @@ export async function inpaintImage({
     { text: prompt },
   ];
 
+  const generationConfig: Record<string, unknown> = {
+    responseModalities: ["TEXT", "IMAGE"],
+  };
+
+  if (config?.thinkingLevel) {
+    generationConfig.thinkingConfig = { thinkingLevel: config.thinkingLevel };
+  }
+
   const body = {
     contents: [{ role: "user", parts }],
-    generationConfig: {
-      responseModalities: ["TEXT", "IMAGE"],
-    },
+    generationConfig,
   };
 
   let res: Response;

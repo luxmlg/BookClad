@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { KDP } from "../lib/constants.js";
 
 const useReplicate = !!process.env.REPLICATE_API_TOKEN;
 
@@ -41,6 +42,15 @@ async function upscaleWithSharp(imageBuffer: Buffer): Promise<Buffer> {
 }
 
 export async function upscaleImage(imageBuffer: Buffer): Promise<Buffer> {
+  const metadata = await sharp(imageBuffer).metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+
+  if (width >= KDP.width && height >= KDP.height) {
+    console.log(`[upscale] Image ${width}x${height} already meets KDP dimensions (${KDP.width}x${KDP.height}), skipping`);
+    return imageBuffer;
+  }
+
   if (useReplicate) {
     console.log("[upscale] Using Replicate Real-ESRGAN");
     return upscaleWithReplicate(imageBuffer);
