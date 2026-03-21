@@ -193,7 +193,11 @@ export function RightSidebar({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        const hiding = layer.visible;
                         updateNode(layer.id, { visible: !layer.visible });
+                        if (hiding && selectedNodeId === layer.id) {
+                          setSelectedNodeId(null);
+                        }
                       }}
                       className="p-0.5 text-muted-foreground hover:text-foreground"
                     >

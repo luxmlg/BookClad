@@ -33,7 +33,7 @@ export async function DELETE(request: Request): Promise<NextResponse<DeleteImage
         id: { in: imageIds },
         generation: { project: { userId: session.user.id } },
       },
-      include: { generation: { select: { id: true, imageCount: true, _count: { select: { images: true } } } } },
+      include: { generation: { select: { id: true, imageCount: true, maskImage: true, _count: { select: { images: true } } } } },
     });
 
     if (images.length === 0) {
@@ -59,6 +59,7 @@ export async function DELETE(request: Request): Promise<NextResponse<DeleteImage
 
       if (deletingAll) {
         // Delete entire generation (cascade deletes images)
+        if (gen.maskImage) storageKeys.push(gen.maskImage);
         await prisma.generation.delete({ where: { id: generationId } });
         generationsRemoved.push(generationId);
       } else {
