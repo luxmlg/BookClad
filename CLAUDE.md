@@ -11,7 +11,7 @@ BookClad is an AI-powered ebook cover generator for Amazon KDP. Users describe t
 This is a **two-process** system:
 
 1. **Next.js app** (`src/`) — Next.js 16 with App Router, React 19, Auth.js v5, Prisma 7 (with `@prisma/adapter-pg`), Tailwind CSS 4. Handles UI, API routes, and enqueues jobs via BullMQ.
-2. **Worker** (`worker/`) — Standalone Node/Express process that consumes BullMQ jobs from Redis. Calls AI APIs (OpenAI, Gemini, Ideogram), upscales via Replicate, crops to KDP dimensions with Sharp, and uploads results to R2/S3. Runs with `concurrency: 2`, checks for stalled jobs every 30s (max 2 stalls before failure + credit refund), and sweeps for stale generations (>15 min in QUEUED/PROCESSING) on startup. Express serves WebSocket at `/ws/progress` and health check at `/health`.
+2. **Worker** (`worker/`) — Standalone Node/Express process that consumes BullMQ jobs from Redis. Calls Gemini AI APIs (quick/detailed/premium tiers), upscales with Sharp (or Replicate if `REPLICATE_API_TOKEN` is set), crops to KDP dimensions, and uploads results to R2/S3. Runs with `concurrency: 2`, checks for stalled jobs every 30s (max 2 stalls before failure + credit refund), and sweeps for stale generations (>15 min in QUEUED/PROCESSING) on startup. Express serves WebSocket at `/ws/progress` and health check at `/health`.
 
 The two processes share the same Postgres database and Redis instance but are **separate packages** with independent `node_modules` and `tsconfig.json`. The worker is excluded from the root `tsconfig.json`.
 
@@ -71,7 +71,7 @@ Three job types in BullMQ, each routed to a processor in the worker:
 - `JOB_TYPE.GENERATE_FROM_REFERENCE` → `generation.processor.ts` — image-to-image using `referenceImageKey`
 - `JOB_TYPE.INPAINT` → `inpaint.processor.ts` — masked region editing via Gemini
 
-All processors follow the same pipeline: generate → upscale (Replicate) → crop to KDP → upload to R2 → create `GeneratedImage` rows.
+All processors follow the same pipeline: generate → upscale (skipped if image already meets KDP dimensions, e.g. 4K generation) → crop to KDP → upload to R2 → create `GeneratedImage` rows.
 
 **Extension flow**: `POST /api/generations/[id]/extend` adds more images to an existing generation. Routes to the correct processor based on `generation.jobType`:
 - Inpaint extensions → `JOB_TYPE.INPAINT` with persisted `maskImage` key and `prompt`
@@ -128,7 +128,7 @@ Defined in `src/lib/attributes.ts`. Provides a flexible, user-customizable syste
 
 Billing uses a credit ledger instead of a generation counter. Defined in `src/lib/credits.ts` (app) and `worker/src/lib/credits.ts` (worker).
 
-**Per-image costs**: `CREDIT_COST_PER_IMAGE` in constants — OpenAI (5), Ideogram (4), Gemini (3). Also exposed as `creditCost` on each `AI_MODELS` entry.
+**Per-image costs**: `CREDIT_COST_PER_IMAGE` in constants — quick (2), detailed (3), premium (5). Also exposed as `creditCost` on each `AI_MODELS` entry.
 
 **Tier allowances**: `TIER_CREDITS` — FREE (25), STARTER (100), PRO (250) credits/month.
 
@@ -139,7 +139,7 @@ Billing uses a credit ledger instead of a generation counter. Defined in `src/li
 
 **Credit sources**: Initial signup grant (Auth.js `createUser` event → `grantCredits()` for 25 FREE credits), subscription activation/renewal (webhook → `grantCredits()`), and one-time credit pack purchases (webhook → `grantCredits()`).
 
-**API**: `GET /api/credits` returns `{ balance, tier, subscriptionStatus, currentPeriodEnd, dodoSubscriptionId, transactions[] }`. Client module in `src/lib/api/credits.ts`.
+**API**: `GET /api/credits?page=N` returns `{ balance, tier, subscriptionStatus, currentPeriodEnd, dodoSubscriptionId, transactions[], page, totalPages }`. Paginated at 20 transactions per page. Client module in `src/lib/api/credits.ts`.
 
 **DB**: `CreditTransaction` model with `amount` (positive=credit, negative=debit), `balanceAfter` snapshot, `type` enum (`GRANT`, `RESERVE`, `REFUND`, `EXPIRE`), optional `generationId` link.
 
@@ -230,7 +230,7 @@ The worker has its own storage module (`worker/src/lib/storage.ts`) with the sam
   - `DropdownMenuItem` has no `onSelect` — use `onClick`.
   - `DropdownMenuContent` unmounts children when the menu closes. Never render a `Dialog` inside it — render the dialog as a sibling of `DropdownMenu` with shared state in the parent.
   - `SelectValue` doesn't auto-map values to labels — pass explicit children: `<SelectValue>{label}</SelectValue>`.
-- **AI models**: OpenAI (gpt-image-1), Gemini 2.0 Flash, Ideogram V3 — dispatched by `model` field on Generation records.
+- **AI models**: All Gemini — quick (`gemini-2.5-flash-image`), detailed (`gemini-3.1-flash-image-preview`), premium (`gemini-3-pro-image-preview`). Model IDs mapped in `GEMINI_MODEL_IDS` in `worker/src/lib/constants.ts`. Per-model generation config (aspect ratio, resolution, thinking) in `GEMINI_MODEL_CONFIG` — detailed uses 9:16, 4K, High thinking; premium uses 9:16, 4K, no thinking (unsupported). Dispatched by `model` field on Generation records.
 - **KDP constants**: Defined in `src/lib/constants.ts` as `KDP` object (1600x2560, 300 DPI, JPEG).
 - **WebSocket**: Singleton manager in `src/lib/use-generation-ws.ts`. Worker endpoint at `NEXT_PUBLIC_WS_URL` (defaults to `ws://localhost:4000/ws/progress`). Falls back to HTTP polling if WebSocket fails. The worker bridges Redis pubsub → WebSocket: `publishProgress()` in `worker/src/lib/progress.ts` publishes to `generation:{id}` channels, and `worker/src/lib/websocket.ts` relays those to connected clients.
 - **Event constants**: Event type discriminators (`EVENT_TYPE`: STATUS, PROGRESS, COMPLETED, FAILED) and WebSocket control messages (`WS_MESSAGE_TYPE`: SUBSCRIBE, UNSUBSCRIBE) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts`. Use these instead of raw strings like `"completed"` or `"subscribe"`.
