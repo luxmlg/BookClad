@@ -374,7 +374,7 @@ export function LeftSidebar({
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 border-dashed text-xs"
+              className="flex-1 gap-1.5 border-dashed text-xs"
               onClick={() => setPickerOpen(true)}
             >
               <PlusIcon className="size-3.5" />
