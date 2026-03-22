@@ -50,6 +50,7 @@ interface CoverCanvasProps {
   onSelectNode: (id: string | null) => void;
   onNodeDragEnd: (id: string, x: number, y: number) => void;
   onNodeTransformEnd: (id: string, attrs: Partial<CanvasNode>) => void;
+  onTextEdit?: (id: string, newText: string) => void;
   stageRef?: React.RefObject<Konva.Stage | null>;
   onImageLoad?: () => void;
   hideCursor?: boolean;
@@ -63,6 +64,7 @@ export function CoverCanvas({
   onSelectNode,
   onNodeDragEnd,
   onNodeTransformEnd,
+  onTextEdit,
   stageRef: externalStageRef,
   onImageLoad,
   hideCursor,
@@ -246,6 +248,117 @@ export function CoverCanvas({
     return text;
   }
 
+  function startInlineEdit(config: TextNodeConfig) {
+    if (!onTextEdit) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const node = nodeRefs.current[config.id] as Konva.Text | null;
+    if (!node) return;
+
+    // Hide the Konva text and detach transformer
+    node.hide();
+    const tr = transformerRef.current;
+    if (tr) {
+      tr.nodes([]);
+      tr.getLayer()?.batchDraw();
+    }
+    node.getLayer()?.batchDraw();
+
+    const container = stage.container();
+
+    // Get node position in stage coordinates
+    const absPos = node.getAbsolutePosition();
+    const rotation = node.rotation();
+
+    const textarea = document.createElement("textarea");
+    textarea.value = config.text;
+
+    const fontSize = config.fontSize * SCALE;
+    const isAutoWidth = config.autoWidth !== false;
+    const nodeWidth = isAutoWidth
+      ? (measuredWidths[config.id] ?? node.width())
+      : config.width * SCALE;
+
+    // Position and style the textarea to match the Konva text
+    Object.assign(textarea.style, {
+      position: "absolute",
+      top: `${absPos.y}px`,
+      left: `${absPos.x}px`,
+      width: `${nodeWidth + 4}px`,
+      fontSize: `${fontSize}px`,
+      fontFamily: config.fontFamily,
+      color: config.fill,
+      textAlign: config.align || "left",
+      lineHeight: String(config.lineHeight ?? 1),
+      letterSpacing: `${(config.letterSpacing ?? 0) * SCALE}px`,
+      fontWeight: config.fontStyle?.includes("bold") ? "bold" : "normal",
+      fontStyle: config.fontStyle?.includes("italic") ? "italic" : "normal",
+      textDecoration: config.textDecoration ?? "none",
+      background: "transparent",
+      border: "1px solid rgba(99, 102, 241, 0.5)",
+      outline: "none",
+      padding: "0",
+      margin: "0",
+      overflow: "hidden",
+      resize: "none",
+      transformOrigin: "left top",
+      transform: rotation ? `rotate(${rotation}deg)` : "",
+      zIndex: "1000",
+      minHeight: `${fontSize * 1.2}px`,
+    });
+
+    // Offset for alignment on auto-width nodes
+    if (isAutoWidth) {
+      if (config.align === "center") {
+        textarea.style.left = `${absPos.x - nodeWidth / 2}px`;
+      } else if (config.align === "right") {
+        textarea.style.left = `${absPos.x - nodeWidth}px`;
+      }
+    }
+
+    container.style.position = "relative";
+    container.appendChild(textarea);
+
+    // Auto-size height
+    function autoSize() {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+    autoSize();
+
+    textarea.focus();
+    textarea.select();
+
+    let committed = false;
+
+    function commit() {
+      if (committed) return;
+      committed = true;
+      const newText = textarea.value;
+      container.removeChild(textarea);
+      node!.show();
+      // Re-attach transformer so resize/rotate handles reappear
+      const tr = transformerRef.current;
+      if (tr) {
+        tr.nodes([node!]);
+        tr.getLayer()?.batchDraw();
+      }
+      node!.getLayer()?.batchDraw();
+      if (newText !== config.text) {
+        onTextEdit!(config.id, newText);
+      }
+    }
+
+    textarea.addEventListener("input", autoSize);
+    textarea.addEventListener("blur", commit);
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        textarea.value = config.text; // revert
+        textarea.blur();
+      }
+    });
+  }
+
   function renderTextNode(config: TextNodeConfig) {
     if (!config.visible) return null;
     const isAutoWidth = config.autoWidth !== false;
@@ -288,6 +401,8 @@ export function CoverCanvas({
         strokeWidth={(config.strokeWidth ?? 0) * SCALE}
         onClick={() => onSelectNode(config.id)}
         onTap={() => onSelectNode(config.id)}
+        onDblClick={() => startInlineEdit(config)}
+        onDblTap={() => startInlineEdit(config)}
         onDragMove={handleDragMove}
         onDragEnd={(e) => handleDragEnd(config.id, e)}
         onTransformEnd={() => handleTextTransformEnd(config.id)}

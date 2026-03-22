@@ -42,6 +42,7 @@ interface EditorCenterPanelProps {
   setSelectedNodeId: (id: string | null) => void;
   handleNodeDragEnd: (id: string, x: number, y: number) => void;
   handleNodeTransformEnd: (id: string, attrs: Partial<CanvasNode>) => void;
+  handleTextEdit: (id: string, newText: string) => void;
   stageRef: React.RefObject<Konva.Stage | null>;
   canvasContainerRef: React.RefObject<HTMLDivElement | null>;
   handleBgLoaded: () => void;
@@ -106,6 +107,7 @@ export function EditorCenterPanel({
   setSelectedNodeId,
   handleNodeDragEnd,
   handleNodeTransformEnd,
+  handleTextEdit,
   stageRef,
   canvasContainerRef,
   handleBgLoaded,
@@ -193,6 +195,7 @@ export function EditorCenterPanel({
                   onSelectNode={brushMode ? () => {} : setSelectedNodeId}
                   onNodeDragEnd={handleNodeDragEnd}
                   onNodeTransformEnd={handleNodeTransformEnd}
+                  onTextEdit={brushMode ? undefined : handleTextEdit}
                   stageRef={stageRef}
                   onImageLoad={handleBgLoaded}
                   hideCursor={brushMode && !inpaintMask}

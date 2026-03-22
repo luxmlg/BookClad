@@ -586,6 +586,10 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     updateNode(id, { x: x / SCALE, y: y / SCALE });
   }
 
+  function handleTextEdit(id: string, newText: string) {
+    updateNode(id, { text: newText });
+  }
+
   function handleNodeTransformEnd(id: string, attrs: Partial<CanvasNode>) {
     const node = nodes.find(n => n.id === id);
     if (!node) return;
@@ -712,6 +716,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         setSelectedNodeId={setSelectedNodeId}
         handleNodeDragEnd={handleNodeDragEnd}
         handleNodeTransformEnd={handleNodeTransformEnd}
+        handleTextEdit={handleTextEdit}
         stageRef={stageRef}
         canvasContainerRef={canvasContainerRef}
         handleBgLoaded={handleBgLoaded}
