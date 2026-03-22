@@ -63,7 +63,7 @@ export function AiFillPopover({
           size="sm"
           onClick={() => onOpenChange(!open)}
           disabled={loading}
-          className="gap-1.5 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-950 dark:hover:text-purple-300"
+          className="gap-1.5 border-yellow-500/30 bg-yellow-500/5 text-xs text-yellow-600 hover:bg-yellow-500/10 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300"
         >
           {loading ? (
             <Loader2 className="size-3.5 animate-spin" />
@@ -118,7 +118,7 @@ export function AiFillPopover({
 
                 <Button
                   size="sm"
-                  className="w-full gap-1.5 bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600"
+                  className="w-full gap-1.5 bg-yellow-500 text-black hover:bg-yellow-600 dark:bg-yellow-500 dark:text-black dark:hover:bg-yellow-400"
                   onClick={handleGenerate}
                   disabled={!prompt.trim() || loading || !hasEnoughCredits}
                 >
