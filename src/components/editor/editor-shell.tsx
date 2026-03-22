@@ -86,6 +86,9 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   );
   const [baseSnapshot, setBaseSnapshot] = useState<AttributeSelection | null>(null);
   const draftStashRef = useRef<Map<string, AttributeSelection>>(new Map());
+  const [attributeConfig, setAttributeConfig] = useState<AttributeConfigJson>(
+    buildDefaultConfig()
+  );
 
   const draftKeys: Set<string> = useMemo(() => {
     if (!baseSnapshot) return new Set<string>();
@@ -108,12 +111,18 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   }, [baseSnapshot, selectedImageId]);
 
   const discardAttributeDraft = useCallback((key: string) => {
-    if (!baseSnapshot || !(key in baseSnapshot)) return;
-    setAttributes((prev) => ({ ...prev, [key]: baseSnapshot[key] }));
+    if (!baseSnapshot) return;
+    if (key in baseSnapshot) {
+      setAttributes((prev) => ({ ...prev, [key]: baseSnapshot[key] }));
+    } else {
+      // Attribute added after generation — remove it entirely
+      setAttributes((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
   }, [baseSnapshot]);
-  const [attributeConfig, setAttributeConfig] = useState<AttributeConfigJson>(
-    buildDefaultConfig()
-  );
   const [presets, setPresets] = useState<
     Array<{ id: string; name: string; attributes: AttributeSelection }>
   >([]);
@@ -408,14 +417,14 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     );
     const genSnap = ownerGen ? asAttributeSnapshot(ownerGen.attributeSnapshot) : null;
 
-    // Restore stashed drafts if any, otherwise restore generation snapshot.
-    // Merge with current attributes so that attributes added after the
-    // generation (e.g. Color Palette) are preserved.
+    // Restore stashed drafts if any, otherwise restore the exact generation
+    // snapshot. Do NOT merge with prev — attributes not in the snapshot
+    // (e.g. added to config after this generation) should not carry over.
     const stashed = draftStashRef.current.get(imageId);
     if (stashed) {
-      setAttributes((prev) => ({ ...prev, ...stashed }));
+      setAttributes(stashed);
     } else if (genSnap) {
-      setAttributes((prev) => ({ ...prev, ...genSnap }));
+      setAttributes(genSnap);
     }
 
     setBaseSnapshot(genSnap);
