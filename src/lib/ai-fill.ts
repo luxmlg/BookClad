@@ -115,12 +115,12 @@ Attribute types and how to use them:
 - "toggle": On/off switch — use "true" or "false"
 - "scale": A number from 0 to 10
 - "color": A hex color value like "#3b82f6"
-- "palette": A curated color set — pick from available palettes or suggest new ones with color arrays
+- "palette": A curated color set — pick from available palettes or suggest new ones. IMPORTANT: When creating new palette values, you MUST include a "colors" array with exactly 5 hex color strings, e.g. ["#0a0a0f", "#1a1a2e", "#4a1942", "#c84b31", "#fbbf24"]. Palette values without colors are useless.
 
 Rules:
 - Only suggest changes that are RELEVANT to the user's direction. Do not change attributes that don't need changing.
 - For existing attributes with predefined values, prefer picking from existing values. Only create new values when nothing existing fits.
-- When creating new values, provide a slug-style value, a human-readable label, and optionally a description.
+- When creating new values, provide a slug-style value, a human-readable label, and optionally a description. For palette-type attributes, always include a "colors" array with 5 hex color strings.
 - When suggesting entirely new attributes, pick the most appropriate type and provide a full definition.
 - Keep new attribute suggestions practical — only suggest attributes that would meaningfully impact the cover design.
 - For multi-type attributes, you can suggest a complete replacement set or add to existing selections as appropriate.
