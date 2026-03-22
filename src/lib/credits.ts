@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { CREDIT_COST_PER_IMAGE } from "@/lib/constants";
+import { AI_FILL_CREDIT_COST, CREDIT_COST_PER_IMAGE } from "@/lib/constants";
 import type { Prisma } from "@/generated/prisma/client";
 
 export class InsufficientCreditsError extends Error {
@@ -112,6 +112,40 @@ export async function reserveExtensionCredits(
         type: "RESERVE",
         description: `Extend generation: +${additionalImageCount} images`,
         generationId,
+      },
+    });
+  });
+}
+
+/**
+ * Atomically check balance, deduct one AI fill credit, and create a transaction record.
+ * Throws InsufficientCreditsError if balance is too low.
+ */
+export async function reserveAiFillCredits(userId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { creditBalance: true },
+    });
+
+    if (user.creditBalance < AI_FILL_CREDIT_COST) {
+      throw new InsufficientCreditsError(AI_FILL_CREDIT_COST, user.creditBalance);
+    }
+
+    const newBalance = user.creditBalance - AI_FILL_CREDIT_COST;
+
+    await tx.user.update({
+      where: { id: userId },
+      data: { creditBalance: newBalance },
+    });
+
+    await tx.creditTransaction.create({
+      data: {
+        userId,
+        type: "RESERVE",
+        amount: -AI_FILL_CREDIT_COST,
+        balanceAfter: newBalance,
+        description: "AI attribute generation",
       },
     });
   });
