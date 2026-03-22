@@ -63,12 +63,12 @@ export function AiFillPopover({
           onClick={() => onOpenChange(!open)}
           disabled={loading}
           variant="outline"
-          className="w-full gap-1.5 text-xs text-yellow-500 hover:text-yellow-500"
+          className="w-full gap-1.5 text-xs"
         >
           {loading ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <Loader2 className="size-3.5 animate-spin text-yellow-500" />
           ) : (
-            <Sparkles className="size-3.5" />
+            <Sparkles className="size-3.5 text-yellow-500" />
           )}
           AI Fill
         </Button>
