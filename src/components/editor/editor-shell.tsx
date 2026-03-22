@@ -692,6 +692,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
       {/* Left sidebar */}
       <div className="hidden lg:flex w-72 flex-col border-r bg-background">
         <LeftSidebar
+          projectId={project.id}
           attributeConfig={attributeConfig}
           attributes={attributes}
           setAttributes={setAttributes}

@@ -12,6 +12,7 @@ import {
   updateValueInAttribute,
   renameAttribute,
   updateAttributeDescription,
+  slugify,
   type AttributeConfigJson,
   type AttributeSelection,
   type Attribute,
@@ -21,8 +22,13 @@ import { PresetPicker, type StylePreset } from "./preset-picker";
 import { AttributePickerDialog } from "@/components/attribute-picker-dialog";
 import { CreateAttributeDialog } from "@/components/create-attribute-dialog";
 import { AttributeContextMenu } from "@/components/attribute-context-menu";
+import { AiFillPopover } from "./ai-fill-popover";
+import { AiFillReviewDialog } from "./ai-fill-review-dialog";
+import type { AiFillSuggestion } from "@/lib/ai-fill";
+import { useCreditStore } from "@/lib/stores/credit-store";
 
 interface LeftSidebarProps {
+  projectId: string;
   attributeConfig: AttributeConfigJson;
   attributes: AttributeSelection;
   setAttributes: (attrs: AttributeSelection) => void;
@@ -39,6 +45,7 @@ interface LeftSidebarProps {
 }
 
 export function LeftSidebar({
+  projectId,
   attributeConfig,
   attributes,
   setAttributes,
@@ -58,6 +65,11 @@ export function LeftSidebar({
   const dragHandleActiveRef = useRef(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [aiFillPrompt, setAiFillPrompt] = useState("");
+  const [aiFillSuggestions, setAiFillSuggestions] = useState<AiFillSuggestion[]>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [aiFillLoading, setAiFillLoading] = useState(false);
 
   // Active = attributes present in this project's selections
   const activeAttributes = attributeConfig.attributes.filter(
@@ -135,6 +147,61 @@ export function LeftSidebar({
     });
     setAttributes({ ...attributes, [attribute.id]: defaultValue });
     toast.success(`Created "${attribute.name}"`);
+  }
+
+  // ── AI Fill handlers ────────────────────────────────────────────
+
+  function handleAiFillSuggestions(suggestions: AiFillSuggestion[]) {
+    setAiFillSuggestions(suggestions);
+    setReviewOpen(true);
+  }
+
+  function handleApplyAiFill(selected: AiFillSuggestion[]) {
+    let updatedConfig = attributeConfig;
+    const updatedAttrs = { ...attributes };
+
+    for (const suggestion of selected) {
+      if (suggestion.isNew && suggestion.newAttribute) {
+        const newId = slugify(suggestion.newAttribute.name);
+        const newAttr = {
+          id: newId,
+          name: suggestion.newAttribute.name,
+          type: suggestion.newAttribute.type,
+          builtIn: false,
+          enabled: true,
+          description: suggestion.newAttribute.description,
+          values: (suggestion.newAttribute.values ?? []).map((v) => ({ ...v, builtIn: false })),
+          scaleLabels: suggestion.newAttribute.scaleLabels,
+        };
+        updatedConfig = {
+          attributes: [...updatedConfig.attributes, newAttr],
+        };
+        updatedAttrs[newId] = suggestion.value;
+      } else if (suggestion.attributeId) {
+        if (suggestion.newValues) {
+          for (const nv of suggestion.newValues) {
+            updatedConfig = addValueToAttribute(
+              updatedConfig,
+              suggestion.attributeId,
+              nv.value,
+              nv.label,
+              nv.description,
+              nv.colors
+            );
+          }
+        }
+        updatedAttrs[suggestion.attributeId] = suggestion.value;
+      }
+    }
+
+    onConfigChange(updatedConfig);
+    setAttributes(updatedAttrs);
+    onClearActivePreset();
+    useCreditStore.getState().refreshCredits();
+  }
+
+  function handleAiFillRegenerate() {
+    setPopoverOpen(true);
   }
 
   // ── Drag-and-drop handlers ──────────────────────────────────────
@@ -295,15 +362,29 @@ export function LeftSidebar({
             );
           })}
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-1.5 border-dashed text-xs"
-            onClick={() => setPickerOpen(true)}
-          >
-            <PlusIcon className="size-3.5" />
-            Add Attribute
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 border-dashed text-xs"
+              onClick={() => setPickerOpen(true)}
+            >
+              <PlusIcon className="size-3.5" />
+              Add Attribute
+            </Button>
+            <div className="flex-1">
+              <AiFillPopover
+                projectId={projectId}
+                open={popoverOpen}
+                onOpenChange={setPopoverOpen}
+                prompt={aiFillPrompt}
+                onPromptChange={setAiFillPrompt}
+                loading={aiFillLoading}
+                onLoadingChange={setAiFillLoading}
+                onSuggestions={handleAiFillSuggestions}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -320,6 +401,14 @@ export function LeftSidebar({
         onOpenChange={setCreateOpen}
         existingAttributeIds={attributeConfig.attributes.map((c) => c.id)}
         onCreateAttribute={handleCreateAttribute}
+      />
+
+      <AiFillReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        suggestions={aiFillSuggestions}
+        onApply={handleApplyAiFill}
+        onRegenerate={handleAiFillRegenerate}
       />
     </div>
   );
