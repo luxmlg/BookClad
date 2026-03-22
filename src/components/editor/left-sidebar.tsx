@@ -161,10 +161,19 @@ export function LeftSidebar({
     const updatedAttrs = { ...attributes };
 
     for (const suggestion of selected) {
-      if (suggestion.isNew && suggestion.newAttribute) {
-        const newId = slugify(suggestion.newAttribute.name);
+      // Resolve the attribute ID — for "new" suggestions, check if one already exists
+      const resolvedId = suggestion.isNew && suggestion.newAttribute
+        ? slugify(suggestion.newAttribute.name)
+        : suggestion.attributeId;
+
+      if (!resolvedId) continue;
+
+      const existingAttr = updatedConfig.attributes.find((a) => a.id === resolvedId);
+
+      if (!existingAttr && suggestion.newAttribute) {
+        // Truly new attribute — add to config
         const newAttr = {
-          id: newId,
+          id: resolvedId,
           name: suggestion.newAttribute.name,
           type: suggestion.newAttribute.type,
           builtIn: false,
@@ -176,22 +185,21 @@ export function LeftSidebar({
         updatedConfig = {
           attributes: [...updatedConfig.attributes, newAttr],
         };
-        updatedAttrs[newId] = suggestion.value;
-      } else if (suggestion.attributeId) {
-        if (suggestion.newValues) {
-          for (const nv of suggestion.newValues) {
-            updatedConfig = addValueToAttribute(
-              updatedConfig,
-              suggestion.attributeId,
-              nv.value,
-              nv.label,
-              nv.description,
-              nv.colors
-            );
-          }
+      } else if (suggestion.newValues) {
+        // Add new values to existing attribute
+        for (const nv of suggestion.newValues) {
+          updatedConfig = addValueToAttribute(
+            updatedConfig,
+            resolvedId,
+            nv.value,
+            nv.label,
+            nv.description,
+            nv.colors
+          );
         }
-        updatedAttrs[suggestion.attributeId] = suggestion.value;
       }
+
+      updatedAttrs[resolvedId] = suggestion.value;
     }
 
     onConfigChange(updatedConfig);
