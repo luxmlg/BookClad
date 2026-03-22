@@ -150,7 +150,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
     setSubmitting(true);
     try {
-      const result = await submitFeedback({
+      await submitFeedback({
         category,
         title: title.trim(),
         description: description.trim(),
@@ -159,13 +159,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
         context,
       });
 
-      toast.success("Feedback submitted!", {
-        description: `Issue #${result.issueNumber} created`,
-        action: {
-          label: "View on GitHub",
-          onClick: () => window.open(result.issueUrl, "_blank"),
-        },
-      });
+      toast.success("Thank you for submitting feedback!");
 
       resetForm();
       onOpenChange(false);
