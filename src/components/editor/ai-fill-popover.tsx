@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
-import { Sparkles, Loader2, AlertTriangle } from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCreditStore } from "@/lib/stores/credit-store";
 import { generateAttributes } from "@/lib/api/ai-fill";
@@ -59,11 +59,10 @@ export function AiFillPopover({
     <>
       <div ref={anchorRef}>
         <Button
-          variant="outline"
           size="sm"
           onClick={() => onOpenChange(!open)}
           disabled={loading}
-          className="gap-1.5 border-yellow-500/30 bg-yellow-500/5 text-xs text-yellow-600 hover:bg-yellow-500/10 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300"
+          className="w-full gap-1.5 bg-black text-xs text-yellow-500 hover:bg-neutral-900 hover:text-yellow-400 dark:bg-black dark:text-yellow-500 dark:hover:bg-neutral-900"
         >
           {loading ? (
             <Loader2 className="size-3.5 animate-spin" />
@@ -82,58 +81,55 @@ export function AiFillPopover({
             sideOffset={4}
             align="start"
           >
-            <PopoverPrimitive.Popup className="z-50 w-80 rounded-lg border bg-popover p-3 shadow-md">
-              <div className="space-y-2.5">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-foreground">
-                    Describe what you want
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    AI will suggest attribute updates based on your description.
-                  </p>
-                </div>
+            <PopoverPrimitive.Popup className="z-50 w-72 rounded-lg border bg-popover p-3 shadow-md text-xs space-y-2.5">
+              <p className="font-medium">Describe what you want</p>
+              <p className="text-muted-foreground">
+                AI will suggest attribute updates based on your description.
+              </p>
 
-                <div className="space-y-1">
-                  <textarea
-                    rows={3}
-                    value={prompt}
-                    onChange={(e) => onPromptChange(e.target.value)}
-                    placeholder="e.g. Make it darker and more mysterious, like a gothic thriller..."
-                    maxLength={MAX_PROMPT_LENGTH}
-                    disabled={loading}
-                    autoFocus
-                    className="flex w-full resize-none overflow-hidden rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
-                  />
-                  <p className="text-right text-xs text-muted-foreground">
-                    {prompt.length}/{MAX_PROMPT_LENGTH}
-                  </p>
-                </div>
+              <textarea
+                rows={3}
+                value={prompt}
+                onChange={(e) => onPromptChange(e.target.value)}
+                placeholder="e.g. Make it darker and more mysterious, like a gothic thriller..."
+                maxLength={MAX_PROMPT_LENGTH}
+                disabled={loading}
+                autoFocus
+                className="flex w-full resize-none overflow-hidden rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
+              />
+              <p className="text-right text-muted-foreground">
+                {prompt.length}/{MAX_PROMPT_LENGTH}
+              </p>
 
-                {!hasEnoughCredits && (
-                  <div className="flex items-center gap-1.5 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
-                    <AlertTriangle className="size-3.5 shrink-0" />
-                    Insufficient credits to use AI Fill.
-                  </div>
+              {!hasEnoughCredits && (
+                <div className="flex items-center gap-1.5 rounded-md bg-destructive/10 px-2.5 py-1.5 text-destructive">
+                  <AlertTriangle className="size-3 shrink-0" />
+                  Insufficient credits.
+                </div>
+              )}
+
+              <Button
+                size="sm"
+                className="w-full gap-1.5"
+                onClick={handleGenerate}
+                disabled={!prompt.trim() || loading || !hasEnoughCredits}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="size-3 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-3" />
+                    Generate
+                  </>
                 )}
+              </Button>
 
-                <Button
-                  size="sm"
-                  className="w-full gap-1.5 bg-yellow-500 text-black hover:bg-yellow-600 dark:bg-yellow-500 dark:text-black dark:hover:bg-yellow-400"
-                  onClick={handleGenerate}
-                  disabled={!prompt.trim() || loading || !hasEnoughCredits}
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="size-3.5 animate-spin" />
-                      Generating…
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="size-3.5" />
-                      Generate
-                    </>
-                  )}
-                </Button>
+              <div className="flex items-center justify-center gap-1 text-muted-foreground">
+                <Coins className="size-3 text-yellow-500" />
+                <span>1 credit</span>
               </div>
             </PopoverPrimitive.Popup>
           </PopoverPrimitive.Positioner>
