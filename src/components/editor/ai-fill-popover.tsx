@@ -62,7 +62,7 @@ export function AiFillPopover({
           size="sm"
           onClick={() => onOpenChange(!open)}
           disabled={loading}
-          className="w-full gap-1.5 bg-yellow-500 text-xs text-black hover:bg-yellow-400 border-0"
+          className="w-full gap-1.5 bg-background text-xs text-yellow-500 hover:bg-accent hover:text-yellow-500 border border-input"
         >
           {loading ? (
             <Loader2 className="size-3.5 animate-spin" />
