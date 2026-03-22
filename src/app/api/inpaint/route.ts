@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generationQueue } from "@/lib/queue";
+import { getGenerationQueue } from "@/lib/queue";
 import { createInpaintSchema } from "@/lib/validations";
 import { JOB_TYPE, GENERATION_STATUS } from "@/lib/constants";
 import { calculateCreditCost, reserveCredits, InsufficientCreditsError } from "@/lib/credits";
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       textLayerSnapshot: textLayerSnapshot ?? undefined,
     });
 
-    await generationQueue.add(JOB_TYPE.INPAINT, {
+    await getGenerationQueue().add(JOB_TYPE.INPAINT, {
       generationId,
       projectId: image.generation.projectId,
       userId: session.user.id,

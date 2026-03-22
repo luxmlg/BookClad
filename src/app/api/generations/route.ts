@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generationQueue } from "@/lib/queue";
+import { getGenerationQueue } from "@/lib/queue";
 import { createGenerationSchema } from "@/lib/validations";
 import { JOB_TYPE, GENERATION_STATUS } from "@/lib/constants";
 import { calculateCreditCost, reserveCredits, InsufficientCreditsError } from "@/lib/credits";
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       textLayerSnapshot: textLayerSnapshot ?? undefined,
     });
 
-    await generationQueue.add(jobType, {
+    await getGenerationQueue().add(jobType, {
       generationId,
       projectId: project.id,
       userId: session.user.id,
