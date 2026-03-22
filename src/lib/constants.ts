@@ -57,6 +57,9 @@ export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
   premium: 5,
 };
 
+export const AI_FILL_CREDIT_COST = 1;
+export const AI_FILL_PROMPT_MAX_LENGTH = 1000;
+
 export const TIER_CREDITS: Record<string, number> = {
   FREE: 25,
   STARTER: 100,

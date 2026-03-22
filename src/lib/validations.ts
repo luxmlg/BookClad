@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AI_MODELS, MAX_IMAGES_PER_GENERATION } from "./constants";
+import { AI_MODELS, AI_FILL_PROMPT_MAX_LENGTH, MAX_IMAGES_PER_GENERATION } from "./constants";
 
 const modelValues = AI_MODELS.map((m) => m.value) as [string, ...string[]];
 
@@ -83,4 +83,9 @@ export const createInpaintSchema = z.object({
   model: z.enum(modelValues).optional().default("quick"),
   flattenedImageDataUrl: z.string().optional(),
   ...snapshotFields,
+});
+
+export const aiFillSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  prompt: z.string().min(1).max(AI_FILL_PROMPT_MAX_LENGTH),
 });
