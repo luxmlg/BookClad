@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Generation } from "./types";
-import { PANEL_MAX_HEIGHT } from "./types";
 import { GenerationGroup } from "./generation-group";
 import { useMultiSelect } from "./use-multi-select";
 import { deleteImages } from "@/lib/api";
@@ -108,8 +107,7 @@ export function GenerationHistory({
   return (
     <div
       ref={scrollContainerRef}
-      className="overflow-y-auto px-4 pb-3"
-      style={{ maxHeight: PANEL_MAX_HEIGHT }}
+      className="px-4 pb-3"
     >
       <div className="space-y-1">
         {generations.map((gen, idx) => {

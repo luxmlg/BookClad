@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import {
   Loader2,
@@ -152,8 +153,57 @@ export function EditorCenterPanel({
   onGenerateMore,
   onDeletedImages,
 }: EditorCenterPanelProps) {
+  const STORAGE_KEY = "bookclad:panel-height";
+  const MIN_HEIGHT = 100;
+  const MAX_HEIGHT = 600;
+  const DEFAULT_HEIGHT = 280;
+
+  const [panelHeight, setPanelHeight] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_HEIGHT;
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const n = Number(stored);
+      if (n >= MIN_HEIGHT && n <= MAX_HEIGHT) return n;
+    }
+    return DEFAULT_HEIGHT;
+  });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    draggingRef.current = true;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!containerRef.current) return;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newHeight = Math.min(
+        MAX_HEIGHT,
+        Math.max(MIN_HEIGHT, containerRect.bottom - ev.clientY),
+      );
+      setPanelHeight(newHeight);
+    };
+
+    const onUp = () => {
+      draggingRef.current = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      setPanelHeight((h) => {
+        localStorage.setItem(STORAGE_KEY, String(h));
+        return h;
+      });
+    };
+
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, []);
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-muted/20">
+    <div ref={containerRef} className="flex flex-1 flex-col overflow-hidden bg-muted/20">
       <div
         className="flex flex-1 items-center justify-center overflow-auto scrollbar-hide p-4"
         onClick={(e) => {
@@ -266,11 +316,23 @@ export function EditorCenterPanel({
         </div>
       </div>
 
+      {/* Resize handle */}
+      {panelOpen && (
+        <div
+          className="h-1 shrink-0 cursor-row-resize border-t bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+          onMouseDown={startResize}
+          onDoubleClick={() => {
+            setPanelHeight(DEFAULT_HEIGHT);
+            localStorage.setItem(STORAGE_KEY, String(DEFAULT_HEIGHT));
+          }}
+        />
+      )}
+
       {/* Bottom panel */}
       <Collapsible
         open={panelOpen}
         onOpenChange={setPanelOpen}
-        className="shrink-0 border-t bg-background/80"
+        className={`shrink-0 bg-background/80 ${panelOpen ? "" : "border-t"}`}
       >
         <div className="flex items-center">
           <CollapsibleTrigger className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 transition-colors">
@@ -306,6 +368,7 @@ export function EditorCenterPanel({
           </Tabs>
         </div>
         <CollapsibleContent>
+          <div style={{ height: panelHeight }} className="overflow-y-auto">
           <div className={activeTab !== 0 ? "hidden" : undefined}>
             <GenerationHistory
               generations={historyGenerations}
@@ -327,6 +390,7 @@ export function EditorCenterPanel({
               generations={activeGenerations}
               onComplete={handleGenerationComplete}
             />
+          </div>
           </div>
         </CollapsibleContent>
       </Collapsible>

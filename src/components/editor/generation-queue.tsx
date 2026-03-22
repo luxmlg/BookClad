@@ -7,7 +7,6 @@ import { Progress } from "@/components/ui/progress";
 import { GENERATION_STATUS, JOB_TYPE, type GenerationStatus } from "@/lib/constants";
 import { useGenerationPoller, type GenerationPollerState } from "./generation-poller";
 import type { Generation } from "./types";
-import { PANEL_MAX_HEIGHT } from "./types";
 import {
   JOB_TYPE_ICON,
   getModelLabel,
@@ -42,7 +41,7 @@ export function GenerationQueue({
   }
 
   return (
-    <div className="overflow-y-auto px-4 pb-3" style={{ maxHeight: PANEL_MAX_HEIGHT }}>
+    <div className="px-4 pb-3">
       <div className="space-y-2">
         {generations.map((gen) => (
           <QueueEntry
