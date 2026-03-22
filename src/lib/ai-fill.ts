@@ -72,7 +72,7 @@ function serializeAttributeConfig(
 
   for (const attr of config.attributes) {
     lines.push("");
-    lines.push(`${attr.name} (${attr.type}): ${attr.description ?? "No description"}`);
+    lines.push(`${attr.name} [id: "${attr.id}"] (${attr.type}): ${attr.description ?? "No description"}`);
 
     if (attr.values.length > 0) {
       const valueDescs = attr.values.map((v) => {
@@ -129,7 +129,7 @@ Respond with valid JSON matching this exact structure:
 {
   "suggestions": [
     {
-      "attributeId": "existing-attr-id or null for new",
+      "attributeId": "the exact id from the attribute config, or null for new attributes",
       "name": "Attribute Name",
       "type": "single|multi|text|toggle|scale|color|palette",
       "value": "selected-value" or ["value1", "value2"],
@@ -141,7 +141,7 @@ Respond with valid JSON matching this exact structure:
 
 Set "isNew": true and include "newAttribute" only for brand new attributes not in the current config.
 Set "newValues" only when you need to add values that don't exist in the attribute's current value list.
-Include "attributeId" for existing attributes (use the exact id from the config), set to null for new ones.`;
+CRITICAL: For "attributeId", you MUST use the exact id string shown in brackets [id: "..."] for each attribute. For example, if an attribute shows [id: "genre"], use "genre" as the attributeId. Set to null only for brand new attributes.`;
 
 export function buildAiFillPrompt(
   config: AttributeConfigJson,
