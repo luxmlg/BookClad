@@ -8,6 +8,7 @@ import { uploadImage, downloadImage } from "../services/storage.service.js";
 import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
 import { extractDescriptions } from "../lib/prompt.js";
+import { preflight } from "../lib/health.js";
 
 export interface InpaintJobData {
   generationId: string;
@@ -60,6 +61,8 @@ export async function processInpaint(job: Job<InpaintJobData>) {
   await publishProgress(job, generationId, { type: EVENT_TYPE.STATUS, status: GENERATION_STATUS.PROCESSING });
 
   try {
+    await preflight();
+
     step++;
     await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Downloading source image...", step, totalSteps });
     const imageBuffer = job.data.flattenedImageDataUrl

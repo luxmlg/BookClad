@@ -9,6 +9,7 @@ import type { GenerationJobData } from "../queues/generation.queue.js";
 import { buildSystemPrompt, buildAttributeContext, buildAttributeValues, extractDescriptions, type TextLayerInfo } from "../lib/prompt.js";
 import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
+import { preflight } from "../lib/health.js";
 
 async function dispatchGenerate(
   model: string,
@@ -38,6 +39,8 @@ export async function processGeneration(job: Job<GenerationJobData>) {
   await publishProgress(job, generationId, { type: EVENT_TYPE.STATUS, status: GENERATION_STATUS.PROCESSING });
 
   try {
+    await preflight();
+
     const [project, generation, attributeConfigRecord] = await Promise.all([
       prisma.coverProject.findUniqueOrThrow({
         where: { id: projectId },

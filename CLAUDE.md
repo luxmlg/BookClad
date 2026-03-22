@@ -13,7 +13,7 @@ This is a **two-process** system:
 1. **Next.js app** (`src/`) — Next.js 16 with App Router, React 19, Auth.js v5, Prisma 7 (with `@prisma/adapter-pg`), Tailwind CSS 4. Handles UI, API routes, and enqueues jobs via BullMQ.
 2. **Worker** (`worker/`) — Standalone Node/Express process that consumes BullMQ jobs from Redis. Calls Gemini AI APIs (quick/detailed/premium tiers), upscales with Sharp (or Replicate if `REPLICATE_API_TOKEN` is set), crops to KDP dimensions, and uploads results to R2/S3. Runs with `concurrency: 2`, checks for stalled jobs every 30s (max 2 stalls before failure + credit refund), and sweeps for stale generations (>15 min in QUEUED/PROCESSING) on startup. Express serves WebSocket at `/ws/progress` and health check at `/health`.
 
-The two processes share the same Postgres database and Redis instance but are **separate packages** with independent `node_modules` and `tsconfig.json`. The worker is excluded from the root `tsconfig.json`.
+The two processes share the same Postgres database and Redis instance but are **separate packages** with independent `node_modules` and `tsconfig.json`. The worker is excluded from the root `tsconfig.json`. The worker is an **ESM package** (`"type": "module"` in its `package.json`).
 
 ### Key data flow
 
@@ -64,6 +64,15 @@ cd worker && npx tsc --noEmit  # Type-check worker (separate tsconfig)
 
 No test framework is configured.
 
+### Deployment (Railway)
+
+The app and worker deploy as separate Railway services from the same repo. Railway's private networking (`*.railway.internal`) is **only available at runtime**, not during build.
+
+- **Migrations**: Run at startup (`prisma migrate deploy && next start`), not during build, because the internal Postgres URL isn't reachable at build time.
+- **Prisma client**: Generated via `postinstall` hook (`prisma generate`). Worker has its own in `worker/package.json` (`npx prisma generate && tsc`).
+- **BullMQ/ioredis**: Must be lazy-initialized in the Next.js app to avoid Redis connection attempts during `next build` (static page generation phase). Use `getGenerationQueue()` instead of a top-level `Queue` instance.
+- **`AUTH_URL`**: Must be set to the deployed URL (e.g., `https://bookclad-dev.up.railway.app`) for OAuth callbacks to work correctly.
+
 ## Generation Pipeline
 
 Three job types in BullMQ, each routed to a processor in the worker:
@@ -71,7 +80,7 @@ Three job types in BullMQ, each routed to a processor in the worker:
 - `JOB_TYPE.GENERATE_FROM_REFERENCE` → `generation.processor.ts` — image-to-image using `referenceImageKey`
 - `JOB_TYPE.INPAINT` → `inpaint.processor.ts` — masked region editing via Gemini
 
-All processors follow the same pipeline: generate → upscale (skipped if image already meets KDP dimensions, e.g. 4K generation) → crop to KDP → upload to R2 → create `GeneratedImage` rows.
+All processors run a **preflight health check** (`preflight()` in `worker/src/lib/health.ts`) before any work — verifies R2 storage and Postgres are reachable. If either is down, the job fails immediately without calling the Gemini API, saving API costs. Then: generate → upscale (skipped if image already meets KDP dimensions, e.g. 4K generation) → crop to KDP → upload to R2 → create `GeneratedImage` rows.
 
 **Extension flow**: `POST /api/generations/[id]/extend` adds more images to an existing generation. Routes to the correct processor based on `generation.jobType`:
 - Inpaint extensions → `JOB_TYPE.INPAINT` with persisted `maskImage` key and `prompt`
@@ -179,7 +188,9 @@ Payments are handled by DodoPayments. Defined in `src/lib/dodo.ts` (SDK client +
 
 Functions: `getSignedDownloadUrl(key)`, `downloadFromStorage(key)`, `uploadToStorage(key, body, contentType)`, `deleteFromStorage(key)`. The `useLocalStorage` flag is derived from the environment automatically.
 
-The worker has its own storage module (`worker/src/lib/storage.ts`) with the same dual-mode pattern.
+The worker has its own storage module (`worker/src/services/storage.service.ts`) with the same dual-mode pattern, plus `checkStorageHealth()` for preflight checks.
+
+**Storage cleanup on deletion**: Both `DELETE /api/images/batch` and `DELETE /api/projects/[id]` collect all storage keys (generated images, mask images, user assets) and delete them from R2 in the background. Mask images (`Generation.maskImage`) are included in cleanup.
 
 ## Credit Store
 
@@ -223,7 +234,7 @@ The worker has its own storage module (`worker/src/lib/storage.ts`) with the sam
 - **Prisma client import**: Use `import { PrismaClient } from "@/generated/prisma/client"` (not `@prisma/client`) — the client is generated to a custom output path.
 - **Validation**: All API request bodies are validated with Zod schemas from `src/lib/validations.ts`. Schemas derive allowed values from `src/lib/constants.ts`.
 - **Auth pattern**: Auth.js v5 with database sessions. Providers: GitHub, Google, Apple, Amazon (custom OAuth). API routes check `const session = await auth()` from `src/lib/auth.ts`, then verify `session?.user?.id`. Protected pages redirect via middleware in `src/proxy.ts` (checks `/dashboard`, `/create`, `/editor` routes for session cookie). `createUser` event auto-creates `AttributeConfig` and grants initial credits.
-- **BullMQ queue name**: `QUEUE_NAME` (`"cover-generation"`) — used by both the Next.js API (producer) and the worker (consumer). Job type constants in `JOB_TYPE`: `GENERATE`, `INPAINT`, `GENERATE_FROM_REFERENCE`.
+- **BullMQ queue**: `QUEUE_NAME` (`"cover-generation"`). The Next.js app uses `getGenerationQueue()` from `src/lib/queue.ts` (lazy-initialized to avoid Redis connections at build time). The worker consumes via its own BullMQ Worker. Job type constants in `JOB_TYPE`: `GENERATE`, `INPAINT`, `GENERATE_FROM_REFERENCE`. Redis connections must include `password` and `username` from the URL — don't parse only host/port.
 - **Storage**: Images go to Cloudflare R2 (S3-compatible). Dev can use local `uploads/` directory.
 - **UI components**: shadcn/ui in `src/components/ui/`. The canvas editor uses Konva via `react-konva` (dynamically imported to avoid SSR).
 - **UI primitives are `@base-ui/react`** (not Radix). shadcn/ui provides the component structure/styling but all primitives (`Dialog`, `Menu`, `Select`, `Collapsible`, etc.) come from base-ui. Key gotchas vs Radix:

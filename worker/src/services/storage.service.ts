@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
 } from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
 import { writeFile, mkdir, readFile } from "fs/promises";
@@ -26,6 +27,11 @@ const s3 = useLocalStorage
     });
 
 const bucket = process.env.R2_BUCKET ?? DEFAULT_BUCKET;
+
+export async function checkStorageHealth(): Promise<void> {
+  if (useLocalStorage || !s3) return;
+  await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+}
 
 export async function uploadImage(
   imageBuffer: Buffer,
