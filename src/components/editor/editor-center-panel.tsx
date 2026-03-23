@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import {
   Loader2,
@@ -158,15 +158,14 @@ export function EditorCenterPanel({
   const MAX_HEIGHT = 600;
   const DEFAULT_HEIGHT = 280;
 
-  const [panelHeight, setPanelHeight] = useState(() => {
-    if (typeof window === "undefined") return DEFAULT_HEIGHT;
+  const [panelHeight, setPanelHeight] = useState(DEFAULT_HEIGHT);
+  useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const n = Number(stored);
-      if (n >= MIN_HEIGHT && n <= MAX_HEIGHT) return n;
+      if (n >= MIN_HEIGHT && n <= MAX_HEIGHT) setPanelHeight(n);
     }
-    return DEFAULT_HEIGHT;
-  });
+  }, []);
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
 
