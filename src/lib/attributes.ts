@@ -140,23 +140,24 @@ export function addValueToAttribute(
 ): AttributeConfigJson {
   return {
     ...config,
-    attributes: config.attributes.map((c) =>
-      c.id === attributeId
-        ? {
-            ...c,
-            values: [
-              ...c.values,
-              {
-                value,
-                label,
-                builtIn: false,
-                description: description || undefined,
-                colors: colors?.length ? colors : undefined,
-              },
-            ],
-          }
-        : c,
-    ),
+    attributes: config.attributes.map((c) => {
+      if (c.id !== attributeId) return c;
+      // Skip if value already exists
+      if (c.values.some((v) => v.value === value)) return c;
+      return {
+        ...c,
+        values: [
+          ...c.values,
+          {
+            value,
+            label,
+            builtIn: false,
+            description: description || undefined,
+            colors: colors?.length ? colors : undefined,
+          },
+        ],
+      };
+    }),
   };
 }
 
@@ -304,9 +305,14 @@ export function getDescription(
   return attr?.values.find((v) => v.value === value)?.description;
 }
 
-/** Return only active (non-disabled) values for an attribute. */
+/** Return only active (non-disabled), deduplicated values for an attribute. */
 export function getActiveValues(attribute: Attribute): AttributeValue[] {
-  return attribute.values.filter((v) => !v.disabled);
+  const seen = new Set<string>();
+  return attribute.values.filter((v) => {
+    if (v.disabled || seen.has(v.value)) return false;
+    seen.add(v.value);
+    return true;
+  });
 }
 
 /** Update a value's properties (description, disabled) within an attribute. */
