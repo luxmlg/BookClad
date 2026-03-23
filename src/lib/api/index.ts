@@ -8,3 +8,4 @@ export * from "./credits";
 export * from "./checkout";
 export * from "./feedback";
 export * from "./ai-fill";
+export * from "./quick-create";
