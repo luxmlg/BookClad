@@ -111,6 +111,7 @@ model CoverProject {
   userId      String
   title       String
   author      String
+  description String?
   attributes  Json
   canvasState Json?
 
