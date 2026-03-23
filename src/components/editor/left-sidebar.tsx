@@ -186,16 +186,20 @@ export function LeftSidebar({
           attributes: [...updatedConfig.attributes, newAttr],
         };
       } else if (suggestion.newValues) {
-        // Add new values to existing attribute
+        // Add new values to existing attribute (skip duplicates)
+        const attr = updatedConfig.attributes.find((a) => a.id === resolvedId);
         for (const nv of suggestion.newValues) {
-          updatedConfig = addValueToAttribute(
-            updatedConfig,
-            resolvedId,
-            nv.value,
-            nv.label,
-            nv.description,
-            nv.colors
-          );
+          const alreadyExists = attr?.values.some((v) => v.value === nv.value);
+          if (!alreadyExists) {
+            updatedConfig = addValueToAttribute(
+              updatedConfig,
+              resolvedId,
+              nv.value,
+              nv.label,
+              nv.description,
+              nv.colors
+            );
+          }
         }
       }
 
