@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { slugify, addValueToAttribute } from "@/lib/attributes";
 import type { AttributeConfigJson, AttributeSelection, Attribute } from "@/lib/attributes";
 
 // --- Types ---
@@ -254,4 +255,64 @@ export async function generateAttributeSuggestions(
   }));
 
   return suggestions;
+}
+
+// --- Apply suggestions utility ---
+
+export function applySuggestions(
+  config: AttributeConfigJson,
+  baseSelection: AttributeSelection,
+  suggestions: AiFillSuggestion[],
+): { config: AttributeConfigJson; selection: AttributeSelection } {
+  let updatedConfig = config;
+  const updatedSelection = { ...baseSelection };
+
+  for (const suggestion of suggestions) {
+    const resolvedId =
+      suggestion.isNew && suggestion.newAttribute
+        ? slugify(suggestion.newAttribute.name)
+        : suggestion.attributeId;
+
+    if (!resolvedId) continue;
+
+    const existingAttr = updatedConfig.attributes.find((a) => a.id === resolvedId);
+
+    if (!existingAttr && suggestion.newAttribute) {
+      const newAttr: Attribute = {
+        id: resolvedId,
+        name: suggestion.newAttribute.name,
+        type: suggestion.newAttribute.type,
+        builtIn: false,
+        enabled: true,
+        description: suggestion.newAttribute.description,
+        values: (suggestion.newAttribute.values ?? []).map((v) => ({
+          ...v,
+          builtIn: false,
+        })),
+        scaleLabels: suggestion.newAttribute.scaleLabels,
+      };
+      updatedConfig = {
+        attributes: [...updatedConfig.attributes, newAttr],
+      };
+    } else if (suggestion.newValues) {
+      for (const nv of suggestion.newValues) {
+        const attr = updatedConfig.attributes.find((a) => a.id === resolvedId);
+        const alreadyExists = attr?.values.some((v) => v.value === nv.value);
+        if (!alreadyExists) {
+          updatedConfig = addValueToAttribute(
+            updatedConfig,
+            resolvedId,
+            nv.value,
+            nv.label,
+            nv.description,
+            nv.colors,
+          );
+        }
+      }
+    }
+
+    updatedSelection[resolvedId] = suggestion.value;
+  }
+
+  return { config: updatedConfig, selection: updatedSelection };
 }

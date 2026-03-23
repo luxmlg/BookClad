@@ -12,7 +12,6 @@ import {
   updateValueInAttribute,
   renameAttribute,
   updateAttributeDescription,
-  slugify,
   type AttributeConfigJson,
   type AttributeSelection,
   type Attribute,
@@ -24,7 +23,7 @@ import { CreateAttributeDialog } from "@/components/create-attribute-dialog";
 import { AttributeContextMenu } from "@/components/attribute-context-menu";
 import { AiFillPopover } from "./ai-fill-popover";
 import { AiFillReviewDialog } from "./ai-fill-review-dialog";
-import type { AiFillSuggestion } from "@/lib/ai-fill";
+import { applySuggestions, type AiFillSuggestion } from "@/lib/ai-fill";
 import { useCreditStore } from "@/lib/stores/credit-store";
 
 interface LeftSidebarProps {
@@ -157,54 +156,11 @@ export function LeftSidebar({
   }
 
   function handleApplyAiFill(selected: AiFillSuggestion[]) {
-    let updatedConfig = attributeConfig;
-    const updatedAttrs = { ...attributes };
-
-    for (const suggestion of selected) {
-      // Resolve the attribute ID — for "new" suggestions, check if one already exists
-      const resolvedId = suggestion.isNew && suggestion.newAttribute
-        ? slugify(suggestion.newAttribute.name)
-        : suggestion.attributeId;
-
-      if (!resolvedId) continue;
-
-      const existingAttr = updatedConfig.attributes.find((a) => a.id === resolvedId);
-
-      if (!existingAttr && suggestion.newAttribute) {
-        // Truly new attribute — add to config
-        const newAttr = {
-          id: resolvedId,
-          name: suggestion.newAttribute.name,
-          type: suggestion.newAttribute.type,
-          builtIn: false,
-          enabled: true,
-          description: suggestion.newAttribute.description,
-          values: (suggestion.newAttribute.values ?? []).map((v) => ({ ...v, builtIn: false })),
-          scaleLabels: suggestion.newAttribute.scaleLabels,
-        };
-        updatedConfig = {
-          attributes: [...updatedConfig.attributes, newAttr],
-        };
-      } else if (suggestion.newValues) {
-        // Add new values to existing attribute (skip duplicates)
-        const attr = updatedConfig.attributes.find((a) => a.id === resolvedId);
-        for (const nv of suggestion.newValues) {
-          const alreadyExists = attr?.values.some((v) => v.value === nv.value);
-          if (!alreadyExists) {
-            updatedConfig = addValueToAttribute(
-              updatedConfig,
-              resolvedId,
-              nv.value,
-              nv.label,
-              nv.description,
-              nv.colors
-            );
-          }
-        }
-      }
-
-      updatedAttrs[resolvedId] = suggestion.value;
-    }
+    const { config: updatedConfig, selection: updatedAttrs } = applySuggestions(
+      attributeConfig,
+      attributes,
+      selected,
+    );
 
     onConfigChange(updatedConfig);
     setAttributes(updatedAttrs);
