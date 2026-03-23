@@ -79,7 +79,7 @@ export function MobileNav({ isAuthenticated }: MobileNavProps) {
                 Sign in
               </Link>
               <Link
-                href="/sign-up"
+                href="/sign-in"
                 onClick={() => setOpen(false)}
                 className="rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-primary-foreground"
               >

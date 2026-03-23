@@ -1,15 +1,12 @@
-import Link from "next/link";
 import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 
 const showApple = !!(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET);
 const showAmazon = !!(process.env.AUTH_AMAZON_ID && process.env.AUTH_AMAZON_SECRET);
@@ -18,9 +15,9 @@ export default function SignInPage() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
+        <CardTitle className="text-2xl">Welcome to BookClad</CardTitle>
         <CardDescription>
-          Sign in to your account to continue creating covers
+          Sign in to start creating covers
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -83,15 +80,6 @@ export default function SignInPage() {
           </form>
         )}
       </CardContent>
-      <Separator />
-      <CardFooter className="justify-center pt-6">
-        <p className="text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
-          <Link href="/sign-up" className="font-medium text-primary hover:underline">
-            Sign up
-          </Link>
-        </p>
-      </CardFooter>
     </Card>
   );
 }
