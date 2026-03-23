@@ -121,11 +121,11 @@ Canvas renders at 400×640 (1/4 scale) in the editor, exports at full 1600×2560
 
 Defined in `src/lib/attributes.ts`. Provides a flexible, user-customizable system for describing cover properties.
 
-**Category types**: `single` (combobox), `multi` (badge toggles), `text` (textarea), `toggle` (switch), `scale` (slider 0-10 with optional endpoint labels), `color` (color picker + hex input).
+**Category types**: `single` (combobox), `multi` (badge toggles), `text` (textarea), `toggle` (switch), `scale` (slider 0-10 with optional endpoint labels), `color` (color picker + hex input), `palette` (curated color sets with 5 hex colors each).
 
 **Storage**: `AttributeSelection = Record<string, string | string[]>`. All types store as strings — toggle stores `"true"`/`"false"`, scale stores `"5"`, color stores `"#3b82f6"`. No DB schema changes needed for new types.
 
-**Shared utilities** (all in `attributes.ts`): `getDefaultValue(type)`, `slugify(text)`, `formatAttrValue(val)`, `formatAttributes(snapshot)`, `computeAttributeDiff(current, previous)`, `addValueToCategory(config, id, value, label)`, `removeValueFromCategory(config, id, value)`. Use these instead of inline logic.
+**Shared utilities** (all in `attributes.ts`): `getDefaultValue(type)`, `slugify(text)`, `formatAttrValue(val)`, `formatAttributes(snapshot)`, `computeAttributeDiff(current, previous)`, `addValueToAttribute(config, id, value, label, description?, colors?)`, `removeValueFromAttribute(config, id, value)`, `getActiveValues(attribute)`. Use these instead of inline logic. `addValueToAttribute` deduplicates by value slug; `getActiveValues` filters disabled and deduplicates.
 
 **Validation**: Zod schemas in `src/lib/attribute-validations.ts`. Attribute selection schema is also in `src/lib/validations.ts` as `attributeSelectionField`.
 
@@ -196,6 +196,20 @@ The worker has its own storage module (`worker/src/services/storage.service.ts`)
 
 `src/lib/stores/credit-store.ts` — Zustand store for real-time credit balance display. `CreditHydrator` component (rendered in the root layout) hydrates the store from the server-side session balance. After credit-consuming operations (generation), call `useCreditStore.getState().refreshCredits()` to update the navbar badge. Import via `useCreditStore` hook or `useCreditStore.getState()` for non-React contexts.
 
+## AI Fill
+
+`src/lib/ai-fill.ts` provides AI-powered attribute suggestions. Users click "AI Fill" in the left sidebar, describe what they want, and Gemini suggests attribute changes.
+
+**Flow**: `AiFillPopover` (textarea + generate button) → `POST /api/attributes/generate` → Gemini `gemini-2.5-flash` with structured JSON output → `AiFillReviewDialog` (checklist with inline editing) → user applies selected suggestions.
+
+**Cost**: 1 credit per AI Fill call (`AI_FILL_CREDIT_COST`). Uses `reserveAiFillCredits()` — same atomic Prisma transaction pattern as generation credits, but with `generationId: null` on the `CreditTransaction`.
+
+**Prompt design**: The system prompt in `ai-fill.ts` instructs Gemini to think holistically (update all affected attributes when direction shifts), always rewrite Visual Elements, prefer structured attributes over text dumps, and suggest 2-3 new attributes when they'd improve generation quality.
+
+**Apply logic**: `handleApplyAiFill` in `left-sidebar.tsx` handles three cases: new attributes (checks for existing ID collision via `slugify`), new values on existing attributes (deduplicates before adding), and value updates. After applying, calls `refreshCredits()` on the credit store.
+
+**Client API**: `src/lib/api/ai-fill.ts` — `generateAttributes(projectId, prompt)`.
+
 ## Code Standards
 
 ### File size & component structure
@@ -217,7 +231,7 @@ The worker has its own storage module (`worker/src/services/storage.service.ts`)
 
 ### DRY — shared utilities over inline logic
 - If the same logic appears in 2+ files, extract it into a shared utility in `src/lib/`.
-- Use existing utilities: `slugify()`, `getDefaultValue()`, `addValueToCategory()`, `removeValueFromCategory()`, `formatAttrValue()`, `computeAttributeDiff()` from `src/lib/attributes.ts`. Check for existing helpers before writing new inline code.
+- Use existing utilities: `slugify()`, `getDefaultValue()`, `addValueToAttribute()`, `removeValueFromAttribute()`, `formatAttrValue()`, `computeAttributeDiff()`, `getActiveValues()` from `src/lib/attributes.ts`. Check for existing helpers before writing new inline code.
 - Config transformation helpers should be pure functions that take state in and return new state — not methods with side effects.
 
 ### Component props
@@ -233,7 +247,7 @@ The worker has its own storage module (`worker/src/services/storage.service.ts`)
 
 - **Prisma client import**: Use `import { PrismaClient } from "@/generated/prisma/client"` (not `@prisma/client`) — the client is generated to a custom output path.
 - **Validation**: All API request bodies are validated with Zod schemas from `src/lib/validations.ts`. Schemas derive allowed values from `src/lib/constants.ts`.
-- **Auth pattern**: Auth.js v5 with database sessions. Providers: GitHub, Google, Apple, Amazon (custom OAuth). API routes check `const session = await auth()` from `src/lib/auth.ts`, then verify `session?.user?.id`. Protected pages redirect via middleware in `src/proxy.ts` (checks `/dashboard`, `/create`, `/editor` routes for session cookie). `createUser` event auto-creates `AttributeConfig` and grants initial credits.
+- **Auth pattern**: Auth.js v5 with database sessions. Providers: Google, Apple, Amazon (custom OAuth) — all with `allowDangerousEmailAccountLinking` (safe because all providers verify emails). Apple and Amazon buttons are conditionally shown based on env vars (`AUTH_APPLE_ID`/`AUTH_APPLE_SECRET`, `AUTH_AMAZON_ID`/`AUTH_AMAZON_SECRET`). API routes check `const session = await auth()` from `src/lib/auth.ts`, then verify `session?.user?.id`. Protected pages redirect via middleware in `src/proxy.ts` (checks `/dashboard`, `/create`, `/editor` routes for session cookie). `createUser` event auto-creates `AttributeConfig` and grants initial credits.
 - **BullMQ queue**: `QUEUE_NAME` (`"cover-generation"`). The Next.js app uses `getGenerationQueue()` from `src/lib/queue.ts` (lazy-initialized to avoid Redis connections at build time). The worker consumes via its own BullMQ Worker. Job type constants in `JOB_TYPE`: `GENERATE`, `INPAINT`, `GENERATE_FROM_REFERENCE`. Redis connections must include `password` and `username` from the URL — don't parse only host/port.
 - **Storage**: Images go to Cloudflare R2 (S3-compatible). Dev can use local `uploads/` directory.
 - **UI components**: shadcn/ui in `src/components/ui/`. The canvas editor uses Konva via `react-konva` (dynamically imported to avoid SSR).
