@@ -1,10 +1,16 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { BriefWizard } from "@/components/wizard/brief-wizard";
+import { prisma } from "@/lib/prisma";
+import { CreatePageClient } from "@/components/wizard/create-page-client";
 
 export default async function CreatePage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/sign-in");
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: session.user.id },
+    select: { tier: true, creditBalance: true },
+  });
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-10">
@@ -14,7 +20,7 @@ export default async function CreatePage() {
           Tell us about your book and we&apos;ll generate cover options for you.
         </p>
       </div>
-      <BriefWizard />
+      <CreatePageClient tier={user.tier} creditBalance={user.creditBalance} />
     </div>
   );
 }
