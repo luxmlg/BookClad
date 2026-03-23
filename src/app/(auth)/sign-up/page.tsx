@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { signIn } from "@/lib/auth";
-import { Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,17 +21,6 @@ export default function SignUpPage() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <form
-          action={async () => {
-            "use server";
-            await signIn("github", { redirectTo: "/dashboard" });
-          }}
-        >
-          <Button variant="outline" className="w-full gap-2" type="submit">
-            <Github className="size-4" />
-            Sign up with GitHub
-          </Button>
-        </form>
         <form
           action={async () => {
             "use server";

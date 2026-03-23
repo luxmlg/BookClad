@@ -1,6 +1,5 @@
 import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Apple from "next-auth/providers/apple";
 import type { OAuthConfig } from "next-auth/providers";
@@ -38,10 +37,9 @@ const Amazon: OAuthConfig<{
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers: [
-    GitHub,
-    Google,
-    Apple,
-    Amazon,
+    Google({ allowDangerousEmailAccountLinking: true }),
+    Apple({ allowDangerousEmailAccountLinking: true }),
+    { ...Amazon, allowDangerousEmailAccountLinking: true },
   ],
   pages: {
     signIn: "/sign-in",
