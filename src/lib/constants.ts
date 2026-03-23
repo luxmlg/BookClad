@@ -66,6 +66,12 @@ export const TIER_CREDITS: Record<string, number> = {
   PRO: 250,
 };
 
+export const QUICK_CREATE_TIER_CONFIG = {
+  FREE: { model: "quick", imageCount: 4 },
+  STARTER: { model: "detailed", imageCount: 8 },
+  PRO: { model: "premium", imageCount: 8 },
+} as const;
+
 export const AI_MODELS = [
   {
     value: "quick",
