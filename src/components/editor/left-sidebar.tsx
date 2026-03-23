@@ -415,6 +415,7 @@ export function LeftSidebar({
         open={reviewOpen}
         onOpenChange={setReviewOpen}
         suggestions={aiFillSuggestions}
+        attributeConfig={attributeConfig}
         onApply={handleApplyAiFill}
         onRegenerate={handleAiFillRegenerate}
       />
