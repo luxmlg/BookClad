@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AI_MODELS, AI_FILL_PROMPT_MAX_LENGTH, MAX_IMAGES_PER_GENERATION } from "./constants";
+import { AI_MODELS, AI_FILL_PROMPT_MAX_LENGTH, MAX_IMAGES_PER_GENERATION, GENRES } from "./constants";
 
 const modelValues = AI_MODELS.map((m) => m.value) as [string, ...string[]];
 
@@ -88,4 +88,13 @@ export const createInpaintSchema = z.object({
 export const aiFillSchema = z.object({
   projectId: z.string().min(1, "Project ID is required"),
   prompt: z.string().min(1).max(AI_FILL_PROMPT_MAX_LENGTH),
+});
+
+const genreValues = GENRES.map((g) => g.value) as [string, ...string[]];
+
+export const quickCreateSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200),
+  author: z.string().min(1, "Author name is required").max(200),
+  genre: z.enum(genreValues),
+  description: z.string().min(1, "Description is required").max(AI_FILL_PROMPT_MAX_LENGTH),
 });
