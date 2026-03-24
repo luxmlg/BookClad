@@ -2,7 +2,7 @@
 
 import { useRef, useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { motion, useScroll, useMotionValueEvent, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -19,9 +19,9 @@ const COVERS = [
 ];
 
 const FAN = [
-  { src: COVERS[0].image, rotate: -6, x: -20, scale: 0.92, z: 10 },
+  { src: COVERS[0].image, rotate: -6, x: 20, scale: 0.92, z: 10 },
   { src: COVERS[1].image, rotate: 0, x: 0, scale: 1, z: 20 },
-  { src: COVERS[2].image, rotate: 6, x: 20, scale: 0.92, z: 10 },
+  { src: COVERS[2].image, rotate: 6, x: -20, scale: 0.92, z: 10 },
 ];
 
 function clamp01(v: number): number {
@@ -29,23 +29,17 @@ function clamp01(v: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Fan layer: 3 covers, always positioned with CSS, no Embla
+// Fan: 3 covers, fanned with entrance + float animation
 // ---------------------------------------------------------------------------
 
-function FanLayer({ opacity }: { opacity: number }) {
+function FanLayer() {
   return (
-    <div
-      className="flex items-center justify-center py-4"
-      style={{ opacity, transition: "opacity 0.3s ease" }}
-    >
+    <div className="flex items-center justify-center py-4">
       {FAN.map((cover, i) => (
         <motion.div
           key={i}
           className="relative"
-          style={{
-            zIndex: cover.z,
-            marginLeft: i === 0 ? 0 : -24,
-          }}
+          style={{ zIndex: cover.z, marginLeft: i === 0 ? 0 : -24 }}
           initial={{ opacity: 0, y: 60 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.5 + i * 0.1, ease: "easeOut" }}
@@ -66,16 +60,15 @@ function FanLayer({ opacity }: { opacity: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Carousel layer: full 8-cover Embla carousel
+// Carousel: full 8-cover Embla carousel
 // ---------------------------------------------------------------------------
 
-function CarouselLayer({ opacity }: { opacity: number }) {
+function CarouselLayer({ active }: { active: boolean }) {
   const [emblaRef, emblaApi] = useEmblaCarousel(
     { loop: true, align: "center" },
     [Autoplay({ delay: 3000, stopOnInteraction: true, playOnInit: false })],
   );
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const active = opacity > 0.9;
 
   const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
   const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
@@ -95,9 +88,7 @@ function CarouselLayer({ opacity }: { opacity: number }) {
   }, [emblaApi, active]);
 
   return (
-    <div
-      style={{ opacity, pointerEvents: active ? "auto" : "none", transition: "opacity 0.3s ease" }}
-    >
+    <>
       <p className="mb-8 text-center text-sm font-medium tracking-wide text-muted-foreground uppercase">
         Covers crafted by AI, tailored to your genre
       </p>
@@ -150,43 +141,59 @@ function CarouselLayer({ opacity }: { opacity: number }) {
           )}
         </AnimatePresence>
       </div>
-    </div>
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Main: two layers with scroll-driven crossfade
+// Main: window.scrollY-driven crossfade (no container-relative offsets)
 // ---------------------------------------------------------------------------
 
 export function CoverShowcase() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start end", "end end"],
-  });
-
   const [progress, setProgress] = useState(0);
 
-  useMotionValueEvent(scrollYProgress, "change", (v) => {
-    setProgress(clamp01(v * 2));
-  });
+  useEffect(() => {
+    function onScroll() {
+      // Transition starts after 100px of scroll, completes at 400px
+      setProgress(clamp01((window.scrollY - 100) / 300));
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  // Fan visible 0→0.5, carousel visible 0.4→1 (overlap for crossfade)
-  const fanOpacity = clamp01(1 - progress * 2.5);
-  const carouselOpacity = clamp01((progress - 0.3) / 0.3);
+  const fanOpacity = 1 - progress;
+  const carouselOpacity = progress;
+  const carouselActive = carouselOpacity > 0.9;
 
   return (
-    <div ref={containerRef} className="relative mt-10 h-[120vh]">
+    <div ref={containerRef} className="relative mt-10 min-h-[80vh]">
       <div className="sticky top-[3.5rem]">
-        <div className="mx-auto max-w-5xl px-4">
-          {/* Fan layer — fades out on scroll */}
-          <div style={{ display: fanOpacity > 0.01 ? "block" : "none" }}>
-            <FanLayer opacity={fanOpacity} />
+        <div className="relative mx-auto max-w-5xl px-4">
+          {/* Fan layer — visible on load, fades out on scroll */}
+          <div
+            className="absolute inset-x-0 top-0 z-10"
+            style={{
+              opacity: fanOpacity,
+              pointerEvents: fanOpacity > 0.5 ? "auto" : "none",
+              transition: "opacity 0.15s ease",
+              display: fanOpacity < 0.01 ? "none" : undefined,
+            }}
+          >
+            <FanLayer />
           </div>
 
           {/* Carousel layer — fades in on scroll */}
-          <div style={{ display: carouselOpacity > 0.01 ? "block" : "none" }}>
-            <CarouselLayer opacity={carouselOpacity} />
+          <div
+            style={{
+              opacity: carouselOpacity,
+              pointerEvents: carouselActive ? "auto" : "none",
+              transition: "opacity 0.15s ease",
+              visibility: carouselOpacity < 0.01 ? "hidden" : "visible",
+            }}
+          >
+            <CarouselLayer active={carouselActive} />
           </div>
         </div>
       </div>
