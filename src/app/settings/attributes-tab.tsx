@@ -26,6 +26,7 @@ import {
   updateValueInAttribute,
   updateAttributeDescription,
   getDefaultAttributeDescription,
+  getActiveValues,
   type AttributeConfigJson,
   type Attribute,
   type AttributeValue,
@@ -318,7 +319,7 @@ function AttributeCard({
               {/* Value rows (not applicable for text attributes) */}
               {(attribute.type === "single" || attribute.type === "multi" || attribute.type === "palette") && (
                 <>
-                  {attribute.values.map((v) => (
+                  {getActiveValues(attribute).map((v) => (
                     <ValueRow
                       key={v.value}
                       attributeId={attribute.id}
