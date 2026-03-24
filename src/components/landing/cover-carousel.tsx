@@ -4,49 +4,65 @@ import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import Image from "next/image";
+import { AnimatePresence, motion } from "motion/react";
 
 const covers = [
   {
+    image: "/landing/covers/cover-1.jpg",
     genre: "Thriller",
     title: "The Last Witness",
     author: "James Mercer",
-    gradient: "from-slate-900 via-red-950 to-slate-900",
-    accent: "text-red-400",
+    attributes: [] as string[],
   },
   {
+    image: "/landing/covers/cover-2.jpg",
     genre: "Romance",
     title: "Where Peonies Bloom",
     author: "Claire Fontaine",
-    gradient: "from-pink-300 via-rose-400 to-fuchsia-500",
-    accent: "text-white",
+    attributes: [] as string[],
   },
   {
-    genre: "Epic Fantasy",
+    image: "/landing/covers/cover-3.jpg",
+    genre: "Fantasy",
     title: "Crown of Embers",
     author: "R.K. Ashwood",
-    gradient: "from-amber-700 via-yellow-600 to-orange-800",
-    accent: "text-amber-100",
+    attributes: [] as string[],
   },
   {
+    image: "/landing/covers/cover-4.jpg",
     genre: "Sci-Fi",
     title: "Neon Horizon",
     author: "Dex Omari",
-    gradient: "from-cyan-600 via-indigo-800 to-violet-900",
-    accent: "text-cyan-300",
+    attributes: [] as string[],
   },
   {
-    genre: "Self-Help",
-    title: "Atomic Focus",
-    author: "Dr. Lena Park",
-    gradient: "from-emerald-400 via-teal-500 to-green-700",
-    accent: "text-emerald-100",
-  },
-  {
+    image: "/landing/covers/cover-5.jpg",
     genre: "Horror",
     title: "Hollow Ground",
     author: "M. Blackwell",
-    gradient: "from-gray-950 via-zinc-900 to-neutral-950",
-    accent: "text-gray-300",
+    attributes: [] as string[],
+  },
+  {
+    image: "/landing/covers/cover-6.jpg",
+    genre: "Literary Fiction",
+    title: "The Weight of Small Things",
+    author: "Nora Chen",
+    attributes: [] as string[],
+  },
+  {
+    image: "/landing/covers/cover-7.jpg",
+    genre: "Self-Help",
+    title: "Atomic Focus",
+    author: "Dr. Lena Park",
+    attributes: [] as string[],
+  },
+  {
+    image: "/landing/covers/cover-8.jpg",
+    genre: "Mystery",
+    title: "The Vanishing Tide",
+    author: "Sable Drake",
+    attributes: [] as string[],
   },
 ];
 
@@ -99,45 +115,18 @@ export function CoverCarousel() {
                   >
                     {/* Cover */}
                     <div
-                      className={`relative flex aspect-[5/8] flex-col items-center justify-between overflow-hidden bg-gradient-to-br ${cover.gradient} ${
+                      className={`relative aspect-[5/8] overflow-hidden ${
                         isActive ? "rounded-xl" : "rounded-xl shadow-xl"
-                      } p-6 text-center`}
+                      }`}
                     >
-                      {/* Lighting overlay */}
-                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/10" />
-
-                      {/* Decorative glyphs */}
-                      <div className="relative z-10">
-                        <span
-                          className={`text-[10px] tracking-[0.4em] ${cover.accent} opacity-40`}
-                        >
-                          &#9670; &#9670; &#9670;
-                        </span>
-                        <span
-                          className={`mt-2 block text-xs font-medium uppercase tracking-widest ${cover.accent} opacity-80`}
-                        >
-                          {cover.genre}
-                        </span>
-                      </div>
-
-                      {/* Horizontal rule */}
-                      <div
-                        className={`relative z-10 h-px w-10 ${cover.accent} bg-current opacity-20`}
+                      <Image
+                        src={cover.image}
+                        alt={`${cover.title} by ${cover.author}`}
+                        fill
+                        sizes="240px"
+                        className="object-cover"
+                        priority={i <= 2}
                       />
-
-                      <div className="relative z-10">
-                        <h3
-                          className={`text-lg font-bold leading-tight sm:text-xl ${cover.accent}`}
-                        >
-                          {cover.title}
-                        </h3>
-                        <p
-                          className={`mt-2 text-xs ${cover.accent} opacity-70`}
-                        >
-                          {cover.author}
-                        </p>
-                      </div>
-                      <div />
                     </div>
                     {/* Kindle chin home button */}
                     {isActive && (
@@ -184,6 +173,29 @@ export function CoverCarousel() {
           />
         ))}
       </div>
+
+      {/* Attribute badges for active cover */}
+      <AnimatePresence mode="wait">
+        {covers[selectedIndex].attributes.length > 0 && (
+          <motion.div
+            key={selectedIndex}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="mt-4 flex flex-wrap items-center justify-center gap-1.5"
+          >
+            {covers[selectedIndex].attributes.map((attr) => (
+              <span
+                key={attr}
+                className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+              >
+                {attr}
+              </span>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
