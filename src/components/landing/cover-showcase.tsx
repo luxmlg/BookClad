@@ -60,12 +60,12 @@ function getSlideStyle(index: number, progress: number) {
     };
   }
 
-  // Non-fan slides: invisible → carousel inactive
-  const t = clamp01((progress - 0.3) / 0.5);
+  // Non-fan slides: stay invisible during transition.
+  // They appear only when done=true and Embla classes take over with overflow-x-clip.
   return {
-    transform: `scale(${lerp(0.8, 0.85, t)})`,
-    opacity: lerp(0, 0.4, t),
-    filter: t > 0.5 ? `blur(${lerp(0, 1, t)}px)` : "none",
+    transform: "scale(0.85)",
+    opacity: 0,
+    filter: "none",
     zIndex: 5,
   };
 }
