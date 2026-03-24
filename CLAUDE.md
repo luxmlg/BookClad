@@ -210,6 +210,22 @@ The worker has its own storage module (`worker/src/services/storage.service.ts`)
 
 **Client API**: `src/lib/api/ai-fill.ts` — `generateAttributes(projectId, prompt)`.
 
+## Privacy Policy
+
+`src/app/privacy/page.tsx` — static, public page at `/privacy` listing all data BookClad collects, how it's used, third-party services, cookies, retention, user rights, and security. Linked from the landing page footer, sign-in page, and Settings General tab.
+
+**Keep it in sync**: When adding a new third-party service, collecting new user data, adding analytics/tracking, or changing data retention practices, update the privacy policy page to reflect the change. The "Last updated" date at the top should be updated when content changes.
+
+## Account Deletion
+
+`DELETE /api/account` — authenticated endpoint that permanently deletes a user's account. Flow:
+1. Collects all R2 storage keys (generated images, masks, assets, exports, fonts)
+2. Best-effort cancels active DodoPayments subscription via `dodo.subscriptions.update(id, { status: "cancelled" })`
+3. Deletes User record (Prisma `onDelete: Cascade` handles all related DB records)
+4. Background R2 cleanup (fire-and-forget)
+
+Triggered from Settings General tab → "Danger Zone" → `DeleteAccountDialog` (requires typing "DELETE" to confirm). Uses client-side `signOut` from `next-auth/react` after deletion.
+
 ## Code Standards
 
 ### File size & component structure
