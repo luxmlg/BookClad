@@ -210,6 +210,25 @@ The worker has its own storage module (`worker/src/services/storage.service.ts`)
 
 **Client API**: `src/lib/api/ai-fill.ts` — `generateAttributes(projectId, prompt)`.
 
+## Landing Page
+
+`src/app/page.tsx` is a server component that composes client landing components. Page flow: Hero (with `CoverShowcase`) → `ProductShowcase` → Features → Pricing → Footer.
+
+### Animation library
+
+Uses the `motion` package (Framer Motion v12+). **Import from `motion/react`**, not `framer-motion`. Components: `motion`, `AnimatePresence` for enter/exit transitions.
+
+### Components (`src/components/landing/`)
+
+- **`CoverShowcase`** — Scroll-driven fan-to-carousel transition. Three covers start fanned (rotated, overlapping), then morph into a full 8-cover Embla carousel as the user scrolls. Uses a single Embla DOM with per-slide CSS transform interpolation driven by `window.scrollY` (progress 0→1 over 100-400px scroll range). The outer container uses `h-[105vh]` with `sticky` positioning to pin during transition. Embla config: `{ loop: true, align: "center", startIndex: 1, watchDrag: done }` with `embla-carousel-autoplay`.
+- **`FadeIn`** — Reusable `motion.div` wrapper with `whileInView` trigger. Accepts `delay`, `duration`, `y` props. Used throughout the landing page for scroll-reveal animations.
+- **`ThemedImage`** — Renders both light and dark `next/image` elements, crossfades with `transition-opacity` based on `resolvedTheme` from `next-themes`. Uses `useSyncExternalStore` for hydration-safe mounted detection (not `useEffect`+`useState`).
+- **`ProductShowcase`** — Four alternating image+text rows using `FadeIn` and `ThemedImage`. Screenshots in `public/landing/` with light/dark variants.
+
+### Static assets
+
+Cover images: `public/landing/covers/cover-{1-8}.jpg`. Product screenshots: `public/landing/{create,editor,results,canvas}-{light,dark}.png`.
+
 ## Privacy Policy
 
 `src/app/privacy/page.tsx` — static, public page at `/privacy` listing all data BookClad collects, how it's used, third-party services, cookies, retention, user rights, and security. Linked from the landing page footer, sign-in page, and Settings General tab.
