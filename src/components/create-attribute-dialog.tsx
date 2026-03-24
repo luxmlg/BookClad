@@ -17,6 +17,7 @@ import {
 import {
   slugify,
   getDefaultValue,
+  deduplicateValues,
   type Attribute,
   type AttributeValue,
 } from "@/lib/attributes";
@@ -159,15 +160,17 @@ export function CreateAttributeDialog({
     }
 
     const attributeValues: AttributeValue[] = hasValues
-      ? nonEmptyValues.map((v) => ({
-          value: slugify(v.label.trim()),
-          label: v.label.trim(),
-          builtIn: false,
-          description: v.description.trim() || undefined,
-          ...(type === "palette" && v.colors.length > 0
-            ? { colors: v.colors }
-            : {}),
-        }))
+      ? deduplicateValues(
+          nonEmptyValues.map((v) => ({
+            value: slugify(v.label.trim()),
+            label: v.label.trim(),
+            builtIn: false,
+            description: v.description.trim() || undefined,
+            ...(type === "palette" && v.colors.length > 0
+              ? { colors: v.colors }
+              : {}),
+          })),
+        )
       : [];
 
     const attribute: Attribute = {

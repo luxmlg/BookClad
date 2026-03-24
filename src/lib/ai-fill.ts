@@ -268,12 +268,23 @@ export function applySuggestions(
   const updatedSelection = { ...baseSelection };
 
   for (const suggestion of suggestions) {
-    const resolvedId =
+    let resolvedId =
       suggestion.isNew && suggestion.newAttribute
         ? slugify(suggestion.newAttribute.name)
         : suggestion.attributeId;
 
     if (!resolvedId) continue;
+
+    // Disambiguate new attribute IDs that collide with existing ones
+    if (suggestion.isNew && suggestion.newAttribute) {
+      let candidateId = resolvedId;
+      let suffix = 2;
+      while (updatedConfig.attributes.some((a) => a.id === candidateId)) {
+        candidateId = `${resolvedId}-${suffix}`;
+        suffix++;
+      }
+      resolvedId = candidateId;
+    }
 
     const existingAttr = updatedConfig.attributes.find((a) => a.id === resolvedId);
 

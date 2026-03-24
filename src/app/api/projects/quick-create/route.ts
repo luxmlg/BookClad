@@ -23,6 +23,7 @@ import {
   buildDefaultConfig,
   buildDefaultSelection,
   ensureBuiltInAttributes,
+  sanitizeConfig,
 } from "@/lib/attributes";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import type { Prisma } from "@/generated/prisma/client";
@@ -112,10 +113,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       suggestions,
     );
 
-    // Save updated config
+    // Sanitize and save updated config
+    const sanitizedConfig = sanitizeConfig(finalConfig);
     await prisma.attributeConfig.update({
       where: { userId: session.user.id },
-      data: { config: finalConfig as unknown as Prisma.InputJsonValue },
+      data: { config: sanitizedConfig as unknown as Prisma.InputJsonValue },
     });
 
     // Create project
