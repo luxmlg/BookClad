@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
-import { CoverCarousel } from "@/components/landing/cover-carousel";
-import { HeroCoverFan } from "@/components/landing/hero-cover-fan";
+import { CoverShowcase } from "@/components/landing/cover-showcase";
 import { ProductShowcase } from "@/components/landing/product-showcase";
 import { FadeIn } from "@/components/landing/fade-in";
 
@@ -163,24 +162,11 @@ export default function LandingPage() {
             </p>
           </FadeIn>
 
-          <HeroCoverFan
-            covers={[
-              "/landing/covers/cover-1.jpg",
-              "/landing/covers/cover-4.jpg",
-              "/landing/covers/cover-2.jpg",
-            ]}
-          />
         </div>
       </section>
 
-      {/* Cover showcase */}
-      <section className="container mx-auto max-w-5xl px-4 pb-20">
-        <div className="mb-12 h-px w-full bg-gradient-to-r from-transparent via-border to-transparent" />
-        <p className="mb-8 text-center text-sm font-medium tracking-wide text-muted-foreground uppercase">
-          Covers crafted by AI, tailored to your genre
-        </p>
-        <CoverCarousel />
-      </section>
+      {/* Cover showcase — fan → carousel scroll transition */}
+      <CoverShowcase />
 
       {/* Product showcase */}
       <ProductShowcase />
