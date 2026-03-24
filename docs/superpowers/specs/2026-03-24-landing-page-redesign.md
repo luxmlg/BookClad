@@ -65,7 +65,7 @@ Footer (unchanged)
 | 7 | Self-Help | Atomic Focus | Dr. Lena Park |
 | 8 | Mystery | The Vanishing Tide | Sable Drake |
 
-Attribute data for each cover will be provided after generation.
+Attribute data for each cover will be provided after generation. If `attributes` is empty, the badge row is not rendered (no empty space). Data type: `attributes: string[]` defaulting to `[]`.
 
 ---
 
@@ -105,13 +105,15 @@ Attribute data for each cover will be provided after generation.
 
 **Theme-aware screenshots (`<ThemedImage>`):**
 - Both light and dark images rendered, stacked with absolute positioning
+- Uses `resolvedTheme` from `useTheme()` (not `theme`) to get the actual resolved value
+- Defaults to showing the light image until theme is resolved (prevents SSR flash via a `mounted` state guard from `useEffect`)
 - Active image: `opacity-100`, inactive: `opacity-0`
 - `transition-opacity duration-300` for smooth 300ms crossfade on theme switch
 - No flash, no layout shift
 
 **Screenshot styling:** `rounded-xl`, `ring-1 ring-foreground/10`, `shadow-xl`.
 
-**Responsive:** Desktop: side-by-side (image 60%, text 40%). Mobile: stacked vertically (image on top, text below), no alternating.
+**Responsive:** Stacked vertically below `lg` (1024px), side-by-side at `lg`+ (image 60%, text 40%). Alternating direction only applies at `lg`+. On mobile/tablet, all rows are image on top, text below.
 
 **Animation:** Each row fades in on scroll via `<FadeIn>` wrapper (Framer Motion `whileInView`).
 
@@ -145,12 +147,12 @@ No changes. Pricing section and footer remain as-is.
 
 ## 6. Animation System
 
-**New dependency:** `motion` (Framer Motion lightweight package).
+**New dependency:** `motion` (official Framer Motion package, v12+). Import from `motion/react` for React APIs (`motion.div`, `AnimatePresence`). Compatible with React 19.
 
 **Reusable components:**
 
 - `<FadeIn>` — Wrapper using `motion.div` with `whileInView={{ opacity: 1, y: 0 }}`, `initial={{ opacity: 0, y: 20 }}`, `viewport={{ once: true }}`. Accepts optional `delay` and `duration` props.
-- `<ThemedImage>` — Renders both light/dark images stacked, crossfades based on current theme from `next-themes`. 300ms opacity transition.
+- `<ThemedImage>` — Renders both light/dark images stacked via `next/image`, crossfades based on `resolvedTheme` from `next-themes`. 300ms opacity transition. Defaults to light until mounted.
 
 **Animation locations:**
 - Hero: staggered entrance on mount (text + cover fan fly-in + float)
@@ -177,6 +179,10 @@ public/landing/canvas-light.png     public/landing/canvas-dark.png
 ```
 
 **Attribute data:** Genre, mood, art style labels for each of the 8 covers (provided after generation).
+
+**Image optimization:** All images use `next/image`. Hero fan covers and the first visible carousel slide use `priority` for above-the-fold loading. Showcase screenshots use default lazy loading. Provide images at 2x display size; `next/image` handles format conversion and resizing.
+
+**Component boundaries:** All animation components are client components (`"use client"`). `page.tsx` remains a server component and composes them.
 
 ---
 
