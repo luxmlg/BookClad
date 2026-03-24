@@ -14,6 +14,7 @@ import {
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { CoverShowcase } from "@/components/landing/cover-showcase";
+import { HeroCoverFan } from "@/components/landing/hero-cover-fan";
 import { ProductShowcase } from "@/components/landing/product-showcase";
 import { FadeIn } from "@/components/landing/fade-in";
 
@@ -162,10 +163,17 @@ export default function LandingPage() {
             </p>
           </FadeIn>
 
+          <HeroCoverFan
+            covers={[
+              "/landing/covers/cover-1.jpg",
+              "/landing/covers/cover-4.jpg",
+              "/landing/covers/cover-2.jpg",
+            ]}
+          />
         </div>
       </section>
 
-      {/* Cover showcase — fan → carousel scroll transition */}
+      {/* Cover carousel */}
       <CoverShowcase />
 
       {/* Product showcase */}
