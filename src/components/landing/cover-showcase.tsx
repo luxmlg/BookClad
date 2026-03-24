@@ -36,19 +36,24 @@ const FAN_TRANSLATE_X = [40, 0, -40]; // px — brings covers together for overl
  * At progress=0: fan layout (3 centered, rotated, overlapping).
  * At progress=1: carousel layout (center active, sides dimmed).
  */
-function getSlideStyle(index: number, progress: number) {
-  const isFan = index < 3;
-  const isCenter = index === 1;
+function getSlideStyle(index: number, progress: number, center: number, total: number) {
+  // Determine position relative to fan center, with wrapping for loop
+  let offset = index - center;
+  if (offset > total / 2) offset -= total;
+  if (offset < -total / 2) offset += total;
+
+  const isFan = offset >= -1 && offset <= 1;
+  const isCenter = offset === 0;
 
   if (isFan) {
-    // Carousel end-state for this slide
+    const fanIdx = offset + 1; // 0=left, 1=center, 2=right
     const endScale = isCenter ? 1.05 : 0.85;
     const endOpacity = isCenter ? 1 : 0.4;
     const endBlur = isCenter ? 0 : 1;
 
-    const rotation = lerp(FAN_ROTATION[index], 0, progress);
-    const scale = lerp(FAN_SCALE[index], endScale, progress);
-    const tx = lerp(FAN_TRANSLATE_X[index], 0, progress);
+    const rotation = lerp(FAN_ROTATION[fanIdx], 0, progress);
+    const scale = lerp(FAN_SCALE[fanIdx], endScale, progress);
+    const tx = lerp(FAN_TRANSLATE_X[fanIdx], 0, progress);
     const opacity = lerp(1, endOpacity, progress);
     const blur = lerp(0, endBlur, progress);
 
@@ -61,7 +66,6 @@ function getSlideStyle(index: number, progress: number) {
   }
 
   // Non-fan slides: stay invisible during transition.
-  // They appear only when done=true and Embla classes take over with overflow-x-clip.
   return {
     transform: "scale(0.85)",
     opacity: 0,
@@ -86,7 +90,7 @@ export function CoverShowcase() {
 
   // Embla — always mounted, startIndex=1 so center fan cover is selected
   const [emblaRef, emblaApi] = useEmblaCarousel(
-    { loop: true, align: "center", startIndex: 1, watchDrag: done },
+    { loop: true, align: "center", startIndex: 1 },
     [Autoplay({ delay: 3000, stopOnInteraction: true, playOnInit: false })],
   );
   const [selectedIndex, setSelectedIndex] = useState(1);
@@ -102,16 +106,16 @@ export function CoverShowcase() {
     return () => { emblaApi.off("select", onSelect); };
   }, [emblaApi]);
 
-  // Enable autoplay + drag when transition completes
+  // Start/stop autoplay when toggling fan ↔ carousel
   useEffect(() => {
     if (!emblaApi) return;
-    if (done) emblaApi.plugins().autoplay?.play();
-    else emblaApi.plugins().autoplay?.stop();
+    if (done) {
+      emblaApi.plugins().autoplay?.play();
+    } else {
+      emblaApi.plugins().autoplay?.stop();
+    }
   }, [emblaApi, done]);
 
-  useEffect(() => {
-    emblaApi?.reInit({ watchDrag: done });
-  }, [emblaApi, done]);
 
   const labelOpacity = clamp01((progress - 0.5) / 0.3);
   const controlsOpacity = clamp01((progress - 0.7) / 0.25);
@@ -137,7 +141,7 @@ export function CoverShowcase() {
               <div className="-ml-4 flex py-4">
                 {COVERS.map((cover, i) => {
                   // During transition: interpolated style. After: Embla handles it.
-                  const s = done ? null : getSlideStyle(i, progress);
+                  const s = done ? null : getSlideStyle(i, progress, selectedIndex, COVERS.length);
                   const isActive = done && i === selectedIndex;
 
                   return (
