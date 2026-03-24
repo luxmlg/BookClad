@@ -74,7 +74,6 @@ export function CoverShowcase() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
   const done = progress >= 0.95;
-
   // Window scroll → progress (0 at page top, 1 after 400px scroll)
   useEffect(() => {
     function onScroll() {
@@ -118,7 +117,7 @@ export function CoverShowcase() {
   const controlsOpacity = clamp01((progress - 0.7) / 0.25);
 
   return (
-    <div ref={containerRef} className="relative mt-10 h-[105vh]">
+    <div ref={containerRef} className="relative mt-10 h-[50vh]">
       <div className="sticky top-[3.5rem] pt-4">
         <div className="mx-auto max-w-5xl px-4">
           {/* Label */}
