@@ -5,8 +5,8 @@ import {
   Download,
   Type,
   Paintbrush,
-  ShieldCheck,
-  Zap,
+  Wand,
+  History,
   Check,
   ArrowRight,
   Coins,
@@ -14,6 +14,9 @@ import {
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { CoverCarousel } from "@/components/landing/cover-carousel";
+import { HeroCoverFan } from "@/components/landing/hero-cover-fan";
+import { ProductShowcase } from "@/components/landing/product-showcase";
+import { FadeIn } from "@/components/landing/fade-in";
 
 const features = [
   {
@@ -41,16 +44,16 @@ const features = [
       "Don't like the sky? Paint over it and describe the change. Refine without regenerating the entire cover.",
   },
   {
-    icon: ShieldCheck,
-    title: "Compliance Checker",
+    icon: Wand,
+    title: "AI-Powered Quick Create",
     description:
-      "Automated pre-export checks catch dimension, contrast, and safe-zone issues before you upload to KDP.",
+      "Describe your book and get covers in one click. Our AI analyzes your description and automatically selects genre, mood, art style, and visual attributes — no design decisions needed.",
   },
   {
-    icon: Zap,
-    title: "Multiple AI Models",
+    icon: History,
+    title: "Generation History",
     description:
-      "Choose from OpenAI, Gemini, and Ideogram — each brings a unique style. Compare results and pick the best for your book.",
+      "Every generation is saved with its attributes. Compare results side-by-side, see what changed, and revert to any previous version.",
   },
 ];
 
@@ -100,57 +103,73 @@ export default function LandingPage() {
     <main>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        {/* Dot grid background */}
         <div className="absolute inset-0 -z-10 dot-grid mask-radial-fade" />
-        {/* Radial glow */}
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_50%_-20%,oklch(0.556_0_0/0.08)_0%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_50%_-20%,oklch(0.985_0_0/0.04)_0%,transparent_70%)]" />
 
         <div className="container mx-auto max-w-4xl px-4 py-32 text-center lg:py-40">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-4 py-1.5 text-sm text-muted-foreground backdrop-blur">
-            <Sparkles className="size-3.5 text-primary animate-shimmer" />
-            AI-powered cover generation
-          </div>
-          <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-7xl">
-            Your Book Deserves a Cover
-            <br />
-            <span className="relative inline-block">
-              That Sells
-              <span
-                className="absolute -bottom-1 left-0 h-3 w-full rounded-sm bg-primary/15"
-                aria-hidden="true"
-              />
-            </span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Describe your story, choose a style, and get 4 KDP-ready cover
-            options in minutes. Fine-tune with typography, AI region editing, and
-            compliance checks.
-          </p>
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link
-              href="/create"
-              className={buttonVariants({
-                size: "lg",
-                className: "h-11 gap-2 px-8 text-base shadow-lg shadow-primary/10",
-              })}
-            >
-              Start Free <ArrowRight className="size-4" />
-            </Link>
-            <Link
-              href="#features"
-              className={buttonVariants({
-                size: "lg",
-                variant: "outline",
-                className: "h-11 px-8 text-base",
-              })}
-            >
-              See Features
-            </Link>
-          </div>
-          <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
-            <Check className="size-3.5 text-primary" />
-            Start with 25 free credits. No credit card required.
-          </p>
+          <FadeIn delay={0}>
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-4 py-1.5 text-sm text-muted-foreground backdrop-blur">
+              <Sparkles className="size-3.5 text-primary animate-shimmer" />
+              AI-powered cover generation
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <h1 className="text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl lg:text-7xl">
+              Your Book Deserves a Cover
+              <br />
+              <span className="relative inline-block">
+                That Sells
+                <span
+                  className="absolute -bottom-1 left-0 h-3 w-full rounded-sm bg-primary/15"
+                  aria-hidden="true"
+                />
+              </span>
+            </h1>
+          </FadeIn>
+          <FadeIn delay={0.2}>
+            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+              Describe your story, choose a style, and get KDP-ready cover options
+              in minutes. Fine-tune with typography, AI region editing, and
+              one-click export.
+            </p>
+          </FadeIn>
+          <FadeIn delay={0.3}>
+            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <Link
+                href="/create"
+                className={buttonVariants({
+                  size: "lg",
+                  className: "h-11 gap-2 px-8 text-base shadow-lg shadow-primary/10",
+                })}
+              >
+                Start Free <ArrowRight className="size-4" />
+              </Link>
+              <Link
+                href="#features"
+                className={buttonVariants({
+                  size: "lg",
+                  variant: "outline",
+                  className: "h-11 px-8 text-base",
+                })}
+              >
+                See Features
+              </Link>
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.4}>
+            <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+              <Check className="size-3.5 text-primary" />
+              Start with 25 free credits. No credit card required.
+            </p>
+          </FadeIn>
+
+          <HeroCoverFan
+            covers={[
+              "/landing/covers/cover-1.jpg",
+              "/landing/covers/cover-4.jpg",
+              "/landing/covers/cover-2.jpg",
+            ]}
+          />
         </div>
       </section>
 
@@ -162,6 +181,9 @@ export default function LandingPage() {
         </p>
         <CoverCarousel />
       </section>
+
+      {/* Product showcase */}
+      <ProductShowcase />
 
       {/* Features */}
       <section id="features" className="relative bg-muted/20 py-28">
@@ -179,20 +201,19 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-            {features.map((f) => (
-              <div
-                key={f.title}
-                className="group relative overflow-hidden rounded-xl bg-card p-6 ring-1 ring-foreground/[0.05] transition-all duration-200 hover:shadow-lg hover:ring-foreground/15"
-              >
-                <div className="absolute inset-x-0 top-0 h-px bg-primary opacity-0 transition-opacity group-hover:opacity-100" />
-                <div className="mb-4 inline-flex rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 p-2.5">
-                  <f.icon className="size-5 text-primary" />
+            {features.map((f, i) => (
+              <FadeIn key={f.title} delay={i * 0.15}>
+                <div className="group relative overflow-hidden rounded-xl bg-card p-6 ring-1 ring-foreground/[0.05] transition-all duration-200 hover:shadow-lg hover:ring-foreground/15">
+                  <div className="absolute inset-x-0 top-0 h-px bg-primary opacity-0 transition-opacity group-hover:opacity-100" />
+                  <div className="mb-4 inline-flex rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 p-2.5">
+                    <f.icon className="size-5 text-primary" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-semibold">{f.title}</h3>
+                  <p className="text-[0.8125rem] leading-6 text-muted-foreground">
+                    {f.description}
+                  </p>
                 </div>
-                <h3 className="mb-2 text-lg font-semibold">{f.title}</h3>
-                <p className="text-[0.8125rem] leading-6 text-muted-foreground">
-                  {f.description}
-                </p>
-              </div>
+              </FadeIn>
             ))}
           </div>
         </div>
@@ -210,66 +231,67 @@ export default function LandingPage() {
             Start free. Upgrade when you need more.
           </p>
           <div className="grid grid-cols-1 items-center gap-6 sm:grid-cols-3">
-            {plans.map((plan) => (
-              <Card
-                key={plan.name}
-                className={`flex flex-col ${
-                  plan.highlighted
-                    ? "relative z-10 scale-[1.02] overflow-visible border-transparent bg-primary text-primary-foreground ring-0 shadow-xl"
-                    : ""
-                }`}
-              >
-                {plan.highlighted && (
-                  <div className="absolute -top-3.5 left-1/2 z-10 -translate-x-1/2 rounded-full bg-background px-4 py-1 text-xs font-semibold text-foreground ring-1 ring-foreground/10">
-                    Most Popular
-                  </div>
-                )}
-                <CardContent className="flex flex-1 flex-col p-8 text-center">
-                  <h3 className="text-lg font-semibold">{plan.name}</h3>
-                  <div className="mt-3">
-                    <span className="text-4xl font-bold">{plan.price}</span>
-                    <span
-                      className={`text-sm ${
-                        plan.highlighted
-                          ? "text-primary-foreground/60"
-                          : "text-muted-foreground"
-                      }`}
+            {plans.map((plan, i) => (
+              <FadeIn key={plan.name} delay={i * 0.1}>
+                <Card
+                  className={`flex flex-col ${
+                    plan.highlighted
+                      ? "relative z-10 scale-[1.02] overflow-visible border-transparent bg-primary text-primary-foreground ring-0 shadow-xl"
+                      : ""
+                  }`}
+                >
+                  {plan.highlighted && (
+                    <div className="absolute -top-3.5 left-1/2 z-10 -translate-x-1/2 rounded-full bg-background px-4 py-1 text-xs font-semibold text-foreground ring-1 ring-foreground/10">
+                      Most Popular
+                    </div>
+                  )}
+                  <CardContent className="flex flex-1 flex-col p-8 text-center">
+                    <h3 className="text-lg font-semibold">{plan.name}</h3>
+                    <div className="mt-3">
+                      <span className="text-4xl font-bold">{plan.price}</span>
+                      <span
+                        className={`text-sm ${
+                          plan.highlighted
+                            ? "text-primary-foreground/60"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {plan.period}
+                      </span>
+                    </div>
+                    <ul className="mt-6 flex-1 space-y-3 text-left text-sm">
+                      {plan.features.map((f) => (
+                        <li key={f} className="flex items-center gap-2">
+                          <Check
+                            className={`size-4 shrink-0 ${
+                              plan.highlighted
+                                ? "text-primary-foreground/70"
+                                : "text-primary"
+                            }`}
+                          />
+                          {f.includes("credits / month") ? (
+                            <span className="flex items-center gap-1">
+                              <Coins className="size-3 text-yellow-500" />
+                              {f}
+                            </span>
+                          ) : (
+                            f
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href="/create"
+                      className={buttonVariants({
+                        className: "mt-8 w-full",
+                        variant: plan.highlighted ? "secondary" : "outline",
+                      })}
                     >
-                      {plan.period}
-                    </span>
-                  </div>
-                  <ul className="mt-6 flex-1 space-y-3 text-left text-sm">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-center gap-2">
-                        <Check
-                          className={`size-4 shrink-0 ${
-                            plan.highlighted
-                              ? "text-primary-foreground/70"
-                              : "text-primary"
-                          }`}
-                        />
-                        {f.includes("credits / month") ? (
-                          <span className="flex items-center gap-1">
-                            <Coins className="size-3 text-yellow-500" />
-                            {f}
-                          </span>
-                        ) : (
-                          f
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    href="/create"
-                    className={buttonVariants({
-                      className: "mt-8 w-full",
-                      variant: plan.highlighted ? "secondary" : "outline",
-                    })}
-                  >
-                    {plan.cta}
-                  </Link>
-                </CardContent>
-              </Card>
+                      {plan.cta}
+                    </Link>
+                  </CardContent>
+                </Card>
+              </FadeIn>
             ))}
           </div>
         </div>
