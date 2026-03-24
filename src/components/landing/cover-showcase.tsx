@@ -118,9 +118,9 @@ export function CoverShowcase() {
   const controlsOpacity = clamp01((progress - 0.7) / 0.25);
 
   return (
-    <div ref={containerRef} className="relative mt-10 min-h-[80vh]">
-      <div className="sticky top-[3.5rem]">
-        <div className="mx-auto max-w-5xl px-4">
+    <div ref={containerRef} className="relative mt-10 h-[200vh]">
+      <div className="sticky top-[3.5rem] flex h-[calc(100vh-3.5rem)] flex-col items-center justify-center">
+        <div className="w-full max-w-5xl px-4">
           {/* Label */}
           <p
             className="mb-8 text-center text-sm font-medium tracking-wide text-muted-foreground uppercase"
