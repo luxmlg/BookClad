@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -80,6 +81,14 @@ export default function SignInPage() {
           </form>
         )}
       </CardContent>
+      <div className="px-6 pb-6 text-center">
+        <Link
+          href="/privacy"
+          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Privacy Policy
+        </Link>
+      </div>
     </Card>
   );
 }
