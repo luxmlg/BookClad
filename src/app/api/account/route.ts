@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { deleteFromStorage } from "@/lib/storage";
 import { dodo } from "@/lib/dodo";
+import { SUBSCRIPTION_STATUS } from "@/lib/constants";
 
 export async function DELETE(): Promise<NextResponse> {
   const session = await auth();
@@ -54,7 +55,7 @@ export async function DELETE(): Promise<NextResponse> {
     }
 
     // Best-effort cancel active DodoPayments subscription
-    if (user.dodoSubscriptionId && user.subscriptionStatus === "ACTIVE") {
+    if (user.dodoSubscriptionId && user.subscriptionStatus === SUBSCRIPTION_STATUS.ACTIVE) {
       try {
         await dodo.subscriptions.update(user.dodoSubscriptionId, {
           status: "cancelled",
