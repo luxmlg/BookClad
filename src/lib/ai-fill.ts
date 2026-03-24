@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { slugify, addValueToAttribute } from "@/lib/attributes";
-import type { AttributeConfigJson, AttributeSelection, Attribute, AttributeValue } from "@/lib/attributes";
+import { slugify, addValueToAttribute, deduplicateValues } from "@/lib/attributes";
+import type { AttributeConfigJson, AttributeSelection, Attribute } from "@/lib/attributes";
 
 // --- Types ---
 
@@ -255,15 +255,6 @@ export async function generateAttributeSuggestions(
   }));
 
   return suggestions;
-}
-
-function deduplicateValues(values: AttributeValue[]): AttributeValue[] {
-  const seen = new Set<string>();
-  return values.filter((v) => {
-    if (seen.has(v.value)) return false;
-    seen.add(v.value);
-    return true;
-  });
 }
 
 // --- Apply suggestions utility ---
