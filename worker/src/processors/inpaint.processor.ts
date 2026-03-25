@@ -169,7 +169,7 @@ export async function processInpaint(job: Job<InpaintJobData>) {
 
     await prisma.generation.update({
       where: { id: generationId },
-      data: { status: GENERATION_STATUS.COMPLETED },
+      data: { status: GENERATION_STATUS.COMPLETED, errorMessage: null },
     });
 
     await publishProgress(job, generationId, { type: EVENT_TYPE.COMPLETED });
@@ -210,16 +210,23 @@ export async function processInpaint(job: Job<InpaintJobData>) {
             status: GENERATION_STATUS.COMPLETED,
             imageCount: actualCount,
             creditCost: { decrement: refundAmount },
+            errorMessage: refundAmount > 0
+              ? `${actualCount} of ${gen?.imageCount ?? actualCount} images generated. ${refundAmount} credits refunded.`
+              : null,
           },
         });
       } else {
         // No new images — revert to pre-extension state
+        const revertMsg = preExtensionCount < (gen?.imageCount ?? 0)
+          ? `${preExtensionCount} of ${gen?.imageCount ?? preExtensionCount} images generated. ${job.data.creditCost} credits refunded.`
+          : null;
         await prisma.generation.update({
           where: { id: generationId },
           data: {
             status: GENERATION_STATUS.COMPLETED,
             imageCount: preExtensionCount,
             creditCost: { decrement: job.data.creditCost },
+            errorMessage: revertMsg,
           },
         });
       }
