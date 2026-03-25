@@ -34,8 +34,19 @@ import {
 } from "@/components/ui/hover-card";
 import { AI_MODELS, isModelAvailable } from "@/lib/constants";
 import { useCreditStore } from "@/lib/stores/credit-store";
+import type { CanvasNode } from "./canvas-types";
 
 type ToolbarMode = "idle" | "brush" | "similar" | "inpaint";
+
+function buildBakeLayersPrompt(nodes: CanvasNode[]): string {
+  const visible = nodes.filter((n) => n.visible);
+  if (visible.length === 0) return "";
+  const lines = visible.map((n) => {
+    if (n.type === "text") return `${n.name ?? "Text"} text: "${n.text}"`;
+    return `Image layer: "${n.name ?? n.id}"`;
+  });
+  return `Incorporate these elements into the cover image naturally:\n${lines.map((l) => `- ${l}`).join("\n")}`;
+}
 
 interface InpaintToolbarProps {
   brushMode: boolean;
