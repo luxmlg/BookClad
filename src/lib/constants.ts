@@ -77,6 +77,7 @@ export const QUICK_CREATE_TIER_CONFIG = {
   FREE: { model: "quick", imageCount: 4 },
   STARTER: { model: "detailed", imageCount: 8 },
   PRO: { model: "detailed", imageCount: 8 },
+  STUDIO: { model: "detailed", imageCount: 8 },
 } as const;
 
 export const AI_MODELS = [
