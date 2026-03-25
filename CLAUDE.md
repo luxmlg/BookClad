@@ -80,7 +80,9 @@ Three job types in BullMQ, each routed to a processor in the worker:
 - `JOB_TYPE.GENERATE_FROM_REFERENCE` → `generation.processor.ts` — image-to-image using `referenceImageKey`
 - `JOB_TYPE.INPAINT` → `inpaint.processor.ts` — masked region editing via Gemini
 
-All processors run a **preflight health check** (`preflight()` in `worker/src/lib/health.ts`) before any work — verifies R2 storage and Postgres are reachable. If either is down, the job fails immediately without calling the Gemini API, saving API costs. Then: generate → upscale (skipped if image already meets KDP dimensions, e.g. 4K generation) → crop to KDP → upload to R2 → create `GeneratedImage` rows.
+All processors run a **preflight health check** (`preflight()` in `worker/src/lib/health.ts`) before any work — verifies R2 storage and Postgres are reachable. If either is down, the job fails immediately without calling the Gemini API, saving API costs. Pipeline branches on model:
+- **Quick**: generate at 1K → upload raw (no upscale, no KDP crop) → store actual dimensions from Sharp metadata. Prototyping only, not export-ready.
+- **Detailed/Premium**: generate at 4K → skip upscale (already exceeds KDP) → crop to 1600x2560 → upload to R2 → create `GeneratedImage` rows with KDP dimensions.
 
 **Extension flow**: `POST /api/generations/[id]/extend` adds more images to an existing generation. Routes to the correct processor based on `generation.jobType`:
 - Inpaint extensions → `JOB_TYPE.INPAINT` with persisted `maskImage` key and `prompt`
@@ -167,7 +169,7 @@ Billing uses a credit ledger instead of a generation counter. Defined in `src/li
 5. On user cancel: app calls `refundCredits()` from `src/lib/credits.ts` (mirrors the worker version).
 6. On grant: `grantCredits()` accepts `pool: { source, expiresAt, priority }` parameter, creates a `CreditPool` row alongside the balance increment.
 
-**Credit sources**: Initial signup grant (Auth.js `createUser` event → `grantCredits()` for 20 FREE credits), subscription activation/renewal (webhook → `grantCredits()`), and one-time credit pack purchases (webhook → `grantCredits()`).
+**Credit sources**: Initial signup grant (Auth.js `createUser` event → `grantCredits()` for 15 FREE credits with SIGNUP_GRANT pool), subscription renewal (webhook → inline pool creation in single transaction, no rollover), plan changes (webhook → zeros old subscription pool, creates new one with full tier credits), and one-time credit pack purchases (webhook → `grantCredits()` with PURCHASE pool, 12-month expiry).
 
 **API**: `GET /api/credits?page=N` returns `{ balance, tier, subscriptionStatus, currentPeriodEnd, dodoSubscriptionId, transactions[], page, totalPages }`. Paginated at 20 transactions per page. Client module in `src/lib/api/credits.ts`.
 
