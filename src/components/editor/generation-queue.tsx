@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Loader2, Sparkles, AlertTriangle, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { GENERATION_STATUS, JOB_TYPE, type GenerationStatus } from "@/lib/constants";
+import { Button } from "@/components/ui/button";
+import { GENERATION_STATUS, JOB_TYPE, MAX_OTHER_RETRIES, type GenerationStatus } from "@/lib/constants";
 import { useGenerationPoller, type GenerationPollerState } from "./generation-poller";
 import type { Generation } from "./types";
 import {
@@ -14,15 +15,18 @@ import {
 } from "./generation-helpers";
 import { asAttributeSnapshot } from "./types";
 import { formatAttributes } from "@/lib/attributes";
+import { cancelGeneration } from "@/lib/api";
 
 interface GenerationQueueProps {
   generations: Generation[];
   onComplete: (generationId: string, status: GenerationStatus) => void;
+  onSelectGeneration?: (generationId: string) => void;
 }
 
 export function GenerationQueue({
   generations,
   onComplete,
+  onSelectGeneration,
 }: GenerationQueueProps) {
   // Tick counter to keep relative times fresh
   const [, setTick] = useState(0);
@@ -48,6 +52,7 @@ export function GenerationQueue({
             key={gen.id}
             generation={gen}
             onComplete={onComplete}
+            onSelectGeneration={onSelectGeneration}
           />
         ))}
       </div>
@@ -58,9 +63,11 @@ export function GenerationQueue({
 function QueueEntry({
   generation,
   onComplete,
+  onSelectGeneration,
 }: {
   generation: Generation;
   onComplete: (generationId: string, status: GenerationStatus) => void;
+  onSelectGeneration?: (generationId: string) => void;
 }) {
   const poller = useGenerationPoller({
     generationId: generation.id,
@@ -79,10 +86,22 @@ function QueueEntry({
   const attrs = asAttributeSnapshot(generation.attributeSnapshot);
   const imageCount = generation.imageCount ?? generation.images.length;
 
-  const isActive = poller.status === GENERATION_STATUS.QUEUED || poller.status === GENERATION_STATUS.PROCESSING;
+  const isActive =
+    poller.status === GENERATION_STATUS.QUEUED ||
+    poller.status === GENERATION_STATUS.PROCESSING ||
+    poller.status === GENERATION_STATUS.RETRYING;
 
   return (
-    <div className="rounded-lg border bg-muted/30 px-3 py-2.5 space-y-2">
+    <div
+      className={`rounded-lg border px-3 py-2.5 space-y-2 cursor-pointer hover:bg-muted/40 transition-colors ${
+        poller.status === GENERATION_STATUS.RETRYING
+          ? poller.retryReason === "high_demand"
+            ? "border-amber-500/30 bg-amber-500/5"
+            : "border-destructive/30 bg-destructive/5"
+          : "bg-muted/30"
+      }`}
+      onClick={() => onSelectGeneration?.(generation.id)}
+    >
       {/* Header row */}
       <div className="flex items-center gap-2 text-sm">
         <Icon className="size-3.5 text-muted-foreground shrink-0" />
@@ -128,12 +147,24 @@ function QueueEntry({
       </div>
 
       {/* Progress */}
-      <QueueProgress poller={poller} />
+      <QueueProgress
+        poller={poller}
+        generationId={generation.id}
+        onCancel={() => onComplete(generation.id, GENERATION_STATUS.FAILED)}
+      />
     </div>
   );
 }
 
-function QueueProgress({ poller }: { poller: GenerationPollerState }) {
+function QueueProgress({
+  poller,
+  generationId,
+  onCancel,
+}: {
+  poller: GenerationPollerState;
+  generationId: string;
+  onCancel: () => void;
+}) {
   if (poller.status === GENERATION_STATUS.QUEUED) {
     return (
       <div className="flex items-center gap-2">
@@ -159,6 +190,19 @@ function QueueProgress({ poller }: { poller: GenerationPollerState }) {
     );
   }
 
+  if (poller.status === GENERATION_STATUS.RETRYING && poller.nextRetryAt) {
+    return (
+      <RetryingProgress
+        retryCount={poller.retryCount}
+        retryReason={poller.retryReason}
+        nextRetryAt={poller.nextRetryAt}
+        errorMessage={poller.errorMessage}
+        generationId={generationId}
+        onCancel={onCancel}
+      />
+    );
+  }
+
   if (poller.status === GENERATION_STATUS.COMPLETED) {
     return (
       <div className="flex items-center gap-2">
@@ -169,4 +213,81 @@ function QueueProgress({ poller }: { poller: GenerationPollerState }) {
   }
 
   return null;
+}
+
+function RetryingProgress({
+  retryCount,
+  retryReason,
+  nextRetryAt,
+  errorMessage,
+  generationId,
+  onCancel,
+}: {
+  retryCount: number;
+  retryReason: string | null;
+  nextRetryAt: string;
+  errorMessage: string | null;
+  generationId: string;
+  onCancel: () => void;
+}) {
+  const [countdown, setCountdown] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  const isHighDemand = retryReason === "high_demand";
+
+  useEffect(() => {
+    const target = new Date(nextRetryAt).getTime();
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((target - Date.now()) / 1000));
+      setCountdown(`${remaining}s`);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [nextRetryAt]);
+
+  const handleCancel = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setCancelling(true);
+      try {
+        await cancelGeneration(generationId);
+        onCancel();
+      } catch {
+        setCancelling(false);
+      }
+    },
+    [generationId, onCancel],
+  );
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <AlertTriangle
+          className={`size-3.5 shrink-0 ${isHighDemand ? "text-amber-500" : "text-destructive"}`}
+        />
+        <span
+          className={`text-xs font-medium ${isHighDemand ? "text-amber-500" : "text-destructive"}`}
+        >
+          {isHighDemand ? "High demand" : "Retrying"} · Retrying in {countdown}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          · Attempt {retryCount}
+          {!isHighDemand ? ` of ${MAX_OTHER_RETRIES}` : ""}
+        </span>
+      </div>
+      {errorMessage && (
+        <p className="text-xs text-muted-foreground">{errorMessage}</p>
+      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 text-xs text-destructive hover:text-destructive"
+        onClick={handleCancel}
+        disabled={cancelling}
+      >
+        <X className="mr-1 size-3" />
+        {cancelling ? "Cancelling..." : "Cancel"}
+      </Button>
+    </div>
+  );
 }

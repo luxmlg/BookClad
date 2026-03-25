@@ -62,7 +62,7 @@ export function useGenerationActions(
   }, [imageCount, projectId]);
 
   const pendingGenerations = projectGenerations.filter(
-    (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING
+    (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING || g.status === GENERATION_STATUS.RETRYING
   );
   const allActiveIds = useMemo(
     () => [
@@ -75,7 +75,7 @@ export function useGenerationActions(
   );
   const activeGenerations = useMemo(() => {
     const fromProject = projectGenerations.filter(
-      (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING
+      (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING || g.status === GENERATION_STATUS.RETRYING
     );
     const projectIds = new Set(fromProject.map((g) => g.id));
     const localOnly = activeGenerationIds
