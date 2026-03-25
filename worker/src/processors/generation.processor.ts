@@ -236,16 +236,29 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       where: { generationId },
     });
     if (existingImages > 0) {
+      const perImageCost = CREDIT_COST_PER_IMAGE[job.data.model];
+      if (perImageCost === undefined) throw new Error(`Unknown model "${job.data.model}"`);
+      const costForCreated = perImageCost * existingImages;
+      const partialRefund = Math.max(0, job.data.creditCost - costForCreated);
+      const requestedCount = job.data.imageCount ?? existingImages;
+      const partialMsg = `${existingImages} of ${requestedCount} images generated. ${partialRefund} credits refunded.`;
+
       const updated = await prisma.generation.updateMany({
         where: { id: generationId, status: { not: GENERATION_STATUS.FAILED } },
-        data: { status: GENERATION_STATUS.FAILED, errorMessage: errorMsg },
+        data: {
+          status: GENERATION_STATUS.COMPLETED,
+          errorMessage: partialMsg,
+          creditCost: costForCreated,
+          // imageCount intentionally NOT updated — preserve original requested count
+          // so frontend can calculate failed slots: imageCount - images.length
+        },
       });
-      if (updated.count > 0 && job.data.creditCost > 0) {
-        await refundCredits(job.data.userId, generationId, job.data.creditCost);
+      if (updated.count > 0 && partialRefund > 0) {
+        await refundCredits(job.data.userId, generationId, partialRefund);
       }
       await publishProgress(job, generationId, {
-        type: EVENT_TYPE.FAILED,
-        error: errorMsg,
+        type: EVENT_TYPE.COMPLETED,
+        errorMessage: partialMsg,
       });
       throw new UnrecoverableError(errorMsg);
     }
