@@ -82,8 +82,6 @@ Three job types in BullMQ, each routed to a processor in the worker:
 
 All processors run a **preflight health check** (`preflight()` in `worker/src/lib/health.ts`) before any work — verifies R2 storage and Postgres are reachable. If either is down, the job fails immediately without calling the Gemini API, saving API costs.
 
-**Gemini batching**: `generateImages()` in `worker/src/services/gemini.service.ts` sends up to 4 images per API call via `numberOfImages` in `imageConfig` (`MAX_IMAGES_PER_REQUEST = 4`). Requests for >4 images are split into sequential batched calls (e.g., 8 images = 2 calls of 4). This reduces API calls by up to 75% and narrows the partial-failure window.
-
 Pipeline branches on model:
 - **Quick**: generate at 1K → upload raw (no upscale, no KDP crop) → store actual dimensions from Sharp metadata. Prototyping only, not export-ready.
 - **Detailed/Premium**: generate at 4K → skip upscale (already exceeds KDP) → crop to 1600x2560 → upload to R2 → create `GeneratedImage` rows with KDP dimensions.
