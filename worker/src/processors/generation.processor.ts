@@ -212,7 +212,8 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       statusCode === 429 || statusCode === 503 ||
       /rate.?limit/i.test(errorMsg) ||
       /too many requests/i.test(errorMsg) ||
-      /overloaded/i.test(errorMsg);
+      /overloaded/i.test(errorMsg) ||
+      /high demand/i.test(errorMsg);
     const retryReason = isHighDemand ? "high_demand" : "error";
     const maxRetries = isHighDemand ? MAX_HIGH_DEMAND_RETRIES : MAX_OTHER_RETRIES;
 

@@ -15,11 +15,13 @@ const GEMINI_ERROR_MESSAGES: Record<number, string> = {
 };
 
 export class GeminiApiError extends Error {
+  status: number;
   constructor(status: number) {
     const message = GEMINI_ERROR_MESSAGES[status]
       ?? "Generation failed. Please try again.";
     super(message);
     this.name = "GeminiApiError";
+    this.status = status;
   }
 }
 
