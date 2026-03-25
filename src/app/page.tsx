@@ -63,7 +63,7 @@ const plans = [
     period: "forever",
     features: [
       "20 free credits on signup",
-      "Quick model only",
+      "Quick quality only",
       "Up to 10 covers",
       "Full-res KDP export",
     ],
@@ -76,7 +76,7 @@ const plans = [
     period: "/month",
     features: [
       "100 credits / month",
-      "~20-33 covers depending on quality preset",
+      "~20-50 covers depending on quality preset",
       "Full-res KDP export",
       "Priority queue",
     ],
@@ -89,7 +89,7 @@ const plans = [
     period: "/month",
     features: [
       "250 credits / month",
-      "~50-83 covers depending on quality preset",
+      "~50-125 covers depending on quality preset",
       "Priority queue",
       "Priority support",
     ],
