@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CanvasNode } from "./canvas-types";
 import { NODE_TYPE } from "./canvas-types";
-import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, QUICK_CREATE_TIER_CONFIG } from "@/lib/constants";
+import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, QUICK_CREATE_TIER_CONFIG, isModelAvailable, AI_MODELS } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
 import { REF_PROMPT_KEY } from "@/lib/attributes";
 import { createGeneration, extendGeneration } from "@/lib/api";
@@ -60,6 +60,13 @@ export function useGenerationActions(
   useEffect(() => {
     localStorage.setItem(`${IMAGE_COUNT_KEY_PREFIX}:${projectId}`, String(imageCount));
   }, [imageCount, projectId]);
+
+  useEffect(() => {
+    if (!isModelAvailable(model, tier)) {
+      const available = AI_MODELS.filter((m) => isModelAvailable(m.value, tier));
+      if (available.length > 0) setModel(available[available.length - 1].value);
+    }
+  }, [tier]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pendingGenerations = projectGenerations.filter(
     (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING || g.status === GENERATION_STATUS.RETRYING
