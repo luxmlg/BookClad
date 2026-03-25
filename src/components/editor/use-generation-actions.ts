@@ -140,8 +140,7 @@ export function useGenerationActions(
 
   async function handleGenerateSimilar(prompt: string, includeLayers: boolean) {
     if (!selectedImageId) return;
-    const shouldIncludeLayers = includeLayers;
-    const flattenedImageDataUrl = shouldIncludeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
+    const flattenedImageDataUrl = includeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
     const snapshot: AttributeSelection = { ...attributes };
     if (prompt) snapshot[REF_PROMPT_KEY] = prompt;
     const data = await createGeneration({
@@ -151,7 +150,7 @@ export function useGenerationActions(
       referenceImageId: selectedImageId,
       flattenedImageDataUrl,
       attributeSnapshot: snapshot,
-      textLayerSnapshot: shouldIncludeLayers
+      textLayerSnapshot: includeLayers
         ? canvasNodes.filter(n => n.visible !== false).map((n) => ({
             name: n.name ?? n.id,
             text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",

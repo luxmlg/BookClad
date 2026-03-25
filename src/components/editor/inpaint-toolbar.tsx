@@ -286,7 +286,8 @@ export function InpaintToolbar({
           if (e.key === "Escape") {
             e.preventDefault();
             if (isBake) handleCancelBake();
-            else if (!isSimilar) handleCancelInpaint();
+            else if (isSimilar) handleCancelSimilar();
+            else handleCancelInpaint();
           }
         }}
       >
