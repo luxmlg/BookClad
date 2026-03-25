@@ -2,7 +2,7 @@ import { Job, UnrecoverableError } from "bullmq";
 import sharp from "sharp";
 import { prisma } from "../lib/prisma.js";
 import { publishProgress } from "../lib/progress.js";
-import { generateImages as geminiGenerate } from "../services/gemini.service.js";
+import { generateSingleImage } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
@@ -12,18 +12,6 @@ import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONF
 import { refundCredits } from "../lib/credits.js";
 import { preflight } from "../lib/health.js";
 
-async function dispatchGenerate(
-  model: string,
-  prompt: string,
-  count: number,
-  referenceImage?: Buffer
-): Promise<Buffer[]> {
-  const geminiModelId = GEMINI_MODEL_IDS[model];
-  if (!geminiModelId) throw new Error(`Unknown model: ${model}`);
-  const config = GEMINI_MODEL_CONFIG[model];
-  return geminiGenerate({ prompt, count, referenceImage, modelId: geminiModelId, config });
-}
-
 export async function processGeneration(job: Job<GenerationJobData>) {
   const { generationId, projectId, userId, imageCount, referenceImageKey, model } =
     job.data;
@@ -31,8 +19,8 @@ export async function processGeneration(job: Job<GenerationJobData>) {
   // totalSteps: generate + per-image steps + optional reference download
   // Quick: upload only. Others: upscale + crop + upload
   const hasRef = !!referenceImageKey;
-  const stepsPerImage = model === "quick" ? 1 : 3;
-  const totalSteps = (hasRef ? 1 : 0) + 1 + imageCount * stepsPerImage;
+  const stepsPerImage = model === "quick" ? 2 : 4;
+  const totalSteps = (hasRef ? 1 : 0) + imageCount * stepsPerImage;
   let step = 0;
 
   // Check if user cancelled while this retry was queued
@@ -92,21 +80,17 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     const fullPrompt = systemPrompt + "\n\n" + userPrompt;
 
     const geminiModelId = GEMINI_MODEL_IDS[model];
-    let rawImages: Buffer[];
+    if (!geminiModelId) throw new Error(`Unknown model: ${model}`);
+    const geminiConfig = GEMINI_MODEL_CONFIG[model];
+    const isQuick = model === "quick";
 
+    let refBuffer: Buffer | undefined;
     if (referenceImageKey) {
       step++;
       await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Downloading reference image...", step, totalSteps });
-      const refBuffer = job.data.flattenedImageDataUrl
+      refBuffer = job.data.flattenedImageDataUrl
         ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
         : await downloadImage(referenceImageKey);
-      step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Generating ${imageCount} images from reference...`, step, totalSteps });
-      rawImages = await dispatchGenerate(model, fullPrompt, imageCount, refBuffer);
-    } else {
-      step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Generating ${imageCount} images...`, step, totalSteps });
-      rawImages = await dispatchGenerate(model, fullPrompt, imageCount);
     }
 
     if (!job.data.isExtension) {
@@ -121,27 +105,36 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       });
     }
 
-    const isQuick = model === "quick";
+    for (let i = 0; i < imageCount; i++) {
+      // Generate
+      step++;
+      await publishProgress(job, generationId, {
+        type: EVENT_TYPE.PROGRESS,
+        message: `Generating image ${i + 1}/${imageCount}...`,
+        step,
+        totalSteps,
+      });
+      const rawImage = await generateSingleImage({
+        prompt: fullPrompt,
+        referenceImage: refBuffer,
+        modelId: geminiModelId,
+        config: geminiConfig,
+      });
 
-    for (let i = 0; i < rawImages.length; i++) {
+      // Process
       let finalImage: Buffer;
       let imageWidth: number;
       let imageHeight: number;
 
       if (isQuick) {
-        // Quick mode: upload raw image — no upscale, no KDP crop
-        finalImage = rawImages[i];
+        finalImage = rawImage;
         const metadata = await sharp(finalImage).metadata();
         imageWidth = metadata.width ?? 0;
         imageHeight = metadata.height ?? 0;
-
-        step++;
-        await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Uploading draft ${i + 1}/${rawImages.length}...`, step, totalSteps });
       } else {
-        // Detailed/Premium: upscale + crop to KDP
         step++;
-        await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Upscaling image ${i + 1}/${rawImages.length}...`, step, totalSteps });
-        const upscaled = await upscaleImage(rawImages[i]);
+        await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Upscaling image ${i + 1}/${imageCount}...`, step, totalSteps });
+        const upscaled = await upscaleImage(rawImage);
 
         step++;
         await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Cropping image ${i + 1} to KDP dimensions...`, step, totalSteps });
@@ -150,8 +143,9 @@ export async function processGeneration(job: Job<GenerationJobData>) {
         imageHeight = KDP.height;
       }
 
+      // Upload + save
       step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Uploading image ${i + 1}...`, step, totalSteps });
+      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Uploading image ${i + 1}/${imageCount}...`, step, totalSteps });
       const storageKey = await uploadImage(finalImage, `projects/${projectId}`);
 
       await prisma.generatedImage.create({
