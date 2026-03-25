@@ -85,7 +85,7 @@ export default async function DashboardPage() {
             return (
               <Card
                 key={project.id}
-                className="group relative overflow-hidden p-0 transition-shadow hover:shadow-lg"
+                className="group relative gap-0 overflow-hidden p-0 transition-shadow hover:shadow-lg"
               >
                 <Link href={`/editor/${project.id}`}>
                   <div className="relative aspect-5/8 bg-linear-to-br from-muted to-muted/50 flex items-center justify-center overflow-hidden">
