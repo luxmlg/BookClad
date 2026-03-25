@@ -20,6 +20,26 @@ Overhaul BookClad's credit/pricing system: swap Quick mode model, update credit 
 
 ---
 
+## 0. Schema & Cleanup Prerequisites
+
+### Prisma Tier Enum
+
+Both `prisma/schema.prisma` and `worker/prisma/schema.prisma` define a `Tier` enum with values `FREE`, `STARTER`, `PRO`. Add `STUDIO` to both. This requires a Postgres `ALTER TYPE` migration.
+
+### Stale Defaults and Fallbacks
+
+- `Generation.model` has `@default("openai")` in the Prisma schema — update to `@default("quick")`
+- `calculateCreditCost()` in `src/lib/credits.ts` has a fallback `?? CREDIT_COST_PER_IMAGE.openai` — remove the `openai` fallback, use `CREDIT_COST_PER_IMAGE.quick` as default
+- Remove any remaining references to `"openai"` as a model value
+
+### Type Updates
+
+- `tierFromProductId()` return type: `"STARTER" | "PRO" | null` → `"STARTER" | "PRO" | "STUDIO" | null`
+- Checkout route Zod schema: `z.enum(["STARTER", "PRO"])` → `z.enum(["STARTER", "PRO", "STUDIO"])`
+- `AI_MODELS` entries gain `exportable: boolean` field — update the inferred type accordingly
+
+---
+
 ## 1. Model & Generation Config Changes
 
 ### Quick Mode — Prototyping Only
@@ -74,9 +94,17 @@ premium:  6  (was 5)
 
 Detailed and Premium gain `exportable: true`.
 
+### Quick Image Dimensions
+
+Quick outputs at 1K with 9:16 aspect ratio — actual pixel dimensions are determined by Gemini (likely ~576x1024 or similar). The processor must read dimensions from the image buffer via Sharp metadata and store them on the `GeneratedImage` row, rather than hardcoding `KDP.width`/`KDP.height`.
+
+### Pipeline Branching
+
+The generation processor branches on `job.data.model === "quick"` to skip upscale and KDP crop. Quick and Detailed share the same Gemini model ID but differ by config — the processor already dispatches based on the `model` field (e.g., `"quick"`, `"detailed"`), not the Gemini model ID.
+
 ### Export Gating
 
-- Export API (`POST /api/projects/[id]/export`) rejects if all selected images are from Quick generations
+- Export API (`POST /api/projects/[id]/export`) exports a single selected image — check if that image's generation used the `"quick"` model. If so, return 400.
 - Export button in RightSidebar disabled for Quick images with tooltip: *"Quick images are drafts — generate with Detailed or Premium for KDP-ready export"*
 
 ---
@@ -97,7 +125,7 @@ model CreditPool {
   createdAt      DateTime  @default(now())
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, remaining, expiresAt])
+  @@index([userId, priority, createdAt])
 }
 ```
 
@@ -114,8 +142,13 @@ model CreditPool {
 
 Priority order: SUBSCRIPTION pools first (priority=0), then oldest PURCHASE/SIGNUP_GRANT/REFUND pools by `createdAt` (priority=1).
 
+**Concurrency safety**: Prisma's default `READ COMMITTED` isolation allows two concurrent transactions to read the same pool and both decrement, causing `remaining` to go negative. To prevent this, each pool update uses `updateMany` with a `remaining >= take` guard — if the guard fails (another transaction drained it), re-fetch and retry.
+
 ```typescript
-async function spendCredits(tx, userId: string, amount: number): Promise<SpentPool[]> {
+async function spendCredits(tx, userId: string, amount: number): Promise<void> {
+  // Lock the user row first to serialize concurrent spends
+  await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+
   const pools = await tx.creditPool.findMany({
     where: {
       userId,
@@ -129,7 +162,6 @@ async function spendCredits(tx, userId: string, amount: number): Promise<SpentPo
   });
 
   let remaining = amount;
-  const spent: SpentPool[] = [];
 
   for (const pool of pools) {
     if (remaining <= 0) break;
@@ -138,7 +170,6 @@ async function spendCredits(tx, userId: string, amount: number): Promise<SpentPo
       where: { id: pool.id },
       data: { remaining: { decrement: take } },
     });
-    spent.push({ poolId: pool.id, amount: take });
     remaining -= take;
   }
 
@@ -148,10 +179,12 @@ async function spendCredits(tx, userId: string, amount: number): Promise<SpentPo
     where: { id: userId },
     data: { creditBalance: { decrement: amount } },
   });
-
-  return spent;
 }
 ```
+
+### All Reserve Functions Use spendCredits
+
+`reserveCredits`, `reserveExtensionCredits`, and `reserveAiFillCredits` all call `spendCredits(tx, userId, amount)` inside their existing `$transaction` block. `reserveAiFillCredits` has no `generationId` — its `CreditTransaction` continues to use `generationId: null` as it does today.
 
 ### Refund Logic
 
@@ -189,19 +222,29 @@ Each grant creates a new CreditPool row:
 
 ### Expiry Sweep
 
-Worker startup sweep (similar to stale generation cleanup) + periodic check:
+Worker startup sweep (similar to stale generation cleanup) + **hourly periodic check** via `setInterval`:
 1. Find pools where `expiresAt < now()` and `remaining > 0`
-2. Set `remaining = 0`
-3. Decrement `User.creditBalance` by expired amount
-4. Create `CreditTransaction(EXPIRE)` records
+2. For each expired pool, in a single transaction:
+   - Set `remaining = 0`
+   - Decrement `User.creditBalance` by the expired amount
+   - Create `CreditTransaction(EXPIRE)` record
 
 ### Subscription Renewal Flow
 
+All steps in a **single Prisma transaction** to prevent races:
 1. `subscription.renewed` webhook fires
-2. Zero out remaining on old SUBSCRIPTION pools for this user (no rollover)
+2. Find and zero out remaining on old SUBSCRIPTION pools for this user (no rollover)
 3. Create new SUBSCRIPTION pool: `remaining = TIER_CREDITS[tier]`, `expiresAt = currentPeriodEnd`, `priority = 0`
 4. Update `creditBalance`: decrement old remaining, increment new grant
 5. Create `CreditTransaction(GRANT)`
+
+### Subscription Plan Change Flow
+
+When `subscription.plan_changed` webhook fires (e.g., PRO → STUDIO), in a **single transaction**:
+1. Zero out remaining on old SUBSCRIPTION pools
+2. Create new SUBSCRIPTION pool with full `TIER_CREDITS[newTier]`, `expiresAt = currentPeriodEnd`
+3. Update `creditBalance`: decrement old remaining, increment new grant
+4. Create `CreditTransaction(GRANT)` with description noting the plan change
 
 ### Denormalized Balance
 
@@ -331,27 +374,27 @@ Four cards:
 ## 6. Files Affected
 
 ### App (`src/`)
-- `src/lib/constants.ts` — credit costs, tier credits, tier order, plan prices, credit packs, AI_MODELS, QUICK_CREATE_TIER_CONFIG
-- `src/lib/credits.ts` — reserveCredits, reserveExtensionCredits, reserveAiFillCredits, refundCredits, grantCredits → all updated to use CreditPool
-- `src/lib/dodo.ts` — DODO_PRODUCT_IDS, DODO_CREDIT_PACK_IDS, tierFromProductId
+- `prisma/schema.prisma` — add `STUDIO` to Tier enum, add CreditPool model, update Generation.model default
+- `src/lib/constants.ts` — credit costs, tier credits, tier order, plan prices, credit packs, AI_MODELS (+ exportable field), QUICK_CREATE_TIER_CONFIG
+- `src/lib/credits.ts` — reserveCredits, reserveExtensionCredits, reserveAiFillCredits, refundCredits, grantCredits → all updated to use CreditPool via spendCredits. Remove openai fallback.
+- `src/lib/dodo.ts` — DODO_PRODUCT_IDS, DODO_CREDIT_PACK_IDS, tierFromProductId return type + STUDIO
 - `src/lib/auth.ts` — signup grant amount (20 → 15), create SIGNUP_GRANT pool
 - `src/app/api/generations/route.ts` — add BullMQ priority
 - `src/app/api/generations/[id]/extend/route.ts` — add BullMQ priority
-- `src/app/api/checkout/route.ts` — handle Studio tier + CREDITS_500 pack
-- `src/app/api/webhooks/dodo/route.ts` — subscription renewal creates pool, handles Studio
-- `src/app/api/projects/[id]/export/route.ts` — reject Quick-only exports
+- `src/app/api/checkout/route.ts` — Zod schema + STUDIO tier + CREDITS_500 pack
+- `src/app/api/webhooks/dodo/route.ts` — renewal/plan-change create pools, handle Studio
+- `src/app/api/projects/[id]/export/route.ts` — reject Quick model exports
 - `src/app/settings/billing-tab.tsx` — Studio card, Mega pack, priority badge
 - `src/app/page.tsx` — four pricing cards
 - `src/components/editor/right-sidebar.tsx` (or wherever export button lives) — disable for Quick
 - `src/components/editor/generation-queue.tsx` — priority badge
-- Prisma schema — add CreditPool model
 
 ### Worker (`worker/`)
+- `worker/prisma/schema.prisma` — add `STUDIO` to Tier enum, add CreditPool model, update Generation.model default
 - `worker/src/lib/constants.ts` — GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG, CREDIT_COST_PER_IMAGE
 - `worker/src/lib/credits.ts` — refundCredits updated to create REFUND pool
-- `worker/src/processors/generation.processor.ts` — skip upscale+crop for Quick
-- Worker Prisma schema — add CreditPool model
-- Expiry sweep logic (new, in startup or scheduled)
+- `worker/src/processors/generation.processor.ts` — skip upscale+crop for Quick, read actual dimensions from Sharp metadata for GeneratedImage rows
+- Expiry sweep logic (new — startup + hourly setInterval)
 
 ---
 
@@ -365,3 +408,15 @@ Four cards:
 | Premium | 6 | ~$0.243 | $0.60 | ~147% |
 
 Premium margin is better than spec estimated ($0.243 vs $0.291) since thinking config is not explicitly set.
+
+---
+
+## 8. Data Migration
+
+App is not live yet — no existing users to migrate. The migration is purely additive:
+1. Add `STUDIO` to `Tier` enum in both Prisma schemas
+2. Add `CreditPool` model to both Prisma schemas
+3. Update `Generation.model` default from `"openai"` to `"quick"`
+4. Run `prisma migrate dev` + regenerate both clients
+
+No data backfill needed since there are no existing users or credit balances.
