@@ -153,16 +153,19 @@ Defined in `src/lib/attributes.ts`. Provides a flexible, user-customizable syste
 
 Billing uses a credit ledger instead of a generation counter. Defined in `src/lib/credits.ts` (app) and `worker/src/lib/credits.ts` (worker).
 
-**Per-image costs**: `CREDIT_COST_PER_IMAGE` in constants — quick (2), detailed (3), premium (5). Also exposed as `creditCost` on each `AI_MODELS` entry.
+**Per-image costs**: `CREDIT_COST_PER_IMAGE` in constants — quick (2), detailed (4), premium (6). Also exposed as `creditCost` on each `AI_MODELS` entry.
 
-**Tier allowances**: `TIER_CREDITS` — FREE (20 one-time on signup), STARTER (100/month), PRO (250/month).
+**Tier allowances**: `TIER_CREDITS` — FREE (15 one-time on signup), STARTER (100/month), PRO (250/month), STUDIO (500/month).
+
+**Credit pools**: `CreditPool` model tracks credit buckets with `source` (SUBSCRIPTION, PURCHASE, SIGNUP_GRANT, REFUND), `priority` (0=subscription, 1=others), `remaining`, and `expiresAt`. Subscription pools expire at `currentPeriodEnd` (no rollover), purchased pools expire after 12 months, signup/refund pools never expire. `User.creditBalance` is a denormalized cache updated atomically alongside pool changes. `spendCredits()` acquires a `SELECT ... FOR UPDATE` lock on the User row, then drains pools in priority order (subscription first, then FIFO by `createdAt`). Expiry sweep runs on worker startup and hourly via `worker/src/lib/credit-expiry.ts`.
 
 **Lifecycle**:
-1. API calls `reserveCredits()` — atomic Prisma transaction: checks balance, decrements `User.creditBalance`, creates `CreditTransaction(RESERVE)`, creates `Generation(creditCost)`. Throws `InsufficientCreditsError` (→ 403) if balance too low.
-2. On success: nothing to do, credits already deducted.
-3. On failure: worker calls `refundCredits()` — increments balance, creates `CreditTransaction(REFUND)`.
+1. API calls `reserveCredits()` → calls `spendCredits()` (row-level lock + pool drain) → creates `CreditTransaction(RESERVE)` + `Generation(creditCost)`. Throws `InsufficientCreditsError` (→ 403) if pools don't have enough.
+2. On success: nothing to do, credits already deducted from pools.
+3. On failure: worker calls `refundCredits()` — creates a REFUND `CreditPool` (no expiry), increments `creditBalance`, creates `CreditTransaction(REFUND)`.
 4. On retryable failure: credits stay reserved (no refund until permanent failure or user cancellation).
 5. On user cancel: app calls `refundCredits()` from `src/lib/credits.ts` (mirrors the worker version).
+6. On grant: `grantCredits()` accepts `pool: { source, expiresAt, priority }` parameter, creates a `CreditPool` row alongside the balance increment.
 
 **Credit sources**: Initial signup grant (Auth.js `createUser` event → `grantCredits()` for 20 FREE credits), subscription activation/renewal (webhook → `grantCredits()`), and one-time credit pack purchases (webhook → `grantCredits()`).
 
@@ -176,11 +179,13 @@ Payments are handled by DodoPayments. Defined in `src/lib/dodo.ts` (SDK client +
 
 **Subscription flow**: User clicks "Upgrade" on billing tab → `POST /api/checkout` creates DodoPayments checkout session → user redirected to hosted checkout → payment completes → webhook fires at `POST /api/webhooks/dodo` → tier upgraded + credits granted.
 
-**Checkout**: `POST /api/checkout` accepts a discriminated union: `{ type: "subscription", tier: "STARTER" | "PRO" }` for tier upgrades, or `{ type: "credits", packId: CreditPackId }` for one-time credit packs. Creates a DodoPayments checkout session and returns `{ checkoutUrl }`. Client helpers in `src/lib/api/checkout.ts`: `createCheckout(tier)`, `createCreditPackCheckout(packId)`, `createCustomerPortal()`.
+**Checkout**: `POST /api/checkout` accepts a discriminated union: `{ type: "subscription", tier: "STARTER" | "PRO" | "STUDIO" }` for tier upgrades, or `{ type: "credits", packId: CreditPackId }` for one-time credit packs. Creates a DodoPayments checkout session and returns `{ checkoutUrl }`. Client helpers in `src/lib/api/checkout.ts`: `createCheckout(tier)`, `createCreditPackCheckout(packId)`, `createCustomerPortal()`.
 
-**Credit packs**: One-time purchases defined in `CREDIT_PACKS` constant (50/$5, 100/$9, 250/$20). Product IDs in env: `DODO_PRODUCT_ID_CREDITS_50`, `DODO_PRODUCT_ID_CREDITS_100`, `DODO_PRODUCT_ID_CREDITS_250`. Mapped via `DODO_CREDIT_PACK_IDS` in `src/lib/dodo.ts`.
+**Credit packs**: One-time purchases defined in `CREDIT_PACKS` constant (50/$5, 100/$9, 250/$20, 500/$35). Product IDs in env: `DODO_PRODUCT_ID_CREDITS_50`, `DODO_PRODUCT_ID_CREDITS_100`, `DODO_PRODUCT_ID_CREDITS_250`, `DODO_PRODUCT_ID_CREDITS_500`. Mapped via `DODO_CREDIT_PACK_IDS` in `src/lib/dodo.ts`. Purchased packs expire after 12 months.
 
-**SDK client**: Singleton `dodo` in `src/lib/dodo.ts`. Uses `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, and `DODO_PAYMENTS_ENVIRONMENT` ("test_mode" or "live_mode") from env. Subscription product IDs in `DODO_PRODUCT_ID_STARTER` and `DODO_PRODUCT_ID_PRO`. Helpers: `tierFromProductId()`, `productIdFromTier()`, `creditsFromProductId()`.
+**SDK client**: Singleton `dodo` in `src/lib/dodo.ts`. Uses `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, and `DODO_PAYMENTS_ENVIRONMENT` ("test_mode" or "live_mode") from env. Subscription product IDs in `DODO_PRODUCT_ID_STARTER`, `DODO_PRODUCT_ID_PRO`, and `DODO_PRODUCT_ID_STUDIO`. Helpers: `tierFromProductId()`, `productIdFromTier()`, `creditsFromProductId()`.
+
+**Priority queue**: Pro and Studio users get BullMQ priority 1 (vs 10 for Free/Starter). Set via `TIER_QUEUE_PRIORITY` constant. Added to job options in both generation and extend API routes.
 
 **Webhook handler**: `src/app/api/webhooks/dodo/route.ts` — verifies signature via SDK `unwrap()`, handles subscription and payment events. Uses `WebhookEvent` model for idempotency (webhook-id as primary key, exactly-once processing).
 
@@ -308,7 +313,7 @@ Triggered from Settings General tab → "Danger Zone" → `DeleteAccountDialog` 
   - `DropdownMenuItem` has no `onSelect` — use `onClick`.
   - `DropdownMenuContent` unmounts children when the menu closes. Never render a `Dialog` inside it — render the dialog as a sibling of `DropdownMenu` with shared state in the parent.
   - `SelectValue` doesn't auto-map values to labels — pass explicit children: `<SelectValue>{label}</SelectValue>`.
-- **AI models**: All Gemini — quick (`gemini-2.5-flash-image`), detailed (`gemini-3.1-flash-image-preview`), premium (`gemini-3-pro-image-preview`). Model IDs mapped in `GEMINI_MODEL_IDS` in `worker/src/lib/constants.ts`. Per-model generation config (aspect ratio, resolution, thinking) in `GEMINI_MODEL_CONFIG` — detailed uses 9:16, 4K, High thinking; premium uses 9:16, 4K, no thinking (unsupported). Dispatched by `model` field on Generation records.
+- **AI models**: All Gemini — quick (`gemini-3.1-flash-image-preview` at 1K, no thinking), detailed (`gemini-3.1-flash-image-preview` at 4K, High thinking), premium (`gemini-3-pro-image-preview` at 4K, no explicit thinking config). Quick and Detailed share the same model ID but differ by resolution and thinking settings. Model IDs mapped in `GEMINI_MODEL_IDS` in `worker/src/lib/constants.ts`. Per-model generation config in `GEMINI_MODEL_CONFIG`. Quick is prototyping-only: no upscale, no KDP crop, not export-ready. Detailed/Premium output at 4K, skip upscale (already exceeds KDP), crop to 1600x2560. `AI_MODELS` entries have `exportable: boolean` field — Quick is `false`, others are `true`. Export API and UI gate on this.
 - **KDP constants**: Defined in `src/lib/constants.ts` as `KDP` object (1600x2560, 300 DPI, JPEG).
 - **WebSocket**: Singleton manager in `src/lib/use-generation-ws.ts`. Worker endpoint at `NEXT_PUBLIC_WS_URL` (defaults to `ws://localhost:4000/ws/progress`). Falls back to HTTP polling if WebSocket fails. The worker bridges Redis pubsub → WebSocket: `publishProgress()` in `worker/src/lib/progress.ts` publishes to `generation:{id}` channels, and `worker/src/lib/websocket.ts` relays those to connected clients.
 - **Event constants**: Event type discriminators (`EVENT_TYPE`: STATUS, PROGRESS, COMPLETED, FAILED, RETRYING) and WebSocket control messages (`WS_MESSAGE_TYPE`: SUBSCRIBE, UNSUBSCRIBE) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts`. Use these instead of raw strings like `"completed"` or `"subscribe"`.
