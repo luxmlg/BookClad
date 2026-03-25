@@ -6,7 +6,7 @@ import { EVENT_TYPE } from "./constants.js";
 export type GenerationEvent =
   | { type: typeof EVENT_TYPE.STATUS; status: GenerationStatus }
   | { type: typeof EVENT_TYPE.PROGRESS; message: string; step: number; totalSteps: number }
-  | { type: typeof EVENT_TYPE.COMPLETED }
+  | { type: typeof EVENT_TYPE.COMPLETED; errorMessage?: string }
   | { type: typeof EVENT_TYPE.FAILED; error?: string }
   | { type: typeof EVENT_TYPE.RETRYING; retryCount: number; retryReason: string; nextRetryAt: string; errorMessage: string };
 

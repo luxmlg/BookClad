@@ -83,6 +83,7 @@ function getSocket(): WebSocket | null {
             break;
           case EVENT_TYPE.COMPLETED:
             status = GENERATION_STATUS.COMPLETED;
+            errorMessage = (data as { errorMessage?: string }).errorMessage ?? null;
             break;
           case EVENT_TYPE.FAILED:
             status = GENERATION_STATUS.FAILED;
