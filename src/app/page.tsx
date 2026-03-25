@@ -62,10 +62,9 @@ const plans = [
     price: "$0",
     period: "forever",
     features: [
-      "20 free credits on signup",
-      "Quick quality only",
-      "Up to 10 covers",
-      "Full-res KDP export",
+      "15 credits to try",
+      "Quick mode (drafts only)",
+      "No KDP export",
     ],
     cta: "Start Free",
     highlighted: false,
@@ -76,9 +75,8 @@ const plans = [
     period: "/month",
     features: [
       "100 credits / month",
-      "~20-50 covers depending on quality preset",
-      "Full-res KDP export",
-      "Priority queue",
+      "All generation modes",
+      "KDP-ready export",
     ],
     cta: "Get Started",
     highlighted: true,
@@ -89,11 +87,24 @@ const plans = [
     period: "/month",
     features: [
       "250 credits / month",
-      "~50-125 covers depending on quality preset",
+      "All generation modes",
+      "KDP-ready export",
       "Priority queue",
-      "Priority support",
     ],
     cta: "Go Pro",
+    highlighted: false,
+  },
+  {
+    name: "Studio",
+    price: "$35",
+    period: "/month",
+    features: [
+      "500 credits / month",
+      "All generation modes",
+      "KDP-ready export",
+      "Priority queue",
+    ],
+    cta: "Get Studio",
     highlighted: false,
   },
 ];
@@ -159,7 +170,7 @@ export default function LandingPage() {
           <FadeIn delay={0.4}>
             <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
               <Check className="size-3.5 text-primary" />
-              Start with 20 free credits. No credit card required.
+              Start with 15 free credits. No credit card required.
             </p>
           </FadeIn>
 
@@ -207,7 +218,7 @@ export default function LandingPage() {
       {/* Pricing */}
       <section id="pricing" className="relative py-28">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-        <div className="container mx-auto max-w-4xl px-4 text-center">
+        <div className="container mx-auto max-w-5xl px-4 text-center">
           <p className="mb-3 text-sm font-medium tracking-widest text-muted-foreground/70 uppercase">
             Pricing
           </p>
@@ -215,7 +226,7 @@ export default function LandingPage() {
           <p className="mb-14 text-muted-foreground">
             Start free. Upgrade when you need more.
           </p>
-          <div className="grid grid-cols-1 items-center gap-6 sm:grid-cols-3">
+          <div className="grid grid-cols-1 items-center gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {plans.map((plan, i) => (
               <FadeIn key={plan.name} delay={i * 0.1}>
                 <Card
