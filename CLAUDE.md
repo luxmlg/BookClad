@@ -80,7 +80,11 @@ Three job types in BullMQ, each routed to a processor in the worker:
 - `JOB_TYPE.GENERATE_FROM_REFERENCE` → `generation.processor.ts` — image-to-image using `referenceImageKey`
 - `JOB_TYPE.INPAINT` → `inpaint.processor.ts` — masked region editing via Gemini
 
-All processors run a **preflight health check** (`preflight()` in `worker/src/lib/health.ts`) before any work — verifies R2 storage and Postgres are reachable. If either is down, the job fails immediately without calling the Gemini API, saving API costs. Pipeline branches on model:
+All processors run a **preflight health check** (`preflight()` in `worker/src/lib/health.ts`) before any work — verifies R2 storage and Postgres are reachable. If either is down, the job fails immediately without calling the Gemini API, saving API costs.
+
+**Gemini batching**: `generateImages()` in `worker/src/services/gemini.service.ts` sends up to 4 images per API call via `numberOfImages` in `imageConfig` (`MAX_IMAGES_PER_REQUEST = 4`). Requests for >4 images are split into sequential batched calls (e.g., 8 images = 2 calls of 4). This reduces API calls by up to 75% and narrows the partial-failure window.
+
+Pipeline branches on model:
 - **Quick**: generate at 1K → upload raw (no upscale, no KDP crop) → store actual dimensions from Sharp metadata. Prototyping only, not export-ready.
 - **Detailed/Premium**: generate at 4K → skip upscale (already exceeds KDP) → crop to 1600x2560 → upload to R2 → create `GeneratedImage` rows with KDP dimensions.
 
@@ -89,11 +93,13 @@ All processors run a **preflight health check** (`preflight()` in `worker/src/li
 - Similar/reference extensions → `JOB_TYPE.GENERATE` with `referenceImage` key
 - Regular extensions → `JOB_TYPE.GENERATE` without reference
 
-Both processors support `isExtension` flag for partial-failure handling: if some images succeed before an error, mark COMPLETED with `imageCount` set to actual images created, then refund extension credits. Extensions do NOT auto-retry.
+Both processors support `isExtension` flag for partial-failure handling: if some images succeed before an error, mark COMPLETED with `imageCount` set to actual images created, then refund only the cost of images that weren't generated (not the full extension cost). Extensions do NOT auto-retry.
 
-**Auto-retry**: Failed generations automatically retry with exponential backoff (`RETRY_DELAYS`: 5s→15s→30s→60s cap). BullMQ jobs are created with `attempts: 100` and a custom backoff strategy. The processor catch block classifies errors:
-- **High demand** (429/503 or rate-limit patterns): retries up to `MAX_HIGH_DEMAND_RETRIES` (99)
-- **Other errors**: retries up to `MAX_OTHER_RETRIES` (5)
+**Partial failure status**: When some images are generated before an error (Path 2), the generation is marked `COMPLETED` (not `FAILED`) with `errorMessage` set to a human-readable summary (e.g., "4 of 8 images generated. 20 credits refunded."). The original `imageCount` is preserved (not overwritten to the actual count) so the frontend can compute failed slot count as `imageCount - images.length`. Only `creditCost` is adjusted. `errorMessage` is cleared on successful extension, or updated with fresh numbers on extension partial failure. The frontend renders amber "failed slots" in generation history with retry capability via `onGenerateMore`.
+
+**Auto-retry**: Failed generations automatically retry with exponential backoff (`RETRY_DELAYS`: 10s→30s→60s→90s→120s cap). BullMQ jobs are created with `attempts: 100` and a custom backoff strategy. The processor catch block classifies errors:
+- **High demand** (429/503 or rate-limit patterns): retries up to `MAX_HIGH_DEMAND_RETRIES` (10), total ~13 min
+- **Other errors**: retries up to `MAX_OTHER_RETRIES` (5), total ~5 min
 - **Extensions**: never retry (throw `UnrecoverableError`)
 - **Partial success** (some images created): never retry (would create duplicates)
 
@@ -101,7 +107,7 @@ On retryable failure: sets `status: RETRYING` with `retryCount`, `retryReason` (
 
 On non-retryable failure: sets `status: FAILED`, refunds credits, throws `UnrecoverableError`.
 
-Both processors also check for user cancellation before processing: if `generation.status === FAILED` (set by cancel API), the processor returns early without doing any work.
+Both processors check for user cancellation before processing and at the top of error handling: if `generation.status === FAILED` (set by cancel API), the processor returns early without doing any work or refunding (cancel API already refunded). Status updates in error handlers use conditional `updateMany` with `status: { not: FAILED }` to prevent double refunds.
 
 **Cancellation**: `POST /api/generations/[id]/cancel` — only works on `RETRYING` or `QUEUED` status (rejects `PROCESSING`). Marks FAILED, refunds credits via `refundCredits()` from `src/lib/credits.ts`, best-effort removes the BullMQ job, and publishes a FAILED event via `getRedisPublisher()` from `src/lib/queue.ts`.
 
