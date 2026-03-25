@@ -142,7 +142,7 @@ model CreditPool {
 
 Priority order: SUBSCRIPTION pools first (priority=0), then oldest PURCHASE/SIGNUP_GRANT/REFUND pools by `createdAt` (priority=1).
 
-**Concurrency safety**: Prisma's default `READ COMMITTED` isolation allows two concurrent transactions to read the same pool and both decrement, causing `remaining` to go negative. To prevent this, each pool update uses `updateMany` with a `remaining >= take` guard — if the guard fails (another transaction drained it), re-fetch and retry.
+**Concurrency safety**: Prisma's default `READ COMMITTED` isolation allows two concurrent transactions to read the same pool and both decrement, causing `remaining` to go negative. To prevent this, the function acquires a `SELECT ... FOR UPDATE` lock on the User row, serializing all credit spends for the same user.
 
 ```typescript
 async function spendCredits(tx, userId: string, amount: number): Promise<void> {
@@ -214,11 +214,21 @@ async function refundCredits(tx, userId, generationId, amount) {
 
 ### Grant Logic
 
-Each grant creates a new CreditPool row:
-- `grantCredits()` updated to accept source and expiresAt
-- Signup: `source: "SIGNUP_GRANT"`, `expiresAt: null`, `priority: 1`
-- Subscription renewal: `source: "SUBSCRIPTION"`, `expiresAt: currentPeriodEnd`, `priority: 0`
-- Credit pack purchase: `source: "PURCHASE"`, `expiresAt: 12 months from now`, `priority: 1`
+Each grant creates a new CreditPool row. Updated signature:
+
+```typescript
+async function grantCredits(
+  userId: string,
+  amount: number,
+  description: string,
+  pool: { source: string; expiresAt: Date | null; priority: number },
+): Promise<void>
+```
+
+Callsite examples:
+- Signup: `grantCredits(userId, 15, "Welcome bonus", { source: "SIGNUP_GRANT", expiresAt: null, priority: 1 })`
+- Subscription renewal: `grantCredits(userId, tierCredits, "Subscription renewal", { source: "SUBSCRIPTION", expiresAt: currentPeriodEnd, priority: 0 })`
+- Credit pack purchase: `grantCredits(userId, packCredits, "Credit pack purchase", { source: "PURCHASE", expiresAt: twelveMonthsFromNow, priority: 1 })`
 
 ### Expiry Sweep
 
@@ -392,8 +402,8 @@ Four cards:
 ### Worker (`worker/`)
 - `worker/prisma/schema.prisma` — add `STUDIO` to Tier enum, add CreditPool model, update Generation.model default
 - `worker/src/lib/constants.ts` — GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG, CREDIT_COST_PER_IMAGE
-- `worker/src/lib/credits.ts` — refundCredits updated to create REFUND pool
-- `worker/src/processors/generation.processor.ts` — skip upscale+crop for Quick, read actual dimensions from Sharp metadata for GeneratedImage rows
+- `worker/src/lib/credits.ts` — refundCredits updated to create REFUND pool. `refundStaleGeneration` transitively uses `refundCredits` so it inherits pool behavior.
+- `worker/src/processors/generation.processor.ts` — skip upscale+crop for Quick, read actual dimensions from Sharp metadata for GeneratedImage rows. Audit any code assuming `GeneratedImage.width/height` are KDP dimensions.
 - Expiry sweep logic (new — startup + hourly setInterval)
 
 ---
