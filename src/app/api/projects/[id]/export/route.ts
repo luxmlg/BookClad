@@ -41,6 +41,14 @@ export async function POST(
       );
     }
 
+    const generationModel = project.generations[0]?.model;
+    if (generationModel === "quick") {
+      return NextResponse.json(
+        { error: "Quick images are drafts and cannot be exported. Generate with Detailed or Premium for KDP-ready export." },
+        { status: 400 },
+      );
+    }
+
     // TODO: Fetch image from R2, flatten canvas layers with Sharp, export as JPEG/PNG
     // For now, return the storage key so the client can download via signed URL
     return NextResponse.json({

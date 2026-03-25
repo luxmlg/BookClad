@@ -155,6 +155,9 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
   const selectedTextNode = selectedNodeId
     ? nodes.find((n): n is TextNodeConfig => n.id === selectedNodeId && n.type === NODE_TYPE.TEXT)
     : undefined;
+  const selectedGenerationModel: string | null = selectedImageId
+    ? (completedGenerations.find((g) => g.images.some((img) => img.id === selectedImageId))?.model ?? null)
+    : null;
 
   // Forward ref for inpaint — allows genActions to read live inpaint state in handlers
   const inpaintRef = useRef<{ flattenCanvasToDataUrl: () => Promise<string | undefined> }>({
@@ -786,6 +789,7 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
           reorderNode={reorderNode}
           onImageUpload={handleImageUpload}
           hasSelectedImage={!!selectedImageUrl}
+          selectedGenerationModel={selectedGenerationModel}
           onExportJpeg={() => handleExport("jpeg")}
           onExportPng={() => handleExport("png")}
         />
