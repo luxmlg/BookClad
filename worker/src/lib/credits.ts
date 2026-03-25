@@ -47,7 +47,8 @@ export async function refundStaleGeneration(generationId: string): Promise<boole
   if (!generation) return false;
   if (
     generation.status === GENERATION_STATUS.COMPLETED ||
-    generation.status === GENERATION_STATUS.FAILED
+    generation.status === GENERATION_STATUS.FAILED ||
+    generation.status === GENERATION_STATUS.RETRYING
   ) {
     return false;
   }

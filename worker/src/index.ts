@@ -1,14 +1,15 @@
 import "dotenv/config";
 import { createServer } from "http";
 import express from "express";
-import { Job, Worker } from "bullmq";
+import { Job, Worker, UnrecoverableError } from "bullmq";
 import { processGeneration } from "./processors/generation.processor.js";
 import { processInpaint } from "./processors/inpaint.processor.js";
 import type { GenerationJobData } from "./queues/generation.queue.js";
 import { setupWebSocket } from "./lib/websocket.js";
-import { QUEUE_NAME, JOB_TYPE, GENERATION_STATUS } from "./lib/constants.js";
-import { refundStaleGeneration } from "./lib/credits.js";
+import { QUEUE_NAME, JOB_TYPE, GENERATION_STATUS, RETRY_DELAYS, EVENT_TYPE } from "./lib/constants.js";
+import { refundStaleGeneration, refundCredits } from "./lib/credits.js";
 import { prisma } from "./lib/prisma.js";
+import { redisPublisher } from "./lib/redis.js";
 
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
@@ -25,7 +26,7 @@ const connection = {
 const worker = new Worker<GenerationJobData>(
   QUEUE_NAME,
   async (job) => {
-    console.log(`[worker] Processing job ${job.id} (${job.name}): generation ${job.data.generationId}`);
+    console.log(`[worker] Processing job ${job.id} (${job.name}): generation ${job.data.generationId} (attempt ${job.attemptsMade + 1})`);
     if (job.name === JOB_TYPE.INPAINT) {
       await processInpaint(job as any); // eslint-disable-line @typescript-eslint/no-explicit-any
     } else {
@@ -38,20 +39,30 @@ const worker = new Worker<GenerationJobData>(
     concurrency: 2,
     stalledInterval: 30_000,
     maxStalledCount: 2,
+    settings: {
+      backoffStrategy: (attemptsMade: number) => {
+        const idx = Math.min(attemptsMade - 1, RETRY_DELAYS.length - 1);
+        return RETRY_DELAYS[idx];
+      },
+    },
   }
 );
 
 worker.on("failed", (job, err) => {
-  const cause = (err as Error & { cause?: unknown }).cause;
-  console.error(`[worker] Job ${job?.id} failed:`, err.message);
-  if (cause) console.error(`[worker]   cause:`, cause);
-  if (process.env.NODE_ENV !== "production") {
-    console.error(err.stack);
+  if (!job) return;
+  const willRetry = !(err instanceof UnrecoverableError) && job.attemptsMade < (job.opts.attempts ?? 1);
+  if (willRetry) {
+    console.log(`[worker] Job ${job.id} attempt ${job.attemptsMade} failed, will retry: ${err.message}`);
+  } else {
+    console.error(`[worker] Job ${job.id} failed permanently:`, err.message);
+    if (process.env.NODE_ENV !== "production") {
+      console.error(err.stack);
+    }
   }
 });
 
 worker.on("stalled", async (jobId) => {
-  console.log(`[worker] Job ${jobId} stalled — attempting refund`);
+  console.log(`[worker] Job ${jobId} stalled — checking generation status`);
   const job = await Job.fromId<GenerationJobData>(worker, jobId);
   if (job?.data?.generationId) {
     const refunded = await refundStaleGeneration(job.data.generationId);
@@ -80,14 +91,24 @@ app.get("/health", (_req, res) => {
 });
 
 const STALE_THRESHOLD_MINUTES = 30;
+const RETRYING_STALE_THRESHOLD_MINUTES = 120;
 
 async function sweepStaleGenerations(): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000);
+  const retryingCutoff = new Date(Date.now() - RETRYING_STALE_THRESHOLD_MINUTES * 60 * 1000);
 
   const staleGenerations = await prisma.generation.findMany({
     where: {
-      status: { in: [GENERATION_STATUS.QUEUED, GENERATION_STATUS.PROCESSING] },
-      createdAt: { lt: cutoff },
+      OR: [
+        {
+          status: { in: [GENERATION_STATUS.QUEUED, GENERATION_STATUS.PROCESSING] },
+          createdAt: { lt: cutoff },
+        },
+        {
+          status: GENERATION_STATUS.RETRYING,
+          createdAt: { lt: retryingCutoff },
+        },
+      ],
     },
     select: { id: true },
   });
@@ -97,9 +118,30 @@ async function sweepStaleGenerations(): Promise<void> {
   console.log(`[worker] Found ${staleGenerations.length} stale generation(s), refunding...`);
 
   for (const gen of staleGenerations) {
-    const refunded = await refundStaleGeneration(gen.id);
-    if (refunded) {
-      console.log(`[worker] Swept stale generation ${gen.id}`);
+    const generation = await prisma.generation.findUnique({
+      where: { id: gen.id },
+      select: { status: true, creditCost: true, project: { select: { userId: true } } },
+    });
+    if (!generation) continue;
+
+    if (generation.status === GENERATION_STATUS.RETRYING) {
+      await prisma.generation.update({
+        where: { id: gen.id },
+        data: { status: GENERATION_STATUS.FAILED, nextRetryAt: null, errorMessage: "Generation timed out after extended retrying" },
+      });
+      if (generation.creditCost && generation.creditCost > 0) {
+        await refundCredits(generation.project.userId, gen.id, generation.creditCost);
+      }
+      await redisPublisher.publish(
+        `generation:${gen.id}`,
+        JSON.stringify({ type: EVENT_TYPE.FAILED, error: "Generation timed out" }),
+      );
+      console.log(`[worker] Swept stale retrying generation ${gen.id}`);
+    } else {
+      const refunded = await refundStaleGeneration(gen.id);
+      if (refunded) {
+        console.log(`[worker] Swept stale generation ${gen.id}`);
+      }
     }
   }
 }
