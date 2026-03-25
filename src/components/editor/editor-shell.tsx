@@ -753,11 +753,6 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
         kindleCrossfadeSnapshot={kindleCrossfadeSnapshot}
         setKindleCrossfadeSnapshot={setKindleCrossfadeSnapshot}
         hasActiveGeneration={genActions.hasActiveGeneration}
-        handleRegenerate={genActions.handleRegenerate}
-        model={genActions.model}
-        setModel={genActions.setModel}
-        imageCount={genActions.imageCount}
-        setImageCount={genActions.setImageCount}
         panelOpen={genActions.panelOpen}
         setPanelOpen={genActions.setPanelOpen}
         activeTab={genActions.activeTab}
@@ -819,7 +814,7 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
       )}
 
       {/* Fixed-position inpaint toolbar */}
-      {toolbarPos && selectedImageUrl && (
+      {toolbarPos && (
         <div
           className="pointer-events-none fixed z-50"
           style={{
