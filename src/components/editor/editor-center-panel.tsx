@@ -96,6 +96,7 @@ interface EditorCenterPanelProps {
   onDiscardDrafts: () => void;
   onGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
   onDeletedImages: (deletedIds: string[], removedGenerationIds: string[]) => void;
+  tier: string;
 }
 
 export function EditorCenterPanel({
@@ -148,6 +149,7 @@ export function EditorCenterPanel({
   onDiscardDrafts,
   onGenerateMore,
   onDeletedImages,
+  tier,
 }: EditorCenterPanelProps) {
   const STORAGE_KEY = "bookclad:panel-height";
   const MIN_HEIGHT = 100;
@@ -383,6 +385,7 @@ export function EditorCenterPanel({
             <GenerationQueue
               generations={activeGenerations}
               onComplete={handleGenerationComplete}
+              tier={tier}
             />
           </div>
           </div>

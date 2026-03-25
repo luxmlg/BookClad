@@ -21,12 +21,14 @@ interface GenerationQueueProps {
   generations: Generation[];
   onComplete: (generationId: string, status: GenerationStatus) => void;
   onSelectGeneration?: (generationId: string) => void;
+  tier?: string;
 }
 
 export function GenerationQueue({
   generations,
   onComplete,
   onSelectGeneration,
+  tier,
 }: GenerationQueueProps) {
   // Tick counter to keep relative times fresh
   const [, setTick] = useState(0);
@@ -53,6 +55,7 @@ export function GenerationQueue({
             generation={gen}
             onComplete={onComplete}
             onSelectGeneration={onSelectGeneration}
+            tier={tier}
           />
         ))}
       </div>
@@ -60,15 +63,20 @@ export function GenerationQueue({
   );
 }
 
+const PRIORITY_TIERS = new Set(["PRO", "STUDIO"]);
+
 function QueueEntry({
   generation,
   onComplete,
   onSelectGeneration,
+  tier,
 }: {
   generation: Generation;
   onComplete: (generationId: string, status: GenerationStatus) => void;
   onSelectGeneration?: (generationId: string) => void;
+  tier?: string;
 }) {
+  const isPriorityUser = tier !== undefined && PRIORITY_TIERS.has(tier);
   const poller = useGenerationPoller({
     generationId: generation.id,
     onComplete,
@@ -116,6 +124,9 @@ function QueueEntry({
         >
           {timeStr}
         </span>
+        {isPriorityUser && poller.status === GENERATION_STATUS.QUEUED && (
+          <span className="text-xs text-amber-600 font-medium">Priority</span>
+        )}
         {modelLabel && (
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {modelLabel}

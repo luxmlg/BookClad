@@ -774,6 +774,7 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
         onDiscardDrafts={discardAllDrafts}
         onGenerateMore={genActions.handleGenerateMore}
         onDeletedImages={handleDeletedImages}
+        tier={tier}
       />
 
       {/* Right sidebar */}
