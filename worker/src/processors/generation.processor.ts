@@ -16,12 +16,8 @@ export async function processGeneration(job: Job<GenerationJobData>) {
   const { generationId, projectId, userId, imageCount, referenceImageKey, model } =
     job.data;
 
-  // totalSteps: generate + per-image steps + optional reference download
-  // Quick: upload only. Others: upscale + crop + upload
   const hasRef = !!referenceImageKey;
   const stepsPerImage = model === "quick" ? 2 : 4;
-  const totalSteps = (hasRef ? 1 : 0) + imageCount * stepsPerImage;
-  let step = 0;
 
   // Check if user cancelled while this retry was queued
   const genCheck = await prisma.generation.findUnique({
@@ -84,15 +80,6 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     const geminiConfig = GEMINI_MODEL_CONFIG[model];
     const isQuick = model === "quick";
 
-    let refBuffer: Buffer | undefined;
-    if (referenceImageKey) {
-      step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Downloading reference image...", step, totalSteps });
-      refBuffer = job.data.flattenedImageDataUrl
-        ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
-        : await downloadImage(referenceImageKey);
-    }
-
     if (!job.data.isExtension) {
       await prisma.generation.update({
         where: { id: generationId },
@@ -105,7 +92,22 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       });
     }
 
-    for (let i = 0; i < imageCount; i++) {
+    // On retry, skip images already saved to DB from prior attempts
+    const alreadyGenerated = await prisma.generatedImage.count({ where: { generationId } });
+    const remainingImages = imageCount - alreadyGenerated;
+    const totalSteps = (hasRef ? 1 : 0) + remainingImages * stepsPerImage;
+    let step = 0;
+
+    let refBuffer: Buffer | undefined;
+    if (referenceImageKey) {
+      step++;
+      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Downloading reference image...", step, totalSteps });
+      refBuffer = job.data.flattenedImageDataUrl
+        ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
+        : await downloadImage(referenceImageKey);
+    }
+
+    for (let i = alreadyGenerated; i < imageCount; i++) {
       // Generate
       step++;
       await publishProgress(job, generationId, {
@@ -232,39 +234,8 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       throw new UnrecoverableError(errorMsg);
     }
 
-    // Path 2: Partial success (some images created before error)
-    const existingImages = await prisma.generatedImage.count({
-      where: { generationId },
-    });
-    if (existingImages > 0) {
-      const perImageCost = CREDIT_COST_PER_IMAGE[job.data.model];
-      if (perImageCost === undefined) throw new Error(`Unknown model "${job.data.model}"`);
-      const costForCreated = perImageCost * existingImages;
-      const partialRefund = Math.max(0, job.data.creditCost - costForCreated);
-      const requestedCount = job.data.imageCount ?? existingImages;
-      const partialMsg = `${existingImages} of ${requestedCount} images generated. ${partialRefund} credits refunded.`;
-
-      const updated = await prisma.generation.updateMany({
-        where: { id: generationId, status: { not: GENERATION_STATUS.FAILED } },
-        data: {
-          status: GENERATION_STATUS.COMPLETED,
-          errorMessage: partialMsg,
-          creditCost: costForCreated,
-          // imageCount intentionally NOT updated — preserve original requested count
-          // so frontend can calculate failed slots: imageCount - images.length
-        },
-      });
-      if (updated.count > 0 && partialRefund > 0) {
-        await refundCredits(job.data.userId, generationId, partialRefund);
-      }
-      await publishProgress(job, generationId, {
-        type: EVENT_TYPE.COMPLETED,
-        errorMessage: partialMsg,
-      });
-      throw new UnrecoverableError(errorMsg);
-    }
-
-    // Path 3/4: Classify error and determine retryability
+    // Classify error and determine retryability BEFORE checking partial success
+    // so retryable errors get retried even when some images already exist in DB
     const statusCode = error instanceof Error && "status" in error
       ? (error as Error & { status: number }).status
       : 0;
@@ -305,10 +276,40 @@ export async function processGeneration(job: Job<GenerationJobData>) {
         nextRetryAt: nextRetryAt.toISOString(),
         errorMessage: errorMsg,
       });
-      throw error; // Re-throw original — BullMQ schedules retry. Do NOT refund.
+      throw error; // Re-throw — BullMQ schedules retry. Images stay in DB for next attempt.
     }
 
-    // Not retryable — permanent failure
+    // Not retryable — check for partial success
+    const existingImages = await prisma.generatedImage.count({
+      where: { generationId },
+    });
+    if (existingImages > 0) {
+      const perImageCost = CREDIT_COST_PER_IMAGE[job.data.model];
+      if (perImageCost === undefined) throw new Error(`Unknown model "${job.data.model}"`);
+      const costForCreated = perImageCost * existingImages;
+      const partialRefund = Math.max(0, job.data.creditCost - costForCreated);
+      const requestedCount = job.data.imageCount ?? existingImages;
+      const partialMsg = `${existingImages} of ${requestedCount} images generated. ${partialRefund} credits refunded.`;
+
+      const updated = await prisma.generation.updateMany({
+        where: { id: generationId, status: { not: GENERATION_STATUS.FAILED } },
+        data: {
+          status: GENERATION_STATUS.COMPLETED,
+          errorMessage: partialMsg,
+          creditCost: costForCreated,
+        },
+      });
+      if (updated.count > 0 && partialRefund > 0) {
+        await refundCredits(job.data.userId, generationId, partialRefund);
+      }
+      await publishProgress(job, generationId, {
+        type: EVENT_TYPE.COMPLETED,
+        errorMessage: partialMsg,
+      });
+      throw new UnrecoverableError(errorMsg);
+    }
+
+    // No images at all — permanent failure with full refund
     const failUpdated = await prisma.generation.updateMany({
       where: { id: generationId, status: { not: GENERATION_STATUS.FAILED } },
       data: { status: GENERATION_STATUS.FAILED, errorMessage: errorMsg },
