@@ -215,8 +215,11 @@ export async function processInpaint(job: Job<InpaintJobData>) {
     }
 
     // Path 3/4: Classify error and determine retryability
-    const isHighDemand = error instanceof Error &&
-      ("status" in error && ((error as any).status === 429 || (error as any).status === 503)) ||
+    const statusCode = error instanceof Error && "status" in error
+      ? (error as Error & { status: number }).status
+      : 0;
+    const isHighDemand =
+      statusCode === 429 || statusCode === 503 ||
       /rate.?limit/i.test(errorMsg) ||
       /too many requests/i.test(errorMsg) ||
       /overloaded/i.test(errorMsg);
