@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getGenerationQueue } from "@/lib/queue";
 import { extendGenerationSchema } from "@/lib/validations";
-import { JOB_TYPE, GENERATION_STATUS, MAX_IMAGES_PER_GENERATION, AI_MODELS, isModelAvailable } from "@/lib/constants";
+import { JOB_TYPE, GENERATION_STATUS, MAX_IMAGES_PER_GENERATION, AI_MODELS, isModelAvailable, TIER_QUEUE_PRIORITY } from "@/lib/constants";
 import { calculateCreditCost, reserveExtensionCredits, InsufficientCreditsError } from "@/lib/credits";
 
 export async function POST(
@@ -94,6 +94,8 @@ export async function POST(
       imageCount,
     );
 
+    const priority = TIER_QUEUE_PRIORITY[user.tier] ?? 10;
+
     const isInpaintExtension =
       generation.jobType === JOB_TYPE.INPAINT && !!generation.maskImage;
 
@@ -111,6 +113,7 @@ export async function POST(
         creditCost,
         isExtension: true,
       }, {
+        priority,
         attempts: 100,
         backoff: { type: "custom" },
       });
@@ -126,6 +129,7 @@ export async function POST(
         creditCost,
         isExtension: true,
       }, {
+        priority,
         attempts: 100,
         backoff: { type: "custom" },
       });

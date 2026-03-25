@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getGenerationQueue } from "@/lib/queue";
 import { createGenerationSchema } from "@/lib/validations";
-import { JOB_TYPE, GENERATION_STATUS, AI_MODELS, isModelAvailable } from "@/lib/constants";
+import { JOB_TYPE, GENERATION_STATUS, AI_MODELS, isModelAvailable, TIER_QUEUE_PRIORITY } from "@/lib/constants";
 import { calculateCreditCost, reserveCredits, InsufficientCreditsError } from "@/lib/credits";
 
 export async function POST(request: Request) {
@@ -82,6 +82,8 @@ export async function POST(request: Request) {
       textLayerSnapshot: textLayerSnapshot ?? undefined,
     });
 
+    const priority = TIER_QUEUE_PRIORITY[user.tier] ?? 10;
+
     await getGenerationQueue().add(jobType, {
       generationId,
       projectId: project.id,
@@ -92,6 +94,7 @@ export async function POST(request: Request) {
       flattenedImageDataUrl: flattenedImageDataUrl ?? null,
       creditCost,
     }, {
+      priority,
       attempts: 100,
       backoff: { type: "custom" },
     });
