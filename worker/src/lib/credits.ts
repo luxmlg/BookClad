@@ -8,6 +8,17 @@ export async function refundCredits(
   creditCost: number,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await tx.creditPool.create({
+      data: {
+        userId,
+        source: "REFUND",
+        originalAmount: creditCost,
+        remaining: creditCost,
+        priority: 1,
+        expiresAt: null,
+      },
+    });
+
     const user = await tx.user.update({
       where: { id: userId },
       data: { creditBalance: { increment: creditCost } },

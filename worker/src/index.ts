@@ -8,6 +8,7 @@ import type { GenerationJobData } from "./queues/generation.queue.js";
 import { setupWebSocket } from "./lib/websocket.js";
 import { QUEUE_NAME, JOB_TYPE, GENERATION_STATUS, RETRY_DELAYS, EVENT_TYPE } from "./lib/constants.js";
 import { refundStaleGeneration, refundCredits } from "./lib/credits.js";
+import { startCreditExpirySweep } from "./lib/credit-expiry.js";
 import { prisma } from "./lib/prisma.js";
 import { redisPublisher } from "./lib/redis.js";
 
@@ -153,4 +154,5 @@ server.listen(PORT, () => {
   console.log(`[worker] Express health server listening on port ${PORT}`);
   console.log(`[worker] BullMQ worker connected to ${REDIS_URL}`);
   sweepStaleGenerations().catch(console.error);
+  startCreditExpirySweep();
 });
