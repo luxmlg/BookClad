@@ -6,8 +6,8 @@ import type { AttributeConfigJson, AttributeSelection, Attribute } from "@/lib/a
 
 export interface AiFillSuggestion {
   attributeId: string | null;
-  name: string;
-  type: Attribute["type"];
+  name?: string;
+  type?: Attribute["type"];
   value: string | string[];
   previousValue?: string | string[];
   isNew: boolean;
@@ -25,9 +25,9 @@ export interface AiFillSuggestion {
 
 const suggestionSchema = z.object({
   attributeId: z.string().nullable(),
-  name: z.string(),
-  type: z.enum(["single", "multi", "text", "toggle", "scale", "color", "palette"]),
-  value: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
+  name: z.string().optional(),
+  type: z.enum(["single", "multi", "text", "toggle", "scale", "color", "palette"]).optional(),
+  value: z.union([z.string().trim().min(1), z.array(z.string().trim().min(1)).min(1)]),
   isNew: z.boolean(),
   newValues: z
     .array(
@@ -276,6 +276,12 @@ export function applySuggestions(
 
     if (!resolvedId) continue;
 
+    // Skip suggestions with empty/whitespace-only values before modifying config
+    const isEmpty = Array.isArray(suggestion.value)
+      ? suggestion.value.length === 0
+      : suggestion.value.trim() === "";
+    if (isEmpty) continue;
+
     // Disambiguate new attribute IDs that collide with existing ones
     if (suggestion.isNew && suggestion.newAttribute) {
       let candidateId = resolvedId;
@@ -324,12 +330,6 @@ export function applySuggestions(
         }
       }
     }
-
-    // Skip suggestions with empty values
-    const isEmpty = Array.isArray(suggestion.value)
-      ? suggestion.value.length === 0
-      : suggestion.value === "";
-    if (isEmpty) continue;
 
     updatedSelection[resolvedId] = suggestion.value;
   }

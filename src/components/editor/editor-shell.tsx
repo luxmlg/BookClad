@@ -44,9 +44,10 @@ import { useCreditStore } from "@/lib/stores/credit-store";
 interface EditorShellProps {
   project: Project;
   showPrompt: boolean;
+  tier: string;
 }
 
-export function EditorShell({ project, showPrompt }: EditorShellProps) {
+export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
   const router = useRouter();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -164,7 +165,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   const genActions = useGenerationActions(
     project.id, project.generations,
     attributes, nodes, selectedImageId,
-    inpaintRef, router,
+    inpaintRef, router, tier,
   );
 
   const historyGenerations = useMemo(() => {

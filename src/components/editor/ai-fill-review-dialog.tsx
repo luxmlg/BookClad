@@ -68,7 +68,7 @@ function SuggestionEditor({
   onChange,
   onClose,
 }: SuggestionEditorProps): React.ReactElement {
-  const type = suggestion.type;
+  const type = suggestion.type ?? attribute?.type ?? "text";
   const value = suggestion.value;
 
   const handleKeyDown = useCallback(
@@ -270,7 +270,7 @@ function SuggestionRow({
         <div className="space-y-0.5">
           <div className="flex flex-wrap items-center gap-1">
             <span className="text-xs font-medium text-foreground">
-              {suggestion.name}
+              {suggestion.name ?? suggestion.attributeId ?? "Unknown"}
             </span>
             {suggestion.isNew && (
               <Badge variant="secondary" className="h-4 text-[10px]">

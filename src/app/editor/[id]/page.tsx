@@ -38,6 +38,7 @@ export default async function EditorPage({
     <EditorShell
       project={project}
       showPrompt={user?.showPrompt ?? false}
+      tier={user?.tier ?? "FREE"}
     />
   );
 }

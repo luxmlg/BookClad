@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CanvasNode } from "./canvas-types";
 import { NODE_TYPE } from "./canvas-types";
-import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, DEFAULT_MODEL } from "@/lib/constants";
+import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, QUICK_CREATE_TIER_CONFIG } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
 import { REF_PROMPT_KEY } from "@/lib/attributes";
 import { createGeneration, extendGeneration } from "@/lib/api";
@@ -43,14 +43,16 @@ export function useGenerationActions(
   selectedImageId: string | null,
   inpaintRef: React.RefObject<Pick<UseInpaintStateResult, "includeLayers" | "flattenCanvasToDataUrl">>,
   router: ReturnType<typeof useRouter>,
+  tier: string = "FREE",
 ): UseGenerationActionsResult {
+  const tierConfig = QUICK_CREATE_TIER_CONFIG[tier as keyof typeof QUICK_CREATE_TIER_CONFIG] ?? QUICK_CREATE_TIER_CONFIG.FREE;
   const refreshCredits = useCreditStore((s) => s.refreshCredits);
   const [activeGenerationIds, setActiveGenerationIds] = useState<string[]>([]);
-  const [model, setModel] = useState<string>(DEFAULT_MODEL);
+  const [model, setModel] = useState<string>(tierConfig.model);
   const [imageCount, setImageCount] = useState(() => {
-    if (typeof window === "undefined") return 4;
+    if (typeof window === "undefined") return tierConfig.imageCount;
     const saved = localStorage.getItem(`${IMAGE_COUNT_KEY_PREFIX}:${projectId}`);
-    return saved ? Number(saved) : 4;
+    return saved ? Number(saved) : tierConfig.imageCount;
   });
   const [activeTab, setActiveTab] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
