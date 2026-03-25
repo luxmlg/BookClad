@@ -62,8 +62,8 @@ const plans = [
     price: "$0",
     period: "forever",
     features: [
-      "25 credits / month",
-      "~5-8 covers depending on quality preset",
+      "20 credits / month",
+      "~4-6 covers depending on quality preset",
       "Full-res KDP export",
     ],
     cta: "Start Free",
@@ -158,7 +158,7 @@ export default function LandingPage() {
           <FadeIn delay={0.4}>
             <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
               <Check className="size-3.5 text-primary" />
-              Start with 25 free credits. No credit card required.
+              Start with 20 free credits. No credit card required.
             </p>
           </FadeIn>
 

@@ -51,7 +51,7 @@ export function ActiveGenerationRows({ projectId, initialGenerations }: ActiveGe
   if (generations.length === 0) return null;
 
   return (
-    <div className="border-t">
+    <div className="border-t border-border/50">
       {generations.map((gen) => (
         <DashboardGenRow
           key={gen.id}
@@ -130,7 +130,7 @@ function DashboardGenRow({ generation, projectId, onCancelled }: DashboardGenRow
 
   return (
     <div
-      className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-muted/50 transition-colors"
+      className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-muted/50 transition-colors text-xs"
       onClick={handleClick}
     >
       <div className={`size-2 shrink-0 rounded-full ${dotColor}`} />

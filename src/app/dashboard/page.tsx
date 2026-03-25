@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, BookOpen, MoreHorizontal, Pencil, Coins } from "lucide-react";
+import { Plus, BookOpen, MoreHorizontal, Pencil } from "lucide-react";
 import { GENRES, GENERATION_STATUS } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
 import {
@@ -19,18 +19,13 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/sign-in");
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { creditBalance: true, tier: true },
-  });
-
   const projects = await prisma.coverProject.findMany({
     where: { userId: session.user.id },
     orderBy: { updatedAt: "desc" },
     include: {
       generations: {
         where: { status: GENERATION_STATUS.COMPLETED },
-        include: { images: { where: { selected: true }, take: 1 } },
+        include: { images: { take: 1, orderBy: [{ selected: "desc" }, { id: "asc" }] } },
         take: 1,
         orderBy: { createdAt: "desc" },
       },
@@ -68,20 +63,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-10">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">My Covers</h1>
-          <p className="text-muted-foreground">
-            {projects.length} project{projects.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5">
-          <Coins className="size-4 text-yellow-500" />
-          <span className="text-sm font-medium">{user?.creditBalance ?? 0} credits</span>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">My Covers</h1>
+        <p className="text-muted-foreground">
+          {projects.length} project{projects.length !== 1 ? "s" : ""}
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 items-start">
         <Link href="/create">
           <Card className="group border-dashed p-0 hover:border-primary/50 hover:shadow-lg transition-all">
             <div className="relative aspect-5/8 flex flex-col items-center justify-center gap-3 text-muted-foreground group-hover:text-primary transition-colors">

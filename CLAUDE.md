@@ -155,7 +155,7 @@ Billing uses a credit ledger instead of a generation counter. Defined in `src/li
 
 **Per-image costs**: `CREDIT_COST_PER_IMAGE` in constants — quick (2), detailed (3), premium (5). Also exposed as `creditCost` on each `AI_MODELS` entry.
 
-**Tier allowances**: `TIER_CREDITS` — FREE (25), STARTER (100), PRO (250) credits/month.
+**Tier allowances**: `TIER_CREDITS` — FREE (20), STARTER (100), PRO (250) credits/month.
 
 **Lifecycle**:
 1. API calls `reserveCredits()` — atomic Prisma transaction: checks balance, decrements `User.creditBalance`, creates `CreditTransaction(RESERVE)`, creates `Generation(creditCost)`. Throws `InsufficientCreditsError` (→ 403) if balance too low.
@@ -164,7 +164,7 @@ Billing uses a credit ledger instead of a generation counter. Defined in `src/li
 4. On retryable failure: credits stay reserved (no refund until permanent failure or user cancellation).
 5. On user cancel: app calls `refundCredits()` from `src/lib/credits.ts` (mirrors the worker version).
 
-**Credit sources**: Initial signup grant (Auth.js `createUser` event → `grantCredits()` for 25 FREE credits), subscription activation/renewal (webhook → `grantCredits()`), and one-time credit pack purchases (webhook → `grantCredits()`).
+**Credit sources**: Initial signup grant (Auth.js `createUser` event → `grantCredits()` for 20 FREE credits), subscription activation/renewal (webhook → `grantCredits()`), and one-time credit pack purchases (webhook → `grantCredits()`).
 
 **API**: `GET /api/credits?page=N` returns `{ balance, tier, subscriptionStatus, currentPeriodEnd, dodoSubscriptionId, transactions[], page, totalPages }`. Paginated at 20 transactions per page. Client module in `src/lib/api/credits.ts`.
 

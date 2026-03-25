@@ -62,7 +62,7 @@ export const AI_FILL_CREDIT_COST = 1;
 export const AI_FILL_PROMPT_MAX_LENGTH = 1000;
 
 export const TIER_CREDITS: Record<string, number> = {
-  FREE: 25,
+  FREE: 20,
   STARTER: 100,
   PRO: 250,
 };

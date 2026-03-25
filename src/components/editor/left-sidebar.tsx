@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useState, useRef } from "react";
-import { Save, Loader2, PlusIcon } from "lucide-react";
+import { Save, Loader2, PlusIcon, Bookmark } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +17,7 @@ import {
   type Attribute,
 } from "@/lib/attributes";
 import { AttributeInput } from "./attribute-input";
-import { PresetPicker, type StylePreset } from "./preset-picker";
+import { PresetDialog, type StylePreset } from "./preset-picker";
 import { AttributePickerDialog } from "@/components/attribute-picker-dialog";
 import { CreateAttributeDialog } from "@/components/create-attribute-dialog";
 import { AttributeContextMenu } from "@/components/attribute-context-menu";
@@ -59,6 +59,7 @@ export function LeftSidebar({
   draftKeys,
   onDiscardAttributeDraft,
 }: LeftSidebarProps) {
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragHandleActiveRef = useRef(false);
@@ -229,32 +230,34 @@ export function LeftSidebar({
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
-        <h2 className="text-base font-semibold">Book Details</h2>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onSave}
-          disabled={saving}
-        >
-          {saving ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Save className="size-3.5" />
-          )}
-        </Button>
+        <h2 className="text-base font-semibold">Cover Details</h2>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setPresetDialogOpen(true)}
+            title="Style presets"
+          >
+            <Bookmark className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Save className="size-3.5" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
         <div className="space-y-4 p-4">
-          <PresetPicker
-            presets={presets}
-            activePresetId={activePresetId}
-            currentAttributes={attributes}
-            attributes={attributeConfig.attributes}
-            onSavePreset={onSavePreset}
-            onApplyPreset={onApplyPreset}
-          />
 
           {/* Draggable attributes */}
           {activeAttributes.map((attribute, index) => {
@@ -378,6 +381,17 @@ export function LeftSidebar({
         attributeConfig={attributeConfig}
         onApply={handleApplyAiFill}
         onRegenerate={handleAiFillRegenerate}
+      />
+
+      <PresetDialog
+        open={presetDialogOpen}
+        onOpenChange={setPresetDialogOpen}
+        presets={presets}
+        activePresetId={activePresetId}
+        currentAttributes={attributes}
+        attributes={attributeConfig.attributes}
+        onSavePreset={onSavePreset}
+        onApplyPreset={onApplyPreset}
       />
     </div>
   );
