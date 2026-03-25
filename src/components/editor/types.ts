@@ -23,6 +23,7 @@ export interface Generation {
   parentImageId?: string | null;
   parentImage?: { id: string; storageKey: string } | null;
   includeLayers?: boolean;
+  errorMessage?: string | null;
   attributeSnapshot?: unknown;
   descriptionSnapshot?: unknown;
   textLayerSnapshot?: unknown;

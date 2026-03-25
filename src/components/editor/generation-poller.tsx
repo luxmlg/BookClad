@@ -30,12 +30,15 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
   const { status, progressMessage, errorMessage, step, totalSteps, retryCount, retryReason, nextRetryAt, syncState } = useGenerationProgress(generationId);
   const completedRef = useRef(false);
 
-  const handleComplete = (failed?: string) => {
+  const handleComplete = (failed?: string, warning?: string) => {
     if (completedRef.current) return;
     completedRef.current = true;
     if (failed) {
       toast.error(failed);
       onComplete?.(generationId, GENERATION_STATUS.FAILED);
+    } else if (warning) {
+      toast.warning(warning);
+      onComplete?.(generationId, GENERATION_STATUS.COMPLETED);
     } else {
       toast.success("Cover generation complete!");
       onComplete?.(generationId, GENERATION_STATUS.COMPLETED);
@@ -50,7 +53,7 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
       try {
         const data = await getGeneration(generationId);
         if (data.status === GENERATION_STATUS.COMPLETED) {
-          handleComplete();
+          handleComplete(undefined, data.errorMessage ?? undefined);
         } else if (data.status === GENERATION_STATUS.FAILED) {
           handleComplete(data.errorMessage ?? "Generation failed. Please try again.");
         } else if (data.status !== status) {
@@ -75,7 +78,7 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
   useEffect(() => {
     if (completedRef.current) return;
     if (status === GENERATION_STATUS.COMPLETED) {
-      handleComplete();
+      handleComplete(undefined, errorMessage ?? undefined);
     } else if (status === GENERATION_STATUS.FAILED) {
       handleComplete(errorMessage ?? "Generation failed. Please try again.");
     }
