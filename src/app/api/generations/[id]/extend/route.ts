@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getGenerationQueue } from "@/lib/queue";
 import { extendGenerationSchema } from "@/lib/validations";
-import { JOB_TYPE, GENERATION_STATUS, MAX_IMAGES_PER_GENERATION } from "@/lib/constants";
+import { JOB_TYPE, GENERATION_STATUS, MAX_IMAGES_PER_GENERATION, AI_MODELS, isModelAvailable } from "@/lib/constants";
 import { calculateCreditCost, reserveExtensionCredits, InsufficientCreditsError } from "@/lib/credits";
 
 export async function POST(
@@ -70,7 +70,22 @@ export async function POST(
       );
     }
 
-    const creditCost = calculateCreditCost(generation.model ?? "quick", imageCount);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: session.user.id },
+      select: { tier: true },
+    });
+
+    const resolvedModel = generation.model ?? "quick";
+
+    if (!isModelAvailable(resolvedModel, user.tier)) {
+      const modelLabel = AI_MODELS.find((m) => m.value === resolvedModel)?.label ?? resolvedModel;
+      return NextResponse.json(
+        { error: `Upgrade to Starter to use the ${modelLabel} model` },
+        { status: 403 },
+      );
+    }
+
+    const creditCost = calculateCreditCost(resolvedModel, imageCount);
 
     await reserveExtensionCredits(
       session.user.id,
@@ -91,7 +106,7 @@ export async function POST(
         maskBase64: null,
         maskKey: generation.maskImage,
         prompt: generation.prompt,
-        model: generation.model ?? "quick",
+        model: resolvedModel,
         imageCount,
         creditCost,
         isExtension: true,
@@ -105,7 +120,7 @@ export async function POST(
         projectId: generation.projectId,
         userId: session.user.id,
         imageCount,
-        model: generation.model ?? "quick",
+        model: resolvedModel,
         referenceImageKey: generation.referenceImage ?? null,
         flattenedImageDataUrl: null,
         creditCost,
