@@ -13,6 +13,8 @@ import {
   Coins,
   Loader2,
   Lock,
+  Layers,
+  ChevronDown,
 } from "lucide-react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { toast } from "sonner";
@@ -20,6 +22,12 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -36,7 +44,7 @@ import { AI_MODELS, isModelAvailable } from "@/lib/constants";
 import { useCreditStore } from "@/lib/stores/credit-store";
 import type { CanvasNode } from "./canvas-types";
 
-type ToolbarMode = "idle" | "brush" | "similar" | "inpaint";
+type ToolbarMode = "idle" | "brush" | "similar" | "bake" | "inpaint";
 
 function buildBakeLayersPrompt(nodes: CanvasNode[]): string {
   const visible = nodes.filter((n) => n.visible);
@@ -76,6 +84,7 @@ interface InpaintToolbarProps {
   imageCount: number;
   setImageCount: (v: number) => void;
   tier: string;
+  nodes: CanvasNode[];
 }
 
 export function InpaintToolbar({
@@ -106,6 +115,7 @@ export function InpaintToolbar({
   imageCount,
   setImageCount,
   tier,
+  nodes,
 }: InpaintToolbarProps) {
   const creditBalance = useCreditStore((s) => s.balance);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -114,12 +124,18 @@ export function InpaintToolbar({
   const [similarPrompt, setSimilarPrompt] = useState("");
   const [similarSubmitting, setSimilarSubmitting] = useState(false);
   const [inpaintPrompt, setInpaintPrompt] = useState("");
+  const [bakeOpen, setBakeOpen] = useState(false);
+  const [bakePrompt, setBakePrompt] = useState("");
+  const [bakeSubmitting, setBakeSubmitting] = useState(false);
+
+  const hasVisibleLayers = nodes.some((n) => n.visible);
 
   const mode: ToolbarMode =
     inpaintMask ? "inpaint" :
       brushMode ? "brush" :
         similarOpen ? "similar" :
-          "idle";
+          bakeOpen ? "bake" :
+            "idle";
 
   const perImageCost = AI_MODELS.find((m) => m.value === model)?.creditCost ?? 5;
   const creditCost = mode === "inpaint" ? perImageCost : perImageCost * imageCount;
@@ -129,6 +145,8 @@ export function InpaintToolbar({
   useEffect(() => {
     setSimilarOpen(false);
     setSimilarPrompt("");
+    setBakeOpen(false);
+    setBakePrompt("");
   }, [selectedImageId]);
 
   // Clear local prompt state when returning to idle
@@ -141,6 +159,29 @@ export function InpaintToolbar({
   function handleCancelSimilar() {
     setSimilarOpen(false);
     setSimilarPrompt("");
+  }
+
+  function handleOpenBake() {
+    setBakePrompt(buildBakeLayersPrompt(nodes));
+    setBakeOpen(true);
+  }
+
+  function handleCancelBake() {
+    setBakeOpen(false);
+    setBakePrompt("");
+  }
+
+  async function handleSubmitBake() {
+    setBakeSubmitting(true);
+    try {
+      await onGenerateSimilar(bakePrompt, true);
+      setBakeOpen(false);
+      setBakePrompt("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setBakeSubmitting(false);
+    }
   }
 
   async function handleSubmitSimilar() {
@@ -226,10 +267,11 @@ export function InpaintToolbar({
     );
   }
 
-  function renderPopoverBody(popoverMode: "similar" | "inpaint") {
+  function renderPopoverBody(popoverMode: "similar" | "inpaint" | "bake") {
     const isSimilar = popoverMode === "similar";
-    const prompt = isSimilar ? similarPrompt : inpaintPrompt;
-    const setPrompt = isSimilar ? setSimilarPrompt : setInpaintPrompt;
+    const isBake = popoverMode === "bake";
+    const prompt = isBake ? bakePrompt : isSimilar ? similarPrompt : inpaintPrompt;
+    const setPrompt = isBake ? setBakePrompt : isSimilar ? setSimilarPrompt : setInpaintPrompt;
 
     return (
       <div
@@ -237,18 +279,20 @@ export function InpaintToolbar({
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
-            if (isSimilar) handleSubmitSimilar();
+            if (isBake) handleSubmitBake();
+            else if (isSimilar) handleSubmitSimilar();
             else handleSubmitInpaint();
           }
-          if (e.key === "Escape" && !isSimilar) {
+          if (e.key === "Escape") {
             e.preventDefault();
-            handleCancelInpaint();
+            if (isBake) handleCancelBake();
+            else if (!isSimilar) handleCancelInpaint();
           }
         }}
       >
         <div className="space-y-1">
           <Label className="text-xs">
-            {isSimilar ? "Additional instructions" : "Describe the replacement"}
+            {isBake ? "Instructions" : isSimilar ? "Additional instructions" : "Describe the replacement"}
             {isSimilar && (
               <span className="font-normal text-muted-foreground"> (optional)</span>
             )}
@@ -257,25 +301,29 @@ export function InpaintToolbar({
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder={
-              isSimilar
-                ? "e.g. More dramatic, warmer tones..."
-                : "e.g. Replace with a starry sky..."
+              isBake
+                ? "Describe how to incorporate the layers..."
+                : isSimilar
+                  ? "e.g. More dramatic, warmer tones..."
+                  : "e.g. Replace with a starry sky..."
             }
             rows={2}
             autoFocus={!isSimilar}
             className="flex w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
           />
         </div>
-        <div className="flex items-center justify-between">
-          <Label htmlFor={`include-layers-${popoverMode}`} className="text-xs">
-            Include canvas layers
-          </Label>
-          <Switch
-            id={`include-layers-${popoverMode}`}
-            checked={includeLayers}
-            onCheckedChange={onIncludeLayersChange}
-          />
-        </div>
+        {popoverMode === "inpaint" && (
+          <div className="flex items-center justify-between">
+            <Label htmlFor={`include-layers-${popoverMode}`} className="text-xs">
+              Include canvas layers
+            </Label>
+            <Switch
+              id={`include-layers-${popoverMode}`}
+              checked={includeLayers}
+              onCheckedChange={onIncludeLayersChange}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -289,31 +337,62 @@ export function InpaintToolbar({
           {/* ── Idle mode ─────────────────────────── */}
           {mode === "idle" && (
             <>
-              <Button
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
-                onClick={onRegenerate}
-                disabled={insufficientCredits}
-                title={insufficientCredits ? `Not enough credits (need ${creditCost}, have ${creditBalance})` : `${creditCost} credits`}
-              >
-                <RefreshCw className="size-3.5" />
-                Generate
-                {activeGenerationCount > 0 && (
-                  <span className="ml-0.5 inline-flex size-4 items-center justify-center rounded-full bg-primary-foreground/20 text-[10px] font-bold">
-                    {activeGenerationCount}
-                  </span>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
-                onClick={() => setSimilarOpen(true)}
-                disabled={!selectedImageId}
-              >
-                <Sparkles className="size-3.5" />
-                Generate Similar
-              </Button>
+              {/* Split Generate button */}
+              <div className="flex">
+                <Button
+                  size="sm"
+                  className="h-7 gap-1.5 rounded-r-none border-r-0 text-xs"
+                  onClick={onRegenerate}
+                  disabled={insufficientCredits}
+                  title={insufficientCredits ? `Not enough credits (need ${creditCost}, have ${creditBalance})` : `${creditCost} credits`}
+                >
+                  <RefreshCw className="size-3.5" />
+                  Generate
+                  {activeGenerationCount > 0 && (
+                    <span className="ml-0.5 inline-flex size-4 items-center justify-center rounded-full bg-primary-foreground/20 text-[10px] font-bold">
+                      {activeGenerationCount}
+                    </span>
+                  )}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-7 rounded-l-none border-l border-primary-foreground/20 px-1.5 text-xs"
+                        disabled={insufficientCredits}
+                      />
+                    }
+                  >
+                    <ChevronDown className="size-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="top" sideOffset={8} align="start">
+                    <DropdownMenuItem
+                      onClick={() => setSimilarOpen(true)}
+                      disabled={!selectedImageId}
+                    >
+                      <Sparkles className="mr-2 size-3.5" />
+                      Similar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Bake Layers — only when visible layers exist */}
+              {hasVisibleLayers && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={handleOpenBake}
+                  disabled={!selectedImageId || insufficientCredits}
+                >
+                  <Layers className="size-3.5" />
+                  Bake Layers
+                </Button>
+              )}
+
               <div className="mx-1 h-5 w-px bg-border" />
               <Button
                 variant="ghost"
@@ -426,6 +505,36 @@ export function InpaintToolbar({
             </>
           )}
 
+          {/* ── Bake mode ──────────────────────────── */}
+          {mode === "bake" && (
+            <>
+              <Button
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={handleSubmitBake}
+                disabled={bakeSubmitting || insufficientCredits}
+              >
+                {bakeSubmitting ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Layers className="size-3.5" />
+                )}
+                Bake Layers · {renderCostBadge(true)}
+              </Button>
+              <div className="mx-1 h-5 w-px bg-border" />
+              {modelSelector}
+              {imageCountSlider}
+              <div className="mx-1 h-5 w-px bg-border" />
+              <button
+                onClick={handleCancelBake}
+                className="p-1 text-muted-foreground hover:text-foreground"
+                title="Cancel (Esc)"
+              >
+                <X className="size-3.5" />
+              </button>
+            </>
+          )}
+
           {/* ── Inpaint mode ──────────────────────── */}
           {mode === "inpaint" && (
             <>
@@ -483,6 +592,17 @@ export function InpaintToolbar({
           <PopoverPrimitive.Positioner className="isolate z-50" anchor={toolbarRef} side="top" sideOffset={8} align="center">
             <PopoverPrimitive.Popup className="z-50 w-72 rounded-lg border bg-popover p-3 shadow-md">
               {renderPopoverBody("inpaint")}
+            </PopoverPrimitive.Popup>
+          </PopoverPrimitive.Positioner>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
+
+      {/* ── Bake Layers popover ────────────── */}
+      <PopoverPrimitive.Root open={mode === "bake"}>
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Positioner className="isolate z-50" anchor={toolbarRef} side="top" sideOffset={8} align="center">
+            <PopoverPrimitive.Popup className="z-50 w-72 rounded-lg border bg-popover p-3 shadow-md">
+              {renderPopoverBody("bake")}
             </PopoverPrimitive.Popup>
           </PopoverPrimitive.Positioner>
         </PopoverPrimitive.Portal>
