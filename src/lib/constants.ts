@@ -67,6 +67,12 @@ export const TIER_CREDITS: Record<string, number> = {
   PRO: 250,
 };
 
+export const TIER_ORDER: Record<string, number> = {
+  FREE: 0,
+  STARTER: 1,
+  PRO: 2,
+};
+
 export const QUICK_CREATE_TIER_CONFIG = {
   FREE: { model: "quick", imageCount: 4 },
   STARTER: { model: "detailed", imageCount: 8 },
@@ -81,6 +87,7 @@ export const AI_MODELS = [
       "Fast and efficient cover generation. Best for rapid iteration and quickly exploring different design directions.",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
     creditCost: CREDIT_COST_PER_IMAGE.quick,
+    requiredTier: "FREE",
   },
   {
     value: "detailed",
@@ -89,6 +96,7 @@ export const AI_MODELS = [
       "Recommended for most covers. High-efficiency generation with improved consistency and detail — the best balance of speed, quality, and cost.",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
     creditCost: CREDIT_COST_PER_IMAGE.detailed,
+    requiredTier: "STARTER",
   },
   {
     value: "premium",
@@ -97,8 +105,15 @@ export const AI_MODELS = [
       "Professional-grade cover generation with advanced reasoning. Excels at following complex instructions and rendering high-fidelity text and intricate details.",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
     creditCost: CREDIT_COST_PER_IMAGE.premium,
+    requiredTier: "STARTER",
   },
 ] as const;
+
+export function isModelAvailable(modelValue: string, userTier: string): boolean {
+  const model = AI_MODELS.find((m) => m.value === modelValue);
+  if (!model) return false;
+  return (TIER_ORDER[userTier] ?? 0) >= (TIER_ORDER[model.requiredTier] ?? 0);
+}
 
 export const DEFAULT_MODEL = AI_MODELS[0].value;
 
