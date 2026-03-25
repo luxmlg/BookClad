@@ -155,7 +155,7 @@ Billing uses a credit ledger instead of a generation counter. Defined in `src/li
 
 **Per-image costs**: `CREDIT_COST_PER_IMAGE` in constants — quick (2), detailed (3), premium (5). Also exposed as `creditCost` on each `AI_MODELS` entry.
 
-**Tier allowances**: `TIER_CREDITS` — FREE (20), STARTER (100), PRO (250) credits/month.
+**Tier allowances**: `TIER_CREDITS` — FREE (20 one-time on signup), STARTER (100/month), PRO (250/month).
 
 **Lifecycle**:
 1. API calls `reserveCredits()` — atomic Prisma transaction: checks balance, decrements `User.creditBalance`, creates `CreditTransaction(RESERVE)`, creates `Generation(creditCost)`. Throws `InsufficientCreditsError` (→ 403) if balance too low.

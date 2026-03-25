@@ -62,9 +62,9 @@ const plans = [
     price: "$0",
     period: "forever",
     features: [
-      "20 credits / month",
+      "20 free credits on signup",
       "Quick model only",
-      "~4-6 covers depending on quality preset",
+      "Up to 10 covers",
       "Full-res KDP export",
     ],
     cta: "Start Free",
