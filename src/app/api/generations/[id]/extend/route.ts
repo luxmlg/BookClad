@@ -95,6 +95,9 @@ export async function POST(
         imageCount,
         creditCost,
         isExtension: true,
+      }, {
+        attempts: 100,
+        backoff: { type: "custom" },
       });
     } else {
       await getGenerationQueue().add(JOB_TYPE.GENERATE, {
@@ -107,6 +110,9 @@ export async function POST(
         flattenedImageDataUrl: null,
         creditCost,
         isExtension: true,
+      }, {
+        attempts: 100,
+        backoff: { type: "custom" },
       });
     }
 

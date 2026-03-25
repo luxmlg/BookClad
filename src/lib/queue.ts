@@ -1,4 +1,5 @@
 import { Queue } from "bullmq";
+import Redis from "ioredis";
 import { QUEUE_NAME } from "@/lib/constants";
 
 function parseRedisConnection() {
@@ -18,4 +19,13 @@ export function getGenerationQueue(): Queue {
     _queue = new Queue(QUEUE_NAME, { connection: parseRedisConnection() });
   }
   return _queue;
+}
+
+let _publisher: Redis | null = null;
+
+export function getRedisPublisher(): Redis {
+  if (!_publisher) {
+    _publisher = new Redis(parseRedisConnection());
+  }
+  return _publisher;
 }

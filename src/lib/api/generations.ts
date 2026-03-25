@@ -65,3 +65,7 @@ export async function createInpaint(params: CreateInpaintParams): Promise<Create
   const { data } = await api.post<CreateGenerationResponse>("/api/inpaint", params);
   return data;
 }
+
+export async function cancelGeneration(generationId: string): Promise<void> {
+  await api.post(`/api/generations/${generationId}/cancel`);
+}

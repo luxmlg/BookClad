@@ -78,6 +78,9 @@ export async function POST(request: Request) {
       referenceImageKey: referenceImageKey ?? null,
       flattenedImageDataUrl: flattenedImageDataUrl ?? null,
       creditCost,
+    }, {
+      attempts: 100,
+      backoff: { type: "custom" },
     });
 
     return NextResponse.json({ generationId }, { status: 202 });

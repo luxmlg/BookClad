@@ -151,6 +151,30 @@ export async function reserveAiFillCredits(userId: string): Promise<void> {
   });
 }
 
+export async function refundCredits(
+  userId: string,
+  generationId: string,
+  creditCost: number,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: { creditBalance: { increment: creditCost } },
+    });
+
+    await tx.creditTransaction.create({
+      data: {
+        userId,
+        amount: creditCost,
+        balanceAfter: user.creditBalance,
+        type: "REFUND",
+        description: "Generation cancelled — credits refunded",
+        generationId,
+      },
+    });
+  });
+}
+
 export async function grantCredits(
   userId: string,
   amount: number,
