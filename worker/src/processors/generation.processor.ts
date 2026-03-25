@@ -1,4 +1,5 @@
 import { Job, UnrecoverableError } from "bullmq";
+import sharp from "sharp";
 import { prisma } from "../lib/prisma.js";
 import { publishProgress } from "../lib/progress.js";
 import { generateImages as geminiGenerate } from "../services/gemini.service.js";
@@ -27,9 +28,11 @@ export async function processGeneration(job: Job<GenerationJobData>) {
   const { generationId, projectId, userId, imageCount, referenceImageKey, model } =
     job.data;
 
-  // totalSteps: generate + (upscale + crop + upload) per image + optional reference download
+  // totalSteps: generate + per-image steps + optional reference download
+  // Quick: upload only. Others: upscale + crop + upload
   const hasRef = !!referenceImageKey;
-  const totalSteps = (hasRef ? 1 : 0) + 1 + imageCount * 3;
+  const stepsPerImage = model === "quick" ? 1 : 3;
+  const totalSteps = (hasRef ? 1 : 0) + 1 + imageCount * stepsPerImage;
   let step = 0;
 
   // Check if user cancelled while this retry was queued
@@ -118,25 +121,45 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       });
     }
 
-    for (let i = 0; i < rawImages.length; i++) {
-      step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Upscaling image ${i + 1}/${rawImages.length}...`, step, totalSteps });
-      const upscaled = await upscaleImage(rawImages[i]);
+    const isQuick = model === "quick";
 
-      step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Cropping image ${i + 1} to KDP dimensions...`, step, totalSteps });
-      const final = await cropToKDP(upscaled);
+    for (let i = 0; i < rawImages.length; i++) {
+      let finalImage: Buffer;
+      let imageWidth: number;
+      let imageHeight: number;
+
+      if (isQuick) {
+        // Quick mode: upload raw image — no upscale, no KDP crop
+        finalImage = rawImages[i];
+        const metadata = await sharp(finalImage).metadata();
+        imageWidth = metadata.width ?? 0;
+        imageHeight = metadata.height ?? 0;
+
+        step++;
+        await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Uploading draft ${i + 1}/${rawImages.length}...`, step, totalSteps });
+      } else {
+        // Detailed/Premium: upscale + crop to KDP
+        step++;
+        await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Upscaling image ${i + 1}/${rawImages.length}...`, step, totalSteps });
+        const upscaled = await upscaleImage(rawImages[i]);
+
+        step++;
+        await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Cropping image ${i + 1} to KDP dimensions...`, step, totalSteps });
+        finalImage = await cropToKDP(upscaled);
+        imageWidth = KDP.width;
+        imageHeight = KDP.height;
+      }
 
       step++;
       await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Uploading image ${i + 1}...`, step, totalSteps });
-      const storageKey = await uploadImage(final, `projects/${projectId}`);
+      const storageKey = await uploadImage(finalImage, `projects/${projectId}`);
 
       await prisma.generatedImage.create({
         data: {
           generationId,
           storageKey,
-          width: KDP.width,
-          height: KDP.height,
+          width: imageWidth,
+          height: imageHeight,
           selected: false,
         },
       });

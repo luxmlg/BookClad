@@ -1,4 +1,5 @@
 import { Job, UnrecoverableError } from "bullmq";
+import sharp from "sharp";
 import { prisma } from "../lib/prisma.js";
 import { publishProgress } from "../lib/progress.js";
 import { inpaintImage as geminiInpaint } from "../services/gemini.service.js";
@@ -50,7 +51,8 @@ export async function processInpaint(job: Job<InpaintJobData>) {
   } = job.data;
   const imageCount = job.data.imageCount ?? 1;
 
-  const stepsPerImage = 4; // inpaint, upscale, crop, upload
+  const isQuick = model === "quick";
+  const stepsPerImage = isQuick ? 2 : 4; // Quick: inpaint + upload. Others: inpaint + upscale + crop + upload
   const totalSteps = 1 + imageCount * stepsPerImage; // download + per-image steps
   let step = 0;
 
@@ -114,23 +116,36 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       });
       const result = await dispatchInpaint(model, imageBuffer, maskBuffer, prompt);
 
-      step++;
-      await publishProgress(job, generationId, {
-        type: EVENT_TYPE.PROGRESS,
-        message: imageCount > 1 ? `Upscaling image ${i + 1}/${imageCount}...` : "Upscaling inpainted image...",
-        step,
-        totalSteps,
-      });
-      const upscaled = await upscaleImage(result);
+      let finalImage: Buffer;
+      let imageWidth: number;
+      let imageHeight: number;
 
-      step++;
-      await publishProgress(job, generationId, {
-        type: EVENT_TYPE.PROGRESS,
-        message: imageCount > 1 ? `Cropping image ${i + 1} to KDP dimensions...` : "Cropping to KDP dimensions...",
-        step,
-        totalSteps,
-      });
-      const final = await cropToKDP(upscaled);
+      if (isQuick) {
+        finalImage = result;
+        const metadata = await sharp(finalImage).metadata();
+        imageWidth = metadata.width ?? 0;
+        imageHeight = metadata.height ?? 0;
+      } else {
+        step++;
+        await publishProgress(job, generationId, {
+          type: EVENT_TYPE.PROGRESS,
+          message: imageCount > 1 ? `Upscaling image ${i + 1}/${imageCount}...` : "Upscaling inpainted image...",
+          step,
+          totalSteps,
+        });
+        const upscaled = await upscaleImage(result);
+
+        step++;
+        await publishProgress(job, generationId, {
+          type: EVENT_TYPE.PROGRESS,
+          message: imageCount > 1 ? `Cropping image ${i + 1} to KDP dimensions...` : "Cropping to KDP dimensions...",
+          step,
+          totalSteps,
+        });
+        finalImage = await cropToKDP(upscaled);
+        imageWidth = KDP.width;
+        imageHeight = KDP.height;
+      }
 
       step++;
       await publishProgress(job, generationId, {
@@ -139,14 +154,14 @@ export async function processInpaint(job: Job<InpaintJobData>) {
         step,
         totalSteps,
       });
-      const storageKey = await uploadImage(final, `projects/${projectId}`);
+      const storageKey = await uploadImage(finalImage, `projects/${projectId}`);
 
       await prisma.generatedImage.create({
         data: {
           generationId,
           storageKey,
-          width: KDP.width,
-          height: KDP.height,
+          width: imageWidth,
+          height: imageHeight,
           selected: false,
         },
       });
