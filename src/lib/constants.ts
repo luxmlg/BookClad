@@ -54,23 +54,32 @@ export type JobType = typeof JOB_TYPE[keyof typeof JOB_TYPE];
 
 export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
   quick: 2,
-  detailed: 3,
-  premium: 5,
+  detailed: 4,
+  premium: 6,
 };
 
 export const AI_FILL_CREDIT_COST = 1;
 export const AI_FILL_PROMPT_MAX_LENGTH = 1000;
 
 export const TIER_CREDITS: Record<string, number> = {
-  FREE: 20,
+  FREE: 15,
   STARTER: 100,
   PRO: 250,
+  STUDIO: 500,
 };
 
 export const TIER_ORDER: Record<string, number> = {
   FREE: 0,
   STARTER: 1,
   PRO: 2,
+  STUDIO: 3,
+};
+
+export const TIER_QUEUE_PRIORITY: Record<string, number> = {
+  FREE: 10,
+  STARTER: 10,
+  PRO: 1,
+  STUDIO: 1,
 };
 
 export const QUICK_CREATE_TIER_CONFIG = {
@@ -85,10 +94,11 @@ export const AI_MODELS = [
     value: "quick",
     label: "Quick",
     description:
-      "Fast and efficient cover generation. Best for rapid iteration and quickly exploring different design directions.",
+      "Low-cost drafts for exploring ideas and styles. Not export-ready — upgrade to Detailed or Premium for KDP-ready covers.",
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
     creditCost: CREDIT_COST_PER_IMAGE.quick,
     requiredTier: "FREE",
+    exportable: false,
   },
   {
     value: "detailed",
@@ -98,6 +108,7 @@ export const AI_MODELS = [
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
     creditCost: CREDIT_COST_PER_IMAGE.detailed,
     requiredTier: "STARTER",
+    exportable: true,
   },
   {
     value: "premium",
@@ -107,6 +118,7 @@ export const AI_MODELS = [
     capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
     creditCost: CREDIT_COST_PER_IMAGE.premium,
     requiredTier: "STARTER",
+    exportable: true,
   },
 ] as const;
 
@@ -157,12 +169,14 @@ export type SubscriptionStatus = typeof SUBSCRIPTION_STATUS[keyof typeof SUBSCRI
 export const PLAN_PRICES: Record<string, number> = {
   STARTER: 9,
   PRO: 19,
+  STUDIO: 35,
 };
 
 export const CREDIT_PACKS = [
   { id: "CREDITS_50", credits: 50, price: 5 },
   { id: "CREDITS_100", credits: 100, price: 9 },
   { id: "CREDITS_250", credits: 250, price: 20 },
+  { id: "CREDITS_500", credits: 500, price: 35 },
 ] as const;
 
 export type CreditPackId = typeof CREDIT_PACKS[number]["id"];
