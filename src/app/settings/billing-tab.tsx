@@ -28,7 +28,10 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "second
 const PLAN_FEATURES: Record<string, string[]> = {
   STARTER: ["100 credits / month", "All AI models", "Priority support"],
   PRO: ["250 credits / month", "All AI models", "Priority support", "Early access to features"],
+  STUDIO: ["Everything in Pro", "500 credits / month"],
 };
+
+const PRIORITY_QUEUE_TIERS = new Set(["PRO", "STUDIO"]);
 
 export function BillingTab() {
   const [balance, setBalance] = useState(0);
@@ -132,7 +135,7 @@ export function BillingTab() {
     return () => clearInterval(interval);
   }, [showSuccess, applyCreditsData]);
 
-  async function handleUpgrade(targetTier: "STARTER" | "PRO") {
+  async function handleUpgrade(targetTier: "STARTER" | "PRO" | "STUDIO") {
     setCheckoutLoading(targetTier);
     try {
       const result = await createCheckout(targetTier);
@@ -294,20 +297,26 @@ export function BillingTab() {
       </div>
 
       {/* Upgrade plans */}
-      {tier !== "PRO" && (
+      {tier !== "STUDIO" && (
         <div>
           <h3 className="mb-3 text-sm font-medium">Upgrade Your Plan</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {(["STARTER", "PRO"] as const).map((planTier) => {
+          <div className="grid gap-4 sm:grid-cols-3">
+            {(["STARTER", "PRO", "STUDIO"] as const).map((planTier) => {
               const isCurrent = tier === planTier;
               const price = PLAN_PRICES[planTier];
               const features = PLAN_FEATURES[planTier];
+              const hasPriorityQueue = PRIORITY_QUEUE_TIERS.has(planTier);
 
               return (
-                <Card key={planTier} className={planTier === "PRO" ? "border-primary" : ""}>
+                <Card key={planTier} className={planTier === "STUDIO" ? "border-primary" : ""}>
                   <CardContent className="p-6">
                     <div className="mb-4">
-                      <h4 className="text-lg font-semibold">{planTier}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-lg font-semibold">{planTier}</h4>
+                        {hasPriorityQueue && (
+                          <Badge variant="secondary" className="text-xs">Priority queue</Badge>
+                        )}
+                      </div>
                       <p className="text-2xl font-bold">
                         ${price}<span className="text-sm font-normal text-muted-foreground">/mo</span>
                       </p>
@@ -322,7 +331,7 @@ export function BillingTab() {
                     </ul>
                     <Button
                       className="w-full"
-                      variant={planTier === "PRO" ? "default" : "outline"}
+                      variant={planTier === "STUDIO" ? "default" : "outline"}
                       disabled={isCurrent || checkoutLoading !== null}
                       onClick={() => handleUpgrade(planTier)}
                     >
@@ -343,7 +352,7 @@ export function BillingTab() {
       {/* Buy credits */}
       <div>
         <h3 className="mb-3 text-sm font-medium">Buy Credits</h3>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-4">
           {CREDIT_PACKS.map((pack) => (
             <Card key={pack.id}>
               <CardContent className="p-6 text-center">
