@@ -44,9 +44,9 @@ export const WS_MESSAGE_TYPE = {
 
 export const REF_PROMPT_KEY = "ref-instructions";
 
-export const RETRY_DELAYS = [5_000, 15_000, 30_000, 60_000] as const;
+export const RETRY_DELAYS = [10_000, 30_000, 60_000, 90_000, 120_000] as const;
 export const MAX_OTHER_RETRIES = 5;
-export const MAX_HIGH_DEMAND_RETRIES = 99;
+export const MAX_HIGH_DEMAND_RETRIES = 10;
 
 export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
   quick: 3,
