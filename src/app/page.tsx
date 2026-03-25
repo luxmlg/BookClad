@@ -63,6 +63,7 @@ const plans = [
     period: "forever",
     features: [
       "20 credits / month",
+      "Quick model only",
       "~4-6 covers depending on quality preset",
       "Full-res KDP export",
     ],
