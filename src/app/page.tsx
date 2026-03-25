@@ -79,7 +79,7 @@ const plans = [
       "KDP-ready export",
     ],
     cta: "Get Started",
-    highlighted: true,
+    highlighted: false,
   },
   {
     name: "Pro",
@@ -92,7 +92,7 @@ const plans = [
       "Priority queue",
     ],
     cta: "Go Pro",
-    highlighted: false,
+    highlighted: true,
   },
   {
     name: "Studio",
@@ -103,6 +103,7 @@ const plans = [
       "All generation modes",
       "KDP-ready export",
       "Priority queue",
+      "Priority feedback & feature requests",
     ],
     cta: "Get Studio",
     highlighted: false,
@@ -226,11 +227,11 @@ export default function LandingPage() {
           <p className="mb-14 text-muted-foreground">
             Start free. Upgrade when you need more.
           </p>
-          <div className="grid grid-cols-1 items-center gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {plans.map((plan, i) => (
-              <FadeIn key={plan.name} delay={i * 0.1}>
+              <FadeIn key={plan.name} delay={i * 0.1} className="h-full">
                 <Card
-                  className={`flex flex-col ${
+                  className={`flex h-full flex-col ${
                     plan.highlighted
                       ? "relative z-10 scale-[1.02] overflow-visible border-transparent bg-primary text-primary-foreground ring-0 shadow-xl"
                       : ""

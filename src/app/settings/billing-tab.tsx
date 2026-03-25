@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getCredits, type CreditTransaction } from "@/lib/api/credits";
 import { createCheckout, createCreditPackCheckout, createCustomerPortal } from "@/lib/api/checkout";
-import { TIER_CREDITS, PLAN_PRICES, CREDIT_PACKS, SUBSCRIPTION_STATUS } from "@/lib/constants";
+import { TIER_CREDITS, TIER_ORDER, PLAN_PRICES, CREDIT_PACKS, SUBSCRIPTION_STATUS } from "@/lib/constants";
 import { useCreditStore } from "@/lib/stores/credit-store";
 
 const TXN_TYPE_LABEL: Record<string, string> = {
@@ -28,7 +28,8 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "second
 const PLAN_FEATURES: Record<string, string[]> = {
   STARTER: ["100 credits / month", "All AI models", "Priority support"],
   PRO: ["250 credits / month", "All AI models", "Priority support", "Early access to features"],
-  STUDIO: ["Everything in Pro", "500 credits / month"],
+  STUDIO: ["500 credits / month", "All AI models", "Priority support", "Early access to features", "Priority feedback & feature requests"],
+  STUDIO_SHORT: ["Everything in Pro", "500 credits / month", "Priority feedback & feature requests"],
 };
 
 const PRIORITY_QUEUE_TIERS = new Set(["PRO", "STUDIO"]);
@@ -297,57 +298,64 @@ export function BillingTab() {
       </div>
 
       {/* Upgrade plans */}
-      {tier !== "STUDIO" && (
-        <div>
-          <h3 className="mb-3 text-sm font-medium">Upgrade Your Plan</h3>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {(["STARTER", "PRO", "STUDIO"] as const).map((planTier) => {
-              const isCurrent = tier === planTier;
-              const price = PLAN_PRICES[planTier];
-              const features = PLAN_FEATURES[planTier];
-              const hasPriorityQueue = PRIORITY_QUEUE_TIERS.has(planTier);
+      {tier !== "STUDIO" && (() => {
+        const currentOrder = TIER_ORDER[tier] ?? 0;
+        const upgradeTiers = (["STARTER", "PRO", "STUDIO"] as const).filter(
+          (t) => (TIER_ORDER[t] ?? 0) > currentOrder,
+        );
+        if (upgradeTiers.length === 0) return null;
+        return (
+          <div>
+            <h3 className="mb-3 text-sm font-medium">Upgrade Your Plan</h3>
+            <div className="grid items-stretch gap-4 sm:grid-cols-3">
+              {upgradeTiers.map((planTier) => {
+                const price = PLAN_PRICES[planTier];
+                const proVisible = upgradeTiers.includes("PRO");
+                const features = planTier === "STUDIO" && proVisible
+                  ? PLAN_FEATURES.STUDIO_SHORT
+                  : PLAN_FEATURES[planTier];
+                const hasPriorityQueue = PRIORITY_QUEUE_TIERS.has(planTier);
 
-              return (
-                <Card key={planTier} className={planTier === "STUDIO" ? "border-primary" : ""}>
-                  <CardContent className="p-6">
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-lg font-semibold">{planTier}</h4>
-                        {hasPriorityQueue && (
-                          <Badge variant="secondary" className="text-xs">Priority queue</Badge>
-                        )}
+                return (
+                  <Card key={planTier} className={`flex flex-col ${planTier === "STUDIO" ? "border-primary" : ""}`}>
+                    <CardContent className="flex flex-1 flex-col p-6">
+                      <div className="mb-4">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-lg font-semibold">{planTier}</h4>
+                          {hasPriorityQueue && (
+                            <Badge variant="secondary" className="text-xs">Priority queue</Badge>
+                          )}
+                        </div>
+                        <p className="text-2xl font-bold">
+                          ${price}<span className="text-sm font-normal text-muted-foreground">/mo</span>
+                        </p>
                       </div>
-                      <p className="text-2xl font-bold">
-                        ${price}<span className="text-sm font-normal text-muted-foreground">/mo</span>
-                      </p>
-                    </div>
-                    <ul className="mb-4 space-y-1 text-sm text-muted-foreground">
-                      {features.map((f) => (
-                        <li key={f} className="flex items-center gap-2">
-                          <Check className="size-3 text-primary" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <Button
-                      className="w-full"
-                      variant={planTier === "STUDIO" ? "default" : "outline"}
-                      disabled={isCurrent || checkoutLoading !== null}
-                      onClick={() => handleUpgrade(planTier)}
-                    >
-                      {isCurrent
-                        ? "Current Plan"
-                        : checkoutLoading === planTier
+                      <ul className="mb-4 flex-1 space-y-1 text-sm text-muted-foreground">
+                        {features.map((f) => (
+                          <li key={f} className="flex items-center gap-2">
+                            <Check className="size-3 text-primary" />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        className="w-full"
+                        variant={planTier === "STUDIO" ? "default" : "outline"}
+                        disabled={checkoutLoading !== null}
+                        onClick={() => handleUpgrade(planTier)}
+                      >
+                        {checkoutLoading === planTier
                           ? "Redirecting..."
                           : `Upgrade to ${planTier}`}
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Buy credits */}
       <div>
