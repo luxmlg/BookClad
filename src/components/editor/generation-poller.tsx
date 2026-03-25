@@ -16,14 +16,18 @@ interface UseGenerationPollerOptions {
 export interface GenerationPollerState {
   status: GenerationStatus;
   progressMessage: string | null;
+  errorMessage: string | null;
   step: number;
   totalSteps: number;
   progressPercent: number;
+  retryCount: number;
+  retryReason: string | null;
+  nextRetryAt: string | null;
 }
 
 export function useGenerationPoller({ generationId, onComplete }: UseGenerationPollerOptions): GenerationPollerState {
   const router = useRouter();
-  const { status, progressMessage, errorMessage, step, totalSteps } = useGenerationProgress(generationId);
+  const { status, progressMessage, errorMessage, step, totalSteps, retryCount, retryReason, nextRetryAt } = useGenerationProgress(generationId);
   const completedRef = useRef(false);
 
   const handleComplete = (failed?: string) => {
@@ -71,7 +75,7 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
   const progressPercent =
     totalSteps > 0 ? Math.round((step / totalSteps) * 100) : 0;
 
-  return { status, progressMessage, step, totalSteps, progressPercent };
+  return { status, progressMessage, errorMessage, step, totalSteps, progressPercent, retryCount, retryReason, nextRetryAt };
 }
 
 interface GenerationPollerProps {

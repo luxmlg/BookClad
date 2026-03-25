@@ -9,6 +9,9 @@ interface GenerationProgress {
   errorMessage: string | null;
   step: number;
   totalSteps: number;
+  retryCount: number;
+  retryReason: string | null;
+  nextRetryAt: string | null;
 }
 
 type Listener = (event: GenerationProgress & { generationId: string }) => void;
@@ -64,6 +67,9 @@ function getSocket(): WebSocket | null {
         let errorMessage: string | null = null;
         let step = 0;
         let totalSteps = 0;
+        let retryCount = 0;
+        let retryReason: string | null = null;
+        let nextRetryAt: string | null = null;
 
         switch (rest.type) {
           case EVENT_TYPE.STATUS:
@@ -82,12 +88,19 @@ function getSocket(): WebSocket | null {
             status = GENERATION_STATUS.FAILED;
             errorMessage = rest.error ?? null;
             break;
+          case EVENT_TYPE.RETRYING:
+            status = GENERATION_STATUS.RETRYING;
+            errorMessage = rest.errorMessage ?? null;
+            retryCount = rest.retryCount ?? 0;
+            retryReason = rest.retryReason ?? null;
+            nextRetryAt = rest.nextRetryAt ?? null;
+            break;
           default:
             return;
         }
 
         for (const listener of genListeners) {
-          listener({ generationId, status, progressMessage, errorMessage, step, totalSteps });
+          listener({ generationId, status, progressMessage, errorMessage, step, totalSteps, retryCount, retryReason, nextRetryAt });
         }
       } catch {
         // Ignore malformed messages
@@ -161,6 +174,9 @@ export function useGenerationProgress(generationId: string) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [totalSteps, setTotalSteps] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const [retryReason, setRetryReason] = useState<string | null>(null);
+  const [nextRetryAt, setNextRetryAt] = useState<string | null>(null);
   const completedRef = useRef(false);
 
   const handleEvent = useCallback(
@@ -171,6 +187,9 @@ export function useGenerationProgress(generationId: string) {
       if (event.errorMessage !== null) setErrorMessage(event.errorMessage);
       if (event.step) setStep(event.step);
       if (event.totalSteps) setTotalSteps(event.totalSteps);
+      if (event.retryCount !== undefined) setRetryCount(event.retryCount);
+      if (event.retryReason !== undefined) setRetryReason(event.retryReason);
+      if (event.nextRetryAt !== undefined) setNextRetryAt(event.nextRetryAt);
       if (event.status === GENERATION_STATUS.COMPLETED || event.status === GENERATION_STATUS.FAILED) {
         completedRef.current = true;
       }
@@ -184,5 +203,5 @@ export function useGenerationProgress(generationId: string) {
     return unsubscribe;
   }, [generationId, handleEvent]);
 
-  return { status, progressMessage, errorMessage, step, totalSteps };
+  return { status, progressMessage, errorMessage, step, totalSteps, retryCount, retryReason, nextRetryAt };
 }
