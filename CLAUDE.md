@@ -11,7 +11,7 @@ BookClad is an AI-powered ebook cover generator for Amazon KDP. Users describe t
 This is a **two-process** system:
 
 1. **Next.js app** (`src/`) — Next.js 16 with App Router, React 19, Auth.js v5, Prisma 7 (with `@prisma/adapter-pg`), Tailwind CSS 4. Handles UI, API routes, and enqueues jobs via BullMQ.
-2. **Worker** (`worker/`) — Standalone Node/Express process that consumes BullMQ jobs from Redis. Calls Gemini AI APIs (quick/detailed/premium tiers), upscales with Sharp (or Replicate if `REPLICATE_API_TOKEN` is set), crops to KDP dimensions, and uploads results to R2/S3. Runs with `concurrency: 2`, checks for stalled jobs every 30s (max 2 stalls before failure + credit refund), and sweeps for stale generations (>15 min in QUEUED/PROCESSING) on startup. Express serves WebSocket at `/ws/progress` and health check at `/health`.
+2. **Worker** (`worker/`) — Standalone Node/Express process that consumes BullMQ jobs from Redis. Calls Gemini AI APIs (quick/detailed/premium tiers), upscales with Sharp (or Replicate if `REPLICATE_API_TOKEN` is set), crops to KDP dimensions, and uploads results to R2/S3. Runs with `concurrency: 2`, checks for stalled jobs every 30s (max 2 stalls before failure + credit refund), and sweeps for stale generations (>30 min in QUEUED/PROCESSING, >2 hours in RETRYING) on startup. Express serves WebSocket at `/ws/progress` and health check at `/health`.
 
 The two processes share the same Postgres database and Redis instance but are **separate packages** with independent `node_modules` and `tsconfig.json`. The worker is excluded from the root `tsconfig.json`. The worker is an **ESM package** (`"type": "module"` in its `package.json`).
 
@@ -87,7 +87,21 @@ All processors run a **preflight health check** (`preflight()` in `worker/src/li
 - Similar/reference extensions → `JOB_TYPE.GENERATE` with `referenceImage` key
 - Regular extensions → `JOB_TYPE.GENERATE` without reference
 
-Both processors support `isExtension` flag for partial-failure handling: if some images succeed before an error, mark COMPLETED with `imageCount` set to actual images created, then refund extension credits.
+Both processors support `isExtension` flag for partial-failure handling: if some images succeed before an error, mark COMPLETED with `imageCount` set to actual images created, then refund extension credits. Extensions do NOT auto-retry.
+
+**Auto-retry**: Failed generations automatically retry with exponential backoff (`RETRY_DELAYS`: 5s→15s→30s→60s cap). BullMQ jobs are created with `attempts: 100` and a custom backoff strategy. The processor catch block classifies errors:
+- **High demand** (429/503 or rate-limit patterns): retries up to `MAX_HIGH_DEMAND_RETRIES` (99)
+- **Other errors**: retries up to `MAX_OTHER_RETRIES` (5)
+- **Extensions**: never retry (throw `UnrecoverableError`)
+- **Partial success** (some images created): never retry (would create duplicates)
+
+On retryable failure: sets `status: RETRYING` with `retryCount`, `retryReason` (`"high_demand"` or `"error"`), `nextRetryAt`, and `errorMessage`. Publishes `EVENT_TYPE.RETRYING` via WebSocket. Re-throws the original error so BullMQ schedules the retry. Credits stay reserved (no refund until permanent failure or user cancellation).
+
+On non-retryable failure: sets `status: FAILED`, refunds credits, throws `UnrecoverableError`.
+
+Both processors also check for user cancellation before processing: if `generation.status === FAILED` (set by cancel API), the processor returns early without doing any work.
+
+**Cancellation**: `POST /api/generations/[id]/cancel` — only works on `RETRYING` or `QUEUED` status (rejects `PROCESSING`). Marks FAILED, refunds credits via `refundCredits()` from `src/lib/credits.ts`, best-effort removes the BullMQ job, and publishes a FAILED event via `getRedisPublisher()` from `src/lib/queue.ts`.
 
 **Mask persistence**: Inpaint masks are uploaded to R2 as `projects/{projectId}/masks/{uuid}.png` and stored in `Generation.maskImage`. Original inpaints send the mask as base64 in job data (`maskBase64`); extensions download it from storage via `maskKey`.
 
@@ -104,14 +118,16 @@ Both processors support `isExtension` flag for partial-failure handling: if some
   - `useKindlePreview` — debounced Konva-to-dataURL for Kindle preview
   - `useImageUrls` — fetches signed URLs for generated images
   - `useInpaintState` — brush mode, mask, inpaint submission
-  - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking
+  - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking (includes `RETRYING` in active filters)
 - **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's attribute configuration, fetched from `/api/attributes`)
 - **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot`, `descriptionSnapshot`, and `textLayerSnapshot` with each generation for diff tracking and history display
 - **Draft attribute system**: When switching between history images, attribute edits are stashed per-image in `draftStashRef` and restored on return. `baseSnapshot` holds the generation's original attributes; `draftKeys` (derived via `computeAttributeDiff`) drives amber dot indicators on modified attributes.
 - **Bottom panel tabs**: Both History and Queue tabs are **always mounted** (CSS `hidden`, not conditional rendering) in `EditorCenterPanel`. The Queue's `useGenerationPoller` hooks stay alive regardless of active tab — no duplicate pollers needed in History.
 - **Batch delete**: `DELETE /api/images/batch` — deletes entire generations when all images removed, decrements `imageCount` on partial deletes. `handleDeletedImages` in `EditorShell` cleans up all caches and auto-selects the next image.
 
-Key sub-components: `EditorCenterPanel` (canvas viewport + bottom panel), `LeftSidebar` (attribute inputs, presets, brief), `RightSidebar` (layers, properties, export), `CoverCanvas` (Konva canvas), `GenerationHistory` → `GenerationGroup` (past generations with diffs via `DiffDisplay`), `GenerationQueue` (active jobs with WebSocket progress). Shared generation helpers (`getModelLabel`, `formatRelativeTime`, `JOB_TYPE_ICON`) live in `generation-helpers.ts`.
+Key sub-components: `EditorCenterPanel` (canvas viewport + bottom panel), `LeftSidebar` (attribute inputs, presets, brief), `RightSidebar` (layers, properties, export), `CoverCanvas` (Konva canvas), `GenerationHistory` → `GenerationGroup` (past generations with diffs via `DiffDisplay`), `GenerationQueue` (active jobs with WebSocket progress, retrying state with countdown timer + cancel button). Shared generation helpers (`getModelLabel`, `formatRelativeTime`, `JOB_TYPE_ICON`) live in `generation-helpers.ts`.
+
+**Empty state toolbar**: When no images exist and no generation is active, the center panel shows model selector + image count + Generate button (not just "Generate Now"). Reads `?tab=history|queue` query params for navigation from dashboard.
 
 ### Canvas scale
 
@@ -145,6 +161,8 @@ Billing uses a credit ledger instead of a generation counter. Defined in `src/li
 1. API calls `reserveCredits()` — atomic Prisma transaction: checks balance, decrements `User.creditBalance`, creates `CreditTransaction(RESERVE)`, creates `Generation(creditCost)`. Throws `InsufficientCreditsError` (→ 403) if balance too low.
 2. On success: nothing to do, credits already deducted.
 3. On failure: worker calls `refundCredits()` — increments balance, creates `CreditTransaction(REFUND)`.
+4. On retryable failure: credits stay reserved (no refund until permanent failure or user cancellation).
+5. On user cancel: app calls `refundCredits()` from `src/lib/credits.ts` (mirrors the worker version).
 
 **Credit sources**: Initial signup grant (Auth.js `createUser` event → `grantCredits()` for 25 FREE credits), subscription activation/renewal (webhook → `grantCredits()`), and one-time credit pack purchases (webhook → `grantCredits()`).
 
@@ -293,7 +311,10 @@ Triggered from Settings General tab → "Danger Zone" → `DeleteAccountDialog` 
 - **AI models**: All Gemini — quick (`gemini-2.5-flash-image`), detailed (`gemini-3.1-flash-image-preview`), premium (`gemini-3-pro-image-preview`). Model IDs mapped in `GEMINI_MODEL_IDS` in `worker/src/lib/constants.ts`. Per-model generation config (aspect ratio, resolution, thinking) in `GEMINI_MODEL_CONFIG` — detailed uses 9:16, 4K, High thinking; premium uses 9:16, 4K, no thinking (unsupported). Dispatched by `model` field on Generation records.
 - **KDP constants**: Defined in `src/lib/constants.ts` as `KDP` object (1600x2560, 300 DPI, JPEG).
 - **WebSocket**: Singleton manager in `src/lib/use-generation-ws.ts`. Worker endpoint at `NEXT_PUBLIC_WS_URL` (defaults to `ws://localhost:4000/ws/progress`). Falls back to HTTP polling if WebSocket fails. The worker bridges Redis pubsub → WebSocket: `publishProgress()` in `worker/src/lib/progress.ts` publishes to `generation:{id}` channels, and `worker/src/lib/websocket.ts` relays those to connected clients.
-- **Event constants**: Event type discriminators (`EVENT_TYPE`: STATUS, PROGRESS, COMPLETED, FAILED) and WebSocket control messages (`WS_MESSAGE_TYPE`: SUBSCRIBE, UNSUBSCRIBE) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts`. Use these instead of raw strings like `"completed"` or `"subscribe"`.
+- **Event constants**: Event type discriminators (`EVENT_TYPE`: STATUS, PROGRESS, COMPLETED, FAILED, RETRYING) and WebSocket control messages (`WS_MESSAGE_TYPE`: SUBSCRIBE, UNSUBSCRIBE) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts`. Use these instead of raw strings like `"completed"` or `"subscribe"`.
+- **Generation statuses**: `GENERATION_STATUS` includes `QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`, `RETRYING`. The `RETRYING` status is used during auto-retry — generation has retry fields (`retryCount`, `retryReason`, `nextRetryAt`) that drive countdown timers and retry labels in the UI. `GenerationProgress` interface in `use-generation-ws.ts` also carries these fields.
+- **Dashboard active generations**: `src/components/dashboard/active-generation-row.tsx` (client component) renders active generation rows under project cards on the dashboard. Polls `GET /api/generations/active?projectId=X` every 5s. Clicking navigates to the editor with `?tab=history&gen=ID`.
+- **Redis publisher**: `getRedisPublisher()` from `src/lib/queue.ts` provides a lazy-initialized ioredis instance for publishing WebSocket events from the Next.js app (used by the cancel API).
 - **Attribute defaults**: Always use `getDefaultValue(type)` from `src/lib/attributes.ts` — never hardcode default values like `"false"`, `"5"`, `"#6366f1"` inline.
 - **API client**: Client-side API calls use an axios instance from `src/lib/api/client.ts` with domain-specific modules in `src/lib/api/` (projects, generations, images, fonts, settings, credits, checkout). Use `fireAndForget()` for best-effort calls (auto-save). Import via `@/lib/api`.
 - **Cross-package constants**: Constants shared between app and worker (like `GENERATION_STATUS`, `EVENT_TYPE`, `KDP`, `CREDIT_COST_PER_IMAGE`) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts` — kept in sync manually since the packages cannot import from each other.
