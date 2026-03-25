@@ -46,7 +46,7 @@ const features = [
     icon: Wand,
     title: "AI-Powered Quick Create",
     description:
-      "Describe your book and get covers in one click. Our AI analyzes your description and automatically selects genre, mood, art style, and visual attributes — no design decisions needed.",
+      "Describe your book and get covers in one click. Our AI analyzes your description and automatically selects genre, mood, art style, and visual attributes.",
   },
   {
     icon: History,
@@ -186,8 +186,8 @@ export default function LandingPage() {
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
             {features.map((f, i) => (
-              <FadeIn key={f.title} delay={i * 0.15}>
-                <div className="group relative overflow-hidden rounded-xl bg-card p-6 ring-1 ring-foreground/[0.05] transition-all duration-200 hover:shadow-lg hover:ring-foreground/15">
+              <FadeIn key={f.title} delay={i * 0.15} className="h-full">
+                <div className="group relative h-full overflow-hidden rounded-xl bg-card p-6 ring-1 ring-foreground/[0.05] transition-all duration-200 hover:shadow-lg hover:ring-foreground/15">
                   <div className="absolute inset-x-0 top-0 h-px bg-primary opacity-0 transition-opacity group-hover:opacity-100" />
                   <div className="mb-4 inline-flex rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 p-2.5">
                     <f.icon className="size-5 text-primary" />
