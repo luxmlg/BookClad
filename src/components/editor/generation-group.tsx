@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { ChevronRight, Sparkles, Pencil, Ellipsis, Layers, Coins, Minus, Plus, ArrowLeftRight, X, Loader2, Check, Images, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronRight, Sparkles, Pencil, Ellipsis, Layers, Coins, Minus, Plus, ArrowLeftRight, X, Loader2, Check, Images, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { updateGenerationName } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -196,9 +196,14 @@ export function GenerationGroup({
         ?? Math.max(0, (generation.imageCount ?? 0) - generation.images.length))
     : 0;
 
+  const failedCount =
+    !isActive && generation.errorMessage && (generation.imageCount ?? 0) > generation.images.length
+      ? (generation.imageCount ?? 0) - generation.images.length
+      : 0;
+
   const ghostCount =
-    !isActive && generation.images.length < MAX_GRID_SLOTS
-      ? MAX_GRID_SLOTS - generation.images.length
+    !isActive && generation.images.length + failedCount < MAX_GRID_SLOTS
+      ? MAX_GRID_SLOTS - generation.images.length - failedCount
       : 0;
 
   const rawAttrs = asAttributeSnapshot(generation.attributeSnapshot);
@@ -272,6 +277,14 @@ export function GenerationGroup({
               ? (generation.images.length + pendingCount)
               : generation.images.length}
             <Images className="size-3.5" />
+            {generation.errorMessage && !isActive && (
+              <span className="flex items-center gap-1 text-amber-500">
+                <AlertTriangle className="size-3" />
+                <span className="text-[10px]">
+                  {generation.images.length} of {generation.imageCount} · partial
+                </span>
+              </span>
+            )}
           </span>
         )}
         {allGenerations.length > 1 && open && (
@@ -451,6 +464,19 @@ export function GenerationGroup({
                     <Loader2 className="size-3.5 animate-spin text-primary/30" />
                   </div>
                 </div>
+              ))}
+              {Array.from({ length: failedCount }, (_, i) => (
+                <button
+                  key={`failed-${i}`}
+                  onClick={() => onGenerateMore(generation, failedCount)}
+                  className="w-full rounded-lg border-2 border-dashed border-amber-500/30
+                             flex items-center justify-center cursor-pointer
+                             hover:border-amber-500/50 hover:bg-amber-500/5 transition-colors"
+                  style={{ aspectRatio: "1600/2560" }}
+                  title={`Retry ${failedCount} failed images`}
+                >
+                  <RefreshCw className="size-3.5 text-amber-500/50" />
+                </button>
               ))}
               {Array.from({ length: ghostCount }, (_, i) => (
                 <button
