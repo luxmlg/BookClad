@@ -65,90 +65,82 @@ export interface GeminiImageConfig {
   thinkingLevel?: string;
 }
 
-export interface GeminiGenerateParams {
+export interface GenerateSingleImageParams {
   prompt: string;
-  count: number;
   referenceImage?: Buffer;
   modelId: string;
   config?: GeminiImageConfig;
 }
 
-export async function generateImages({
+export async function generateSingleImage({
   prompt,
-  count,
   referenceImage,
   modelId,
   config,
-}: GeminiGenerateParams): Promise<Buffer[]> {
+}: GenerateSingleImageParams): Promise<Buffer> {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const results: Buffer[] = [];
+  const parts: Array<Record<string, unknown>> = [];
 
-  for (let i = 0; i < count; i++) {
-    const parts: Array<Record<string, unknown>> = [];
-
-    if (referenceImage) {
-      parts.push({
-        inlineData: {
-          mimeType: "image/png",
-          data: referenceImage.toString("base64"),
-        },
-      });
-    }
-
-    parts.push({ text: prompt });
-
-    const generationConfig: Record<string, unknown> = {
-      responseModalities: ["IMAGE", "TEXT"],
-    };
-
-    if (config?.aspectRatio || config?.imageSize) {
-      const imageConfig: Record<string, string> = {};
-      if (config.aspectRatio) imageConfig.aspectRatio = config.aspectRatio;
-      if (config.imageSize) imageConfig.imageSize = config.imageSize;
-      generationConfig.imageConfig = imageConfig;
-    }
-
-    if (config?.thinkingLevel) {
-      generationConfig.thinkingConfig = { thinkingLevel: config.thinkingLevel };
-    }
-
-    const body = {
-      contents: [{ role: "user", parts }],
-      generationConfig,
-    };
-
-    let res: Response;
-    try {
-      res = await fetch(`${geminiEndpoint(modelId)}?key=${GEMINI_API_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-    } catch (err) {
-      console.error(`[gemini] fetch failed for model ${modelId} (image ${i + 1}/${count}):`, err);
-      throw new Error(
-        "Could not reach the image generation service. Please try again.",
-        { cause: err },
-      );
-    }
-
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => "");
-      console.error(`[gemini] HTTP ${res.status} for model ${modelId}:`, errBody);
-      throw new GeminiApiError(res.status);
-    }
-
-    const data = (await res.json()) as GeminiResponse;
-    const buffers = extractImageBuffers(data);
-    if (buffers.length === 0) {
-      throw new Error(NO_IMAGES_MESSAGE);
-    }
-    results.push(buffers[0]);
+  if (referenceImage) {
+    parts.push({
+      inlineData: {
+        mimeType: "image/png",
+        data: referenceImage.toString("base64"),
+      },
+    });
   }
 
-  return results;
+  parts.push({ text: prompt });
+
+  const generationConfig: Record<string, unknown> = {
+    responseModalities: ["IMAGE", "TEXT"],
+  };
+
+  if (config?.aspectRatio || config?.imageSize) {
+    const imageConfig: Record<string, string> = {};
+    if (config.aspectRatio) imageConfig.aspectRatio = config.aspectRatio;
+    if (config.imageSize) imageConfig.imageSize = config.imageSize;
+    generationConfig.imageConfig = imageConfig;
+  }
+
+  if (config?.thinkingLevel) {
+    generationConfig.thinkingConfig = { thinkingLevel: config.thinkingLevel };
+  }
+
+  const body = {
+    contents: [{ role: "user", parts }],
+    generationConfig,
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(`${geminiEndpoint(modelId)}?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    console.error(`[gemini] fetch failed for model ${modelId}:`, err);
+    throw new Error(
+      "Could not reach the image generation service. Please try again.",
+      { cause: err },
+    );
+  }
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    console.error(`[gemini] HTTP ${res.status} for model ${modelId}:`, errBody);
+    throw new GeminiApiError(res.status);
+  }
+
+  const data = (await res.json()) as GeminiResponse;
+  const buffers = extractImageBuffers(data);
+  if (buffers.length === 0) {
+    throw new Error(NO_IMAGES_MESSAGE);
+  }
+  return buffers[0];
 }
 
 export interface GeminiInpaintParams {
