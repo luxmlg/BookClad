@@ -12,6 +12,7 @@ import {
   X,
   Coins,
   Loader2,
+  Lock,
 } from "lucide-react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { toast } from "sonner";
@@ -31,7 +32,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { AI_MODELS } from "@/lib/constants";
+import { AI_MODELS, isModelAvailable } from "@/lib/constants";
 import { useCreditStore } from "@/lib/stores/credit-store";
 
 type ToolbarMode = "idle" | "brush" | "similar" | "inpaint";
@@ -63,6 +64,7 @@ interface InpaintToolbarProps {
   setModel: (v: string) => void;
   imageCount: number;
   setImageCount: (v: number) => void;
+  tier: string;
 }
 
 export function InpaintToolbar({
@@ -92,6 +94,7 @@ export function InpaintToolbar({
   setModel,
   imageCount,
   setImageCount,
+  tier,
 }: InpaintToolbarProps) {
   const creditBalance = useCreditStore((s) => s.balance);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -161,25 +164,29 @@ export function InpaintToolbar({
         </SelectValue>
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false} className="min-w-52">
-        {AI_MODELS.map((m) => (
-          <SelectItem key={m.value} value={m.value}>
-            <HoverCard>
-              <HoverCardTrigger
-                render={<span />}
-                className="underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
-              >
-                {m.label}
-              </HoverCardTrigger>
-              <HoverCardContent side="right" className="text-sm">
-                {m.description}
-              </HoverCardContent>
-            </HoverCard>{" "}
-            <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-              <Coins className="size-2.5 text-yellow-500" />
-              {m.creditCost}/img
-            </span>
-          </SelectItem>
-        ))}
+        {AI_MODELS.map((m) => {
+          const locked = !isModelAvailable(m.value, tier);
+          return (
+            <SelectItem key={m.value} value={m.value} disabled={locked}>
+              <HoverCard>
+                <HoverCardTrigger
+                  render={<span />}
+                  className="underline decoration-dotted underline-offset-2 decoration-muted-foreground/50 cursor-help"
+                >
+                  {locked && <Lock className="mr-1 inline size-3 text-muted-foreground" />}
+                  {m.label}
+                </HoverCardTrigger>
+                <HoverCardContent side="right" className="text-sm">
+                  {locked ? "Upgrade to Starter to unlock" : m.description}
+                </HoverCardContent>
+              </HoverCard>{" "}
+              <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+                <Coins className="size-2.5 text-yellow-500" />
+                {m.creditCost}/img
+              </span>
+            </SelectItem>
+          );
+        })}
       </SelectContent>
     </Select>
   );

@@ -854,6 +854,7 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
               setModel={genActions.setModel}
               imageCount={genActions.imageCount}
               setImageCount={genActions.setImageCount}
+              tier={tier}
             />
           </div>
         </div>
