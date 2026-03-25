@@ -27,7 +27,7 @@ const suggestionSchema = z.object({
   attributeId: z.string().nullable(),
   name: z.string(),
   type: z.enum(["single", "multi", "text", "toggle", "scale", "color", "palette"]),
-  value: z.union([z.string(), z.array(z.string())]),
+  value: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
   isNew: z.boolean(),
   newValues: z
     .array(
@@ -158,6 +158,7 @@ Respond with valid JSON:
 - Set "isNew": true and include "newAttribute" for brand new attributes not in the current config.
 - Set "newValues" when adding values that don't exist in the attribute's current value list.
 - CRITICAL: For "attributeId", use the exact id shown in brackets [id: "..."] in the attribute list. Set to null only for brand new attributes.
+- NEVER return an empty value ("" or []). Every suggestion must have a concrete value. Only suggest attributes you are setting a value for.
 - Do NOT include explanations, reasoning, or commentary — only the JSON object.`;
 
 export function buildAiFillPrompt(
@@ -323,6 +324,12 @@ export function applySuggestions(
         }
       }
     }
+
+    // Skip suggestions with empty values
+    const isEmpty = Array.isArray(suggestion.value)
+      ? suggestion.value.length === 0
+      : suggestion.value === "";
+    if (isEmpty) continue;
 
     updatedSelection[resolvedId] = suggestion.value;
   }
