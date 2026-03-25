@@ -157,8 +157,7 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
     : undefined;
 
   // Forward ref for inpaint — allows genActions to read live inpaint state in handlers
-  const inpaintRef = useRef<{ includeLayers: boolean; flattenCanvasToDataUrl: () => Promise<string | undefined> }>({
-    includeLayers: false,
+  const inpaintRef = useRef<{ flattenCanvasToDataUrl: () => Promise<string | undefined> }>({
     flattenCanvasToDataUrl: async () => undefined,
   });
 

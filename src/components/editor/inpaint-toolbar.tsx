@@ -68,7 +68,7 @@ interface InpaintToolbarProps {
   onInpaintSubmit: (prompt: string) => Promise<void>;
   onCancelInpaint: () => void;
   onRepaint: () => void;
-  onGenerateSimilar: (prompt: string) => Promise<void>;
+  onGenerateSimilar: (prompt: string, includeLayers: boolean) => Promise<void>;
   includeLayers: boolean;
   onIncludeLayersChange: (checked: boolean) => void;
   model: string;
@@ -146,7 +146,7 @@ export function InpaintToolbar({
   async function handleSubmitSimilar() {
     setSimilarSubmitting(true);
     try {
-      await onGenerateSimilar(similarPrompt);
+      await onGenerateSimilar(similarPrompt, false);
       setSimilarOpen(false);
       setSimilarPrompt("");
     } catch (err) {

@@ -27,7 +27,7 @@ export interface UseGenerationActionsResult {
   pendingSlotCounts: Map<string, number>;
   setPendingSlotCounts: React.Dispatch<React.SetStateAction<Map<string, number>>>;
   handleRegenerate: () => Promise<void>;
-  handleGenerateSimilar: (prompt: string) => Promise<void>;
+  handleGenerateSimilar: (prompt: string, includeLayers: boolean) => Promise<void>;
   handleGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
   handleGenerationComplete: (generationId: string) => void;
   allActiveIds: string[];
@@ -41,7 +41,7 @@ export function useGenerationActions(
   attributes: AttributeSelection,
   canvasNodes: CanvasNode[],
   selectedImageId: string | null,
-  inpaintRef: React.RefObject<Pick<UseInpaintStateResult, "includeLayers" | "flattenCanvasToDataUrl">>,
+  inpaintRef: React.RefObject<Pick<UseInpaintStateResult, "flattenCanvasToDataUrl">>,
   router: ReturnType<typeof useRouter>,
   tier: string = "FREE",
 ): UseGenerationActionsResult {
@@ -138,9 +138,9 @@ export function useGenerationActions(
     }
   }
 
-  async function handleGenerateSimilar(prompt: string) {
+  async function handleGenerateSimilar(prompt: string, includeLayers: boolean) {
     if (!selectedImageId) return;
-    const shouldIncludeLayers = inpaintRef.current.includeLayers;
+    const shouldIncludeLayers = includeLayers;
     const flattenedImageDataUrl = shouldIncludeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
     const snapshot: AttributeSelection = { ...attributes };
     if (prompt) snapshot[REF_PROMPT_KEY] = prompt;
