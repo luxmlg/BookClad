@@ -17,11 +17,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import type { CanvasNode } from "./canvas-types";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "./canvas-types";
 import { GenerationHistory } from "./generation-history";
 import { GenerationQueue } from "./generation-queue";
 import { KindlePreview } from "./kindle-preview";
+import { AI_MODELS } from "@/lib/constants";
 import type Konva from "konva";
 import type { Generation } from "./types";
 
@@ -78,6 +86,10 @@ interface EditorCenterPanelProps {
   // Generation state
   hasActiveGeneration: boolean;
   handleRegenerate: () => void;
+  model: string;
+  setModel: (model: string) => void;
+  imageCount: number;
+  setImageCount: (count: number) => void;
 
   // Bottom panel
   panelOpen: boolean;
@@ -133,6 +145,10 @@ export function EditorCenterPanel({
   setKindleCrossfadeSnapshot,
   hasActiveGeneration,
   handleRegenerate,
+  model,
+  setModel,
+  imageCount,
+  setImageCount,
   panelOpen,
   setPanelOpen,
   activeTab,
@@ -288,15 +304,45 @@ export function EditorCenterPanel({
               </p>
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
               <ImageIcon className="size-12 text-muted-foreground/30" />
               <p className="font-medium text-muted-foreground">
                 No generated images yet
               </p>
-              <Button variant="outline" size="sm" onClick={handleRegenerate}>
-                <RefreshCw className="mr-2 size-3.5" />
-                Generate Now
-              </Button>
+              <div className="flex items-center gap-3">
+                <Select value={model} onValueChange={(v) => v && setModel(v)}>
+                  <SelectTrigger className="h-8 w-[120px] text-xs">
+                    <SelectValue>
+                      {AI_MODELS.find((m) => m.value === model)?.label ?? "Model"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AI_MODELS.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={String(imageCount)} onValueChange={(v) => v && setImageCount(Number(v))}>
+                  <SelectTrigger className="h-8 w-[100px] text-xs">
+                    <SelectValue>
+                      {imageCount} {imageCount === 1 ? "image" : "images"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 4, 8].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n} {n === 1 ? "image" : "images"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="default" size="sm" onClick={handleRegenerate}>
+                  <RefreshCw className="mr-2 size-3.5" />
+                  Generate
+                </Button>
+              </div>
             </div>
           )}
           </div>

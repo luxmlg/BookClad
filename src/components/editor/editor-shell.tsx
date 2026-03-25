@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import type Konva from "konva";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode, CanvasState } from "./canvas-types";
@@ -49,6 +49,7 @@ interface EditorShellProps {
 
 export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const stageRef = useRef<Konva.Stage>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -222,6 +223,16 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedNodeId]);
+
+  // Handle tab and gen query params on mount
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "history") {
+      genActions.setActiveTab(0);
+    } else if (tab === "queue") {
+      genActions.setActiveTab(1);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prevent page-level scroll
   useEffect(() => {
@@ -743,6 +754,10 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
         setKindleCrossfadeSnapshot={setKindleCrossfadeSnapshot}
         hasActiveGeneration={genActions.hasActiveGeneration}
         handleRegenerate={genActions.handleRegenerate}
+        model={genActions.model}
+        setModel={genActions.setModel}
+        imageCount={genActions.imageCount}
+        setImageCount={genActions.setImageCount}
         panelOpen={genActions.panelOpen}
         setPanelOpen={genActions.setPanelOpen}
         activeTab={genActions.activeTab}
