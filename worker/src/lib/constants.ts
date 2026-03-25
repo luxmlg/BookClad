@@ -49,9 +49,9 @@ export const MAX_OTHER_RETRIES = 5;
 export const MAX_HIGH_DEMAND_RETRIES = 99;
 
 export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
-  quick: 2,
-  detailed: 4,
-  premium: 6,
+  quick: 3,
+  detailed: 5,
+  premium: 10,
 };
 
 export const GEMINI_MODEL_IDS: Record<string, string> = {

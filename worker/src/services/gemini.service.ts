@@ -73,6 +73,8 @@ export interface GeminiGenerateParams {
   config?: GeminiImageConfig;
 }
 
+const MAX_IMAGES_PER_REQUEST = 4;
+
 export async function generateImages({
   prompt,
   count,
@@ -82,9 +84,19 @@ export async function generateImages({
 }: GeminiGenerateParams): Promise<Buffer[]> {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
+  // Split into batches of max 4 images per API call
+  const batches: number[] = [];
+  let remaining = count;
+  while (remaining > 0) {
+    const batchSize = Math.min(remaining, MAX_IMAGES_PER_REQUEST);
+    batches.push(batchSize);
+    remaining -= batchSize;
+  }
+
   const results: Buffer[] = [];
 
-  for (let i = 0; i < count; i++) {
+  for (let b = 0; b < batches.length; b++) {
+    const batchSize = batches[b];
     const parts: Array<Record<string, unknown>> = [];
 
     if (referenceImage) {
@@ -102,10 +114,11 @@ export async function generateImages({
       responseModalities: ["IMAGE", "TEXT"],
     };
 
-    if (config?.aspectRatio || config?.imageSize) {
-      const imageConfig: Record<string, string> = {};
-      if (config.aspectRatio) imageConfig.aspectRatio = config.aspectRatio;
-      if (config.imageSize) imageConfig.imageSize = config.imageSize;
+    const imageConfig: Record<string, string | number> = {};
+    if (config?.aspectRatio) imageConfig.aspectRatio = config.aspectRatio;
+    if (config?.imageSize) imageConfig.imageSize = config.imageSize;
+    if (batchSize > 1) imageConfig.numberOfImages = batchSize;
+    if (Object.keys(imageConfig).length > 0) {
       generationConfig.imageConfig = imageConfig;
     }
 
@@ -127,7 +140,7 @@ export async function generateImages({
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
     } catch (err) {
-      console.error(`[gemini] fetch failed for model ${modelId} (image ${i + 1}/${count}):`, err);
+      console.error(`[gemini] fetch failed for model ${modelId} (batch ${b + 1}/${batches.length}):`, err);
       throw new Error(
         "Could not reach the image generation service. Please try again.",
         { cause: err },
@@ -135,8 +148,8 @@ export async function generateImages({
     }
 
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      console.error(`[gemini] HTTP ${res.status} for model ${modelId}:`, body);
+      const errBody = await res.text().catch(() => "");
+      console.error(`[gemini] HTTP ${res.status} for model ${modelId}:`, errBody);
       throw new GeminiApiError(res.status);
     }
 
@@ -145,7 +158,7 @@ export async function generateImages({
     if (buffers.length === 0) {
       throw new Error(NO_IMAGES_MESSAGE);
     }
-    results.push(buffers[0]);
+    results.push(...buffers);
   }
 
   return results;

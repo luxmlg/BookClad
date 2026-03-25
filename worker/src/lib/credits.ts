@@ -68,7 +68,11 @@ export async function refundStaleGeneration(generationId: string): Promise<boole
 
   if (hasExistingImages) {
     // Extension that stalled — revert to COMPLETED, refund only extension portion
-    const perImageCost = CREDIT_COST_PER_IMAGE[generation.model ?? "quick"] ?? 2;
+    const model = generation.model ?? "quick";
+    const perImageCost = CREDIT_COST_PER_IMAGE[model];
+    if (perImageCost === undefined) {
+      throw new Error(`Unknown model "${model}" for generation ${generation.id}`);
+    }
     const costForExisting = perImageCost * generation._count.images;
     const extensionRefund = Math.max(0, (generation.creditCost ?? 0) - costForExisting);
 

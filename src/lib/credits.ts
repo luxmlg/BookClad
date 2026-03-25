@@ -25,7 +25,10 @@ export class InsufficientCreditsError extends Error {
 }
 
 export function calculateCreditCost(model: string, imageCount: number): number {
-  const perImage = CREDIT_COST_PER_IMAGE[model] ?? CREDIT_COST_PER_IMAGE.quick;
+  const perImage = CREDIT_COST_PER_IMAGE[model];
+  if (perImage === undefined) {
+    throw new Error(`Unknown model "${model}" — cannot calculate credit cost`);
+  }
   return perImage * imageCount;
 }
 

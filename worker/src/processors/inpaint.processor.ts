@@ -6,7 +6,7 @@ import { inpaintImage as geminiInpaint } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
-import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG, RETRY_DELAYS, MAX_OTHER_RETRIES, MAX_HIGH_DEMAND_RETRIES } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG, RETRY_DELAYS, MAX_OTHER_RETRIES, MAX_HIGH_DEMAND_RETRIES, CREDIT_COST_PER_IMAGE } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
 import { extractDescriptions } from "../lib/prompt.js";
 import { preflight } from "../lib/health.js";
@@ -177,31 +177,54 @@ export async function processInpaint(job: Job<InpaintJobData>) {
     const generationId = job.data.generationId;
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
 
+    // Guard: if already FAILED (user cancelled + refunded), skip all error handling
+    const genStatus = await prisma.generation.findUnique({
+      where: { id: generationId },
+      select: { status: true },
+    });
+    if (genStatus?.status === GENERATION_STATUS.FAILED) {
+      throw new UnrecoverableError("Cancelled by user");
+    }
+
     // Path 1: Extensions don't auto-retry
     if (job.data.isExtension) {
-      const actualCount = await prisma.generatedImage.count({
-        where: { generationId },
-      });
-      if (actualCount > 0) {
+      const [actualCount, gen] = await Promise.all([
+        prisma.generatedImage.count({ where: { generationId } }),
+        prisma.generation.findUnique({
+          where: { id: generationId },
+          select: { imageCount: true },
+        }),
+      ]);
+
+      const preExtensionCount = (gen?.imageCount ?? 0) - (job.data.imageCount ?? 0);
+      const newImagesCreated = Math.max(0, actualCount - preExtensionCount);
+      const perImageCost = CREDIT_COST_PER_IMAGE[job.data.model];
+      if (perImageCost === undefined) throw new Error(`Unknown model "${job.data.model}"`);
+      const costForNewImages = newImagesCreated * perImageCost;
+      const refundAmount = Math.max(0, job.data.creditCost - costForNewImages);
+
+      if (newImagesCreated > 0) {
         await prisma.generation.update({
           where: { id: generationId },
           data: {
             status: GENERATION_STATUS.COMPLETED,
             imageCount: actualCount,
-            creditCost: { decrement: job.data.creditCost },
+            creditCost: { decrement: refundAmount },
           },
         });
       } else {
+        // No new images — revert to pre-extension state
         await prisma.generation.update({
           where: { id: generationId },
           data: {
-            status: GENERATION_STATUS.FAILED,
-            errorMessage: errorMsg,
+            status: GENERATION_STATUS.COMPLETED,
+            imageCount: preExtensionCount,
+            creditCost: { decrement: job.data.creditCost },
           },
         });
       }
-      if (job.data.creditCost > 0) {
-        await refundCredits(job.data.userId, generationId, job.data.creditCost);
+      if (refundAmount > 0) {
+        await refundCredits(job.data.userId, generationId, refundAmount);
       }
       await publishProgress(job, generationId, {
         type: EVENT_TYPE.FAILED,
@@ -215,11 +238,11 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       where: { generationId },
     });
     if (existingImages > 0) {
-      await prisma.generation.update({
-        where: { id: generationId },
+      const updated = await prisma.generation.updateMany({
+        where: { id: generationId, status: { not: GENERATION_STATUS.FAILED } },
         data: { status: GENERATION_STATUS.FAILED, errorMessage: errorMsg },
       });
-      if (job.data.creditCost > 0) {
+      if (updated.count > 0 && job.data.creditCost > 0) {
         await refundCredits(job.data.userId, generationId, job.data.creditCost);
       }
       await publishProgress(job, generationId, {
@@ -250,8 +273,8 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       const delay = RETRY_DELAYS[delayIdx];
       const nextRetryAt = new Date(Date.now() + delay);
 
-      await prisma.generation.update({
-        where: { id: generationId },
+      const retryUpdated = await prisma.generation.updateMany({
+        where: { id: generationId, status: { not: GENERATION_STATUS.FAILED } },
         data: {
           status: GENERATION_STATUS.RETRYING,
           retryCount: attemptNumber,
@@ -260,6 +283,9 @@ export async function processInpaint(job: Job<InpaintJobData>) {
           errorMessage: errorMsg,
         },
       });
+      if (retryUpdated.count === 0) {
+        throw new UnrecoverableError("Cancelled by user");
+      }
       await publishProgress(job, generationId, {
         type: EVENT_TYPE.RETRYING,
         retryCount: attemptNumber,
@@ -271,11 +297,11 @@ export async function processInpaint(job: Job<InpaintJobData>) {
     }
 
     // Not retryable — permanent failure
-    await prisma.generation.update({
-      where: { id: generationId },
+    const failUpdated = await prisma.generation.updateMany({
+      where: { id: generationId, status: { not: GENERATION_STATUS.FAILED } },
       data: { status: GENERATION_STATUS.FAILED, errorMessage: errorMsg },
     });
-    if (job.data.creditCost > 0) {
+    if (failUpdated.count > 0 && job.data.creditCost > 0) {
       await refundCredits(job.data.userId, generationId, job.data.creditCost);
     }
     await publishProgress(job, generationId, {

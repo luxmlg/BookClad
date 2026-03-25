@@ -13,20 +13,29 @@ export async function sweepExpiredCredits(): Promise<number> {
 
   for (const pool of expiredPools) {
     await prisma.$transaction(async (tx) => {
+      // Re-read pool inside transaction to get fresh remaining
+      const freshPool = await tx.creditPool.findUnique({
+        where: { id: pool.id },
+      });
+      if (!freshPool || freshPool.remaining <= 0) return;
+
+      // Lock user row to prevent concurrent spends during expiry
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${freshPool.userId} FOR UPDATE`;
+
       await tx.creditPool.update({
         where: { id: pool.id },
         data: { remaining: 0 },
       });
 
       const user = await tx.user.update({
-        where: { id: pool.userId },
-        data: { creditBalance: { decrement: pool.remaining } },
+        where: { id: freshPool.userId },
+        data: { creditBalance: { decrement: freshPool.remaining } },
       });
 
       await tx.creditTransaction.create({
         data: {
-          userId: pool.userId,
-          amount: -pool.remaining,
+          userId: freshPool.userId,
+          amount: -freshPool.remaining,
           balanceAfter: user.creditBalance,
           type: "EXPIRE",
           description: "Credits expired",

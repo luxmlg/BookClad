@@ -53,9 +53,9 @@ export const JOB_TYPE = {
 export type JobType = typeof JOB_TYPE[keyof typeof JOB_TYPE];
 
 export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
-  quick: 2,
-  detailed: 4,
-  premium: 6,
+  quick: 3,
+  detailed: 5,
+  premium: 10,
 };
 
 export const AI_FILL_CREDIT_COST = 1;

@@ -155,7 +155,7 @@ Defined in `src/lib/attributes.ts`. Provides a flexible, user-customizable syste
 
 Billing uses a credit ledger instead of a generation counter. Defined in `src/lib/credits.ts` (app) and `worker/src/lib/credits.ts` (worker).
 
-**Per-image costs**: `CREDIT_COST_PER_IMAGE` in constants — quick (2), detailed (4), premium (6). Also exposed as `creditCost` on each `AI_MODELS` entry.
+**Per-image costs**: `CREDIT_COST_PER_IMAGE` in constants — quick (3), detailed (5), premium (10). Also exposed as `creditCost` on each `AI_MODELS` entry.
 
 **Tier allowances**: `TIER_CREDITS` — FREE (15 one-time on signup), STARTER (100/month), PRO (250/month), STUDIO (500/month).
 
