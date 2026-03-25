@@ -184,6 +184,13 @@ export async function inpaintImage({
     responseModalities: ["IMAGE", "TEXT"],
   };
 
+  if (config?.aspectRatio || config?.imageSize) {
+    const imageConfig: Record<string, string> = {};
+    if (config.aspectRatio) imageConfig.aspectRatio = config.aspectRatio;
+    if (config.imageSize) imageConfig.imageSize = config.imageSize;
+    generationConfig.imageConfig = imageConfig;
+  }
+
   if (config?.thinkingLevel) {
     generationConfig.thinkingConfig = { thinkingLevel: config.thinkingLevel };
   }
