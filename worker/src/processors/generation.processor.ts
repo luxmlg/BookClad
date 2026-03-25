@@ -1,4 +1,4 @@
-import { Job } from "bullmq";
+import { Job, UnrecoverableError } from "bullmq";
 import { prisma } from "../lib/prisma.js";
 import { publishProgress } from "../lib/progress.js";
 import { generateImages as geminiGenerate } from "../services/gemini.service.js";
@@ -7,7 +7,7 @@ import { cropToKDP } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
 import { buildSystemPrompt, buildAttributeContext, buildAttributeValues, extractDescriptions, type TextLayerInfo } from "../lib/prompt.js";
-import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG, RETRY_DELAYS, MAX_OTHER_RETRIES, MAX_HIGH_DEMAND_RETRIES } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
 import { preflight } from "../lib/health.js";
 
@@ -31,6 +31,16 @@ export async function processGeneration(job: Job<GenerationJobData>) {
   const hasRef = !!referenceImageKey;
   const totalSteps = (hasRef ? 1 : 0) + 1 + imageCount * 3;
   let step = 0;
+
+  // Check if user cancelled while this retry was queued
+  const genCheck = await prisma.generation.findUnique({
+    where: { id: generationId },
+    select: { status: true },
+  });
+  if (genCheck?.status === GENERATION_STATUS.FAILED) {
+    console.log(`[generation] Generation ${generationId} was cancelled, skipping`);
+    return;
+  }
 
   await prisma.generation.update({
     where: { id: generationId },
@@ -139,36 +149,110 @@ export async function processGeneration(job: Job<GenerationJobData>) {
 
     await publishProgress(job, generationId, { type: EVENT_TYPE.COMPLETED });
   } catch (error) {
+    const generationId = job.data.generationId;
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+
+    // Path 1: Extensions don't auto-retry
     if (job.data.isExtension) {
       const actualCount = await prisma.generatedImage.count({
         where: { generationId },
       });
-      await prisma.generation.update({
-        where: { id: generationId },
-        data: {
-          status: GENERATION_STATUS.COMPLETED,
-          imageCount: actualCount,
-          creditCost: { decrement: job.data.creditCost },
-        },
+      if (actualCount > 0) {
+        await prisma.generation.update({
+          where: { id: generationId },
+          data: {
+            status: GENERATION_STATUS.COMPLETED,
+            imageCount: actualCount,
+            creditCost: { decrement: job.data.creditCost },
+          },
+        });
+      } else {
+        await prisma.generation.update({
+          where: { id: generationId },
+          data: {
+            status: GENERATION_STATUS.FAILED,
+            errorMessage: errorMsg,
+          },
+        });
+      }
+      if (job.data.creditCost > 0) {
+        await refundCredits(job.data.userId, generationId, job.data.creditCost);
+      }
+      await publishProgress(job, generationId, {
+        type: EVENT_TYPE.FAILED,
+        error: errorMsg,
       });
-    } else {
-      await prisma.generation.update({
-        where: { id: generationId },
-        data: {
-          status: GENERATION_STATUS.FAILED,
-          errorMessage: error instanceof Error ? error.message : "Unknown error",
-        },
-      });
+      throw new UnrecoverableError(errorMsg);
     }
 
+    // Path 2: Partial success (some images created before error)
+    const existingImages = await prisma.generatedImage.count({
+      where: { generationId },
+    });
+    if (existingImages > 0) {
+      await prisma.generation.update({
+        where: { id: generationId },
+        data: { status: GENERATION_STATUS.FAILED, errorMessage: errorMsg },
+      });
+      if (job.data.creditCost > 0) {
+        await refundCredits(job.data.userId, generationId, job.data.creditCost);
+      }
+      await publishProgress(job, generationId, {
+        type: EVENT_TYPE.FAILED,
+        error: errorMsg,
+      });
+      throw new UnrecoverableError(errorMsg);
+    }
+
+    // Path 3/4: Classify error and determine retryability
+    const isHighDemand = error instanceof Error &&
+      ("status" in error && ((error as any).status === 429 || (error as any).status === 503)) ||
+      /rate.?limit/i.test(errorMsg) ||
+      /too many requests/i.test(errorMsg) ||
+      /overloaded/i.test(errorMsg);
+    const retryReason = isHighDemand ? "high_demand" : "error";
+    const maxRetries = isHighDemand ? MAX_HIGH_DEMAND_RETRIES : MAX_OTHER_RETRIES;
+
+    const attemptNumber = job.attemptsMade + 1;
+    const retryable = attemptNumber < maxRetries;
+
+    if (retryable) {
+      const delayIdx = Math.min(job.attemptsMade, RETRY_DELAYS.length - 1);
+      const delay = RETRY_DELAYS[delayIdx];
+      const nextRetryAt = new Date(Date.now() + delay);
+
+      await prisma.generation.update({
+        where: { id: generationId },
+        data: {
+          status: GENERATION_STATUS.RETRYING,
+          retryCount: attemptNumber,
+          retryReason,
+          nextRetryAt,
+          errorMessage: errorMsg,
+        },
+      });
+      await publishProgress(job, generationId, {
+        type: EVENT_TYPE.RETRYING,
+        retryCount: attemptNumber,
+        retryReason,
+        nextRetryAt: nextRetryAt.toISOString(),
+        errorMessage: errorMsg,
+      });
+      throw error; // Re-throw original — BullMQ schedules retry. Do NOT refund.
+    }
+
+    // Not retryable — permanent failure
+    await prisma.generation.update({
+      where: { id: generationId },
+      data: { status: GENERATION_STATUS.FAILED, errorMessage: errorMsg },
+    });
     if (job.data.creditCost > 0) {
       await refundCredits(job.data.userId, generationId, job.data.creditCost);
     }
-
     await publishProgress(job, generationId, {
       type: EVENT_TYPE.FAILED,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMsg,
     });
-    throw error;
+    throw new UnrecoverableError(errorMsg);
   }
 }
