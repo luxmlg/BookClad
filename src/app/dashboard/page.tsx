@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DeleteProjectButton } from "@/components/dashboard/delete-project-button";
+import { ActiveGenerationRows } from "@/components/dashboard/active-generation-row";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -35,6 +36,35 @@ export default async function DashboardPage() {
       },
     },
   });
+
+  // Separate query for active generations
+  const activeGenerations = await prisma.generation.findMany({
+    where: {
+      project: { userId: session.user.id },
+      status: { in: [GENERATION_STATUS.QUEUED, GENERATION_STATUS.PROCESSING, GENERATION_STATUS.RETRYING] },
+    },
+    select: {
+      id: true,
+      projectId: true,
+      status: true,
+      imageCount: true,
+      model: true,
+      retryCount: true,
+      retryReason: true,
+      nextRetryAt: true,
+      errorMessage: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Group by project
+  const activeByProject = new Map<string, typeof activeGenerations>();
+  for (const gen of activeGenerations) {
+    const list = activeByProject.get(gen.projectId) ?? [];
+    list.push(gen);
+    activeByProject.set(gen.projectId, list);
+  }
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-10">
@@ -92,6 +122,12 @@ export default async function DashboardPage() {
                     </div>
                   </div>
                 </Link>
+                {activeByProject.has(project.id) && (
+                  <ActiveGenerationRows
+                    projectId={project.id}
+                    initialGenerations={activeByProject.get(project.id)!}
+                  />
+                )}
                 <div className="absolute top-2 right-2 z-10">
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger className="rounded-md bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/70 group-hover:opacity-100">
