@@ -203,5 +203,13 @@ export function useGenerationProgress(generationId: string) {
     return unsubscribe;
   }, [generationId, handleEvent]);
 
-  return { status, progressMessage, errorMessage, step, totalSteps, retryCount, retryReason, nextRetryAt };
+  /** Allow the poller to inject API-fetched state when WebSocket misses events. */
+  const syncState = useCallback(
+    (data: Partial<GenerationProgress>) => {
+      handleEvent({ generationId, status: data.status ?? status, progressMessage: data.progressMessage ?? null, errorMessage: data.errorMessage ?? null, step: data.step ?? 0, totalSteps: data.totalSteps ?? 0, retryCount: data.retryCount ?? 0, retryReason: data.retryReason ?? null, nextRetryAt: data.nextRetryAt ?? null });
+    },
+    [generationId, handleEvent, status],
+  );
+
+  return { status, progressMessage, errorMessage, step, totalSteps, retryCount, retryReason, nextRetryAt, syncState };
 }

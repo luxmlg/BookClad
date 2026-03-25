@@ -37,8 +37,16 @@ export async function createGeneration(params: CreateGenerationParams): Promise<
   return data;
 }
 
-export async function getGeneration(id: string): Promise<{ status: string; errorMessage: string | null }> {
-  const { data } = await api.get<{ status: string; errorMessage: string | null }>(`/api/generations/${id}`);
+export interface GenerationPollData {
+  status: string;
+  errorMessage: string | null;
+  retryCount: number;
+  retryReason: string | null;
+  nextRetryAt: string | null;
+}
+
+export async function getGeneration(id: string): Promise<GenerationPollData> {
+  const { data } = await api.get<GenerationPollData>(`/api/generations/${id}`);
   return data;
 }
 

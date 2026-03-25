@@ -167,10 +167,11 @@ function QueueProgress({
 }) {
   if (poller.status === GENERATION_STATUS.QUEUED) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <span className="text-xs text-muted-foreground">Waiting in queue...</span>
-      </div>
+      <QueueCancelRow
+        generationId={generationId}
+        onCancel={onCancel}
+        message="Waiting in queue..."
+      />
     );
   }
 
@@ -213,6 +214,48 @@ function QueueProgress({
   }
 
   return null;
+}
+
+function QueueCancelRow({
+  generationId,
+  onCancel,
+  message,
+}: {
+  generationId: string;
+  onCancel: () => void;
+  message: string;
+}) {
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleCancel = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setCancelling(true);
+      try {
+        await cancelGeneration(generationId);
+        onCancel();
+      } catch {
+        setCancelling(false);
+      }
+    },
+    [generationId, onCancel],
+  );
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <span className="flex-1 text-xs text-muted-foreground">{message}</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-destructive"
+        onClick={handleCancel}
+        disabled={cancelling}
+      >
+        {cancelling ? "Cancelling..." : "Cancel"}
+      </Button>
+    </div>
+  );
 }
 
 function RetryingProgress({

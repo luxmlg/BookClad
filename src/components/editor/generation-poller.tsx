@@ -27,7 +27,7 @@ export interface GenerationPollerState {
 
 export function useGenerationPoller({ generationId, onComplete }: UseGenerationPollerOptions): GenerationPollerState {
   const router = useRouter();
-  const { status, progressMessage, errorMessage, step, totalSteps, retryCount, retryReason, nextRetryAt } = useGenerationProgress(generationId);
+  const { status, progressMessage, errorMessage, step, totalSteps, retryCount, retryReason, nextRetryAt, syncState } = useGenerationProgress(generationId);
   const completedRef = useRef(false);
 
   const handleComplete = (failed?: string) => {
@@ -53,6 +53,15 @@ export function useGenerationPoller({ generationId, onComplete }: UseGenerationP
           handleComplete();
         } else if (data.status === GENERATION_STATUS.FAILED) {
           handleComplete(data.errorMessage ?? "Generation failed. Please try again.");
+        } else if (data.status !== status) {
+          // Sync intermediate states (e.g. RETRYING) that WebSocket may have missed
+          syncState({
+            status: data.status as GenerationStatus,
+            retryCount: data.retryCount ?? 0,
+            retryReason: data.retryReason ?? null,
+            nextRetryAt: data.nextRetryAt ? String(data.nextRetryAt) : null,
+            errorMessage: data.errorMessage ?? null,
+          });
         }
       } catch {
         // Ignore fetch errors
