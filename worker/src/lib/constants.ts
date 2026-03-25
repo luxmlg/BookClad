@@ -50,12 +50,12 @@ export const MAX_HIGH_DEMAND_RETRIES = 99;
 
 export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
   quick: 2,
-  detailed: 3,
-  premium: 5,
+  detailed: 4,
+  premium: 6,
 };
 
 export const GEMINI_MODEL_IDS: Record<string, string> = {
-  quick: "gemini-2.5-flash-image",
+  quick: "gemini-3.1-flash-image-preview",
   detailed: "gemini-3.1-flash-image-preview",
   premium: "gemini-3-pro-image-preview",
 };
@@ -67,7 +67,7 @@ export interface GeminiModelConfig {
 }
 
 export const GEMINI_MODEL_CONFIG: Record<string, GeminiModelConfig> = {
-  quick: {},
+  quick: { aspectRatio: "9:16", imageSize: "1K" },
   detailed: { aspectRatio: "9:16", imageSize: "4K", thinkingLevel: "High" },
   premium: { aspectRatio: "9:16", imageSize: "4K" },
 };
