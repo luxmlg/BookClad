@@ -13,6 +13,7 @@ export const GENERATION_STATUS = {
   PROCESSING: "PROCESSING",
   COMPLETED: "COMPLETED",
   FAILED: "FAILED",
+  RETRYING: "RETRYING",
 } as const;
 export type GenerationStatus = typeof GENERATION_STATUS[keyof typeof GENERATION_STATUS];
 
@@ -32,6 +33,7 @@ export const EVENT_TYPE = {
   PROGRESS: "progress",
   COMPLETED: "completed",
   FAILED: "failed",
+  RETRYING: "retrying",
 } as const;
 export type EventType = typeof EVENT_TYPE[keyof typeof EVENT_TYPE];
 
@@ -41,6 +43,10 @@ export const WS_MESSAGE_TYPE = {
 } as const;
 
 export const REF_PROMPT_KEY = "ref-instructions";
+
+export const RETRY_DELAYS = [5_000, 15_000, 30_000, 60_000] as const;
+export const MAX_OTHER_RETRIES = 5;
+export const MAX_HIGH_DEMAND_RETRIES = 99;
 
 export const CREDIT_COST_PER_IMAGE: Record<string, number> = {
   quick: 2,

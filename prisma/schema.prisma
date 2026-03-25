@@ -105,6 +105,7 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+  RETRYING
 }
 
 model CoverProject {
@@ -143,6 +144,9 @@ model Generation {
   parentImageId     String?
   includeLayers     Boolean   @default(false)
   errorMessage          String?
+  retryCount            Int       @default(0)
+  retryReason           String?
+  nextRetryAt           DateTime?
   aiModelId             String?
   attributeSnapshot     Json?
   descriptionSnapshot   Json?
