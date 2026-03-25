@@ -308,7 +308,7 @@ export function InpaintToolbar({
                   ? "e.g. More dramatic, warmer tones..."
                   : "e.g. Replace with a starry sky..."
             }
-            rows={2}
+            rows={4}
             autoFocus={!isSimilar}
             className="flex w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
           />
@@ -580,7 +580,7 @@ export function InpaintToolbar({
       <PopoverPrimitive.Root open={mode === "similar"}>
         <PopoverPrimitive.Portal>
           <PopoverPrimitive.Positioner className="isolate z-50" anchor={toolbarRef} side="top" sideOffset={8} align="center">
-            <PopoverPrimitive.Popup className="z-50 w-72 rounded-lg border bg-popover p-3 shadow-md">
+            <PopoverPrimitive.Popup className="z-50 w-80 rounded-lg border bg-popover p-3 shadow-md">
               {renderPopoverBody("similar")}
             </PopoverPrimitive.Popup>
           </PopoverPrimitive.Positioner>
@@ -591,7 +591,7 @@ export function InpaintToolbar({
       <PopoverPrimitive.Root open={mode === "inpaint"}>
         <PopoverPrimitive.Portal>
           <PopoverPrimitive.Positioner className="isolate z-50" anchor={toolbarRef} side="top" sideOffset={8} align="center">
-            <PopoverPrimitive.Popup className="z-50 w-72 rounded-lg border bg-popover p-3 shadow-md">
+            <PopoverPrimitive.Popup className="z-50 w-80 rounded-lg border bg-popover p-3 shadow-md">
               {renderPopoverBody("inpaint")}
             </PopoverPrimitive.Popup>
           </PopoverPrimitive.Positioner>
@@ -602,7 +602,7 @@ export function InpaintToolbar({
       <PopoverPrimitive.Root open={mode === "bake"}>
         <PopoverPrimitive.Portal>
           <PopoverPrimitive.Positioner className="isolate z-50" anchor={toolbarRef} side="top" sideOffset={8} align="center">
-            <PopoverPrimitive.Popup className="z-50 w-72 rounded-lg border bg-popover p-3 shadow-md">
+            <PopoverPrimitive.Popup className="z-50 w-80 rounded-lg border bg-popover p-3 shadow-md">
               {renderPopoverBody("bake")}
             </PopoverPrimitive.Popup>
           </PopoverPrimitive.Positioner>
