@@ -167,6 +167,7 @@ export function useGenerationActions(
     if (!selectedImageId) return;
     const flattenedImageDataUrl = includeLayers ? await flattenCanvasToDataUrl() : undefined;
     const snapshot: AttributeSelection = { ...attributes };
+    delete snapshot[REF_PROMPT_KEY];
     if (prompt) snapshot[REF_PROMPT_KEY] = prompt;
     const data = await createGeneration({
       projectId,
