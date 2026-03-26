@@ -101,11 +101,12 @@ Both processors support `isExtension` flag for partial-failure handling: if some
 - **High demand** (429/503 or rate-limit patterns): retries up to `MAX_HIGH_DEMAND_RETRIES` (10), total ~13 min
 - **Other errors**: retries up to `MAX_OTHER_RETRIES` (5), total ~5 min
 - **Extensions**: never retry (throw `UnrecoverableError`)
-- **Partial success** (some images created): never retry (would create duplicates)
+
+Error classification runs BEFORE the partial-success check. This means retryable errors trigger retry even when some images already exist in DB. On retry, processors count existing images and skip them (`for (let i = alreadyGenerated; i < imageCount; i++)`), generating only the remaining ones. Only non-retryable errors with partial images trigger Path 2 (COMPLETED with errorMessage + partial refund).
 
 On retryable failure: sets `status: RETRYING` with `retryCount`, `retryReason` (`"high_demand"` or `"error"`), `nextRetryAt`, and `errorMessage`. Publishes `EVENT_TYPE.RETRYING` via WebSocket. Re-throws the original error so BullMQ schedules the retry. Credits stay reserved (no refund until permanent failure or user cancellation).
 
-On non-retryable failure: sets `status: FAILED`, refunds credits, throws `UnrecoverableError`.
+On non-retryable failure with images: sets `status: COMPLETED` with `errorMessage`, partial refund. On non-retryable failure without images: sets `status: FAILED`, full refund.
 
 Both processors check for user cancellation before processing and at the top of error handling: if `generation.status === FAILED` (set by cancel API), the processor returns early without doing any work or refunding (cancel API already refunded). Status updates in error handlers use conditional `updateMany` with `status: { not: FAILED }` to prevent double refunds.
 
