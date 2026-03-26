@@ -861,6 +861,8 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
               setImageCount={genActions.setImageCount}
               tier={tier}
               nodes={nodes}
+              onBakeSubmit={inpaint.handleBakeSubmit}
+              bakeSubmitting={inpaint.bakeSubmitting}
             />
           </div>
         </div>

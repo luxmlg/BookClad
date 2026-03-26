@@ -47,17 +47,11 @@ import type { CanvasNode } from "./canvas-types";
 type ToolbarMode = "idle" | "brush" | "similar" | "bake" | "inpaint";
 type BakeStyle = "stylized" | "clean";
 
-function buildBakeLayersPrompt(nodes: CanvasNode[], style: BakeStyle): string {
-  const visible = nodes.filter((n) => n.visible);
-  if (visible.length === 0) return "";
-  const lines = visible.map((n) => {
-    if (n.type === "text") return `${n.name ?? "Text"} text: "${n.text}"`;
-    return `Image layer: "${n.name ?? n.id}"`;
-  });
-  const styleInstruction = style === "stylized"
-    ? "Render these text elements with creative, genre-appropriate typography — stylized, decorative, and integrated into the cover artwork as a professional book cover designer would. Use effects like embossing, glow, texture, or shadow that match the cover's mood."
-    : "Render these text elements in clean, simple, readable fonts — no decorative effects, just well-placed legible text that complements the artwork.";
-  return `Incorporate these elements into the cover image naturally:\n${lines.map((l) => `- ${l}`).join("\n")}\n\n${styleInstruction}`;
+function buildBakeLayersPrompt(style: BakeStyle): string {
+  if (style === "stylized") {
+    return "The second image is a mask showing regions where text/layers were placed onto the cover. Integrate the content in these masked regions into the artwork with creative, genre-appropriate effects — embossing, glow, texture, shadows. Make it look like a professionally designed cover. Do not modify anything outside the masked regions.";
+  }
+  return "The second image is a mask showing regions where text/layers were placed onto the cover. Blend the content in these masked regions cleanly into the composition — add subtle shadows or contrast adjustments for legibility. Do not apply decorative effects. Do not modify anything outside the masked regions.";
 }
 
 interface InpaintToolbarProps {
@@ -89,6 +83,8 @@ interface InpaintToolbarProps {
   setImageCount: (v: number) => void;
   tier: string;
   nodes: CanvasNode[];
+  onBakeSubmit: (prompt: string, imageCount: number) => Promise<void>;
+  bakeSubmitting: boolean;
 }
 
 export function InpaintToolbar({
@@ -120,6 +116,8 @@ export function InpaintToolbar({
   setImageCount,
   tier,
   nodes,
+  onBakeSubmit,
+  bakeSubmitting,
 }: InpaintToolbarProps) {
   const creditBalance = useCreditStore((s) => s.balance);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -130,7 +128,6 @@ export function InpaintToolbar({
   const [inpaintPrompt, setInpaintPrompt] = useState("");
   const [bakeOpen, setBakeOpen] = useState(false);
   const [bakePrompt, setBakePrompt] = useState("");
-  const [bakeSubmitting, setBakeSubmitting] = useState(false);
   const [bakeStyle, setBakeStyle] = useState<BakeStyle | null>("stylized");
 
   const hasVisibleLayers = nodes.some((n) => n.visible);
@@ -143,7 +140,7 @@ export function InpaintToolbar({
             "idle";
 
   const perImageCost = AI_MODELS.find((m) => m.value === model)?.creditCost ?? 5;
-  const creditCost = mode === "inpaint" ? perImageCost : perImageCost * imageCount;
+  const creditCost = perImageCost * imageCount;
   const insufficientCredits = creditBalance < creditCost;
 
   // Reset on image change
@@ -169,7 +166,7 @@ export function InpaintToolbar({
   function handleOpenBake() {
     const style: BakeStyle = bakeStyle ?? "stylized";
     setBakeStyle(style);
-    setBakePrompt(buildBakeLayersPrompt(nodes, style));
+    setBakePrompt(buildBakeLayersPrompt(style));
     setBakeOpen(true);
   }
 
@@ -180,19 +177,16 @@ export function InpaintToolbar({
 
   function handleBakeStyleChange(style: BakeStyle) {
     setBakeStyle(style);
-    setBakePrompt(buildBakeLayersPrompt(nodes, style));
+    setBakePrompt(buildBakeLayersPrompt(style));
   }
 
   async function handleSubmitBake() {
-    setBakeSubmitting(true);
     try {
-      await onGenerateSimilar(bakePrompt, true);
+      await onBakeSubmit(bakePrompt, imageCount);
       setBakeOpen(false);
       setBakePrompt("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setBakeSubmitting(false);
     }
   }
 
@@ -607,6 +601,7 @@ export function InpaintToolbar({
                 Re-paint
               </Button>
               {modelSelector}
+              {imageCountSlider}
               <div className="mx-1 h-5 w-px bg-border" />
               <button
                 onClick={handleCancelInpaint}
