@@ -9,9 +9,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const COVERS = [
   { image: "/landing/covers/cover-1.jpg", genre: "Thriller", title: "The Last Witness", author: "James Mercer", attributes: [] as string[] },
-  { image: "/landing/covers/cover-4.jpg", genre: "Sci-Fi", title: "Neon Horizon", author: "Dex Omari", attributes: [] as string[] },
   { image: "/landing/covers/cover-2.jpg", genre: "Romance", title: "Where Peonies Bloom", author: "Claire Fontaine", attributes: [] as string[] },
   { image: "/landing/covers/cover-3.jpg", genre: "Fantasy", title: "Crown of Embers", author: "R.K. Ashwood", attributes: [] as string[] },
+  { image: "/landing/covers/cover-4.jpg", genre: "Sci-Fi", title: "Neon Horizon", author: "Dex Omari", attributes: [] as string[] },
   { image: "/landing/covers/cover-5.jpg", genre: "Horror", title: "Hollow Ground", author: "M. Blackwell", attributes: [] as string[] },
   { image: "/landing/covers/cover-6.jpg", genre: "Literary Fiction", title: "The Weight of Small Things", author: "Nora Chen", attributes: [] as string[] },
   { image: "/landing/covers/cover-7.jpg", genre: "Self-Help", title: "Atomic Focus", author: "Dr. Lena Park", attributes: [] as string[] },
