@@ -562,11 +562,9 @@ export function GenerationGroup({
 
           {/* Right: details */}
           <div className="min-w-0 flex-1 space-y-1 text-xs">
-            {/* Prompt (for inpaint/similar) */}
-            {(jobType === JOB_TYPE.INPAINT || jobType === JOB_TYPE.GENERATE_FROM_REFERENCE) && (() => {
-              const userText = jobType === JOB_TYPE.INPAINT
-                ? generation.prompt
-                : (typeof refPrompt === "string" ? refPrompt : undefined);
+            {/* Prompt (for similar/reference) */}
+            {jobType === JOB_TYPE.GENERATE_FROM_REFERENCE && (() => {
+              const userText = typeof refPrompt === "string" ? refPrompt : undefined;
               return (
                 <div>
                   <span
@@ -579,7 +577,7 @@ export function GenerationGroup({
                       }
                     }}
                   >
-                    {jobType === JOB_TYPE.INPAINT ? `Edit on #${parentGenIndex}:` : `Similar to #${parentGenIndex}:`}
+                    {`Similar to #${parentGenIndex}:`}
                   </span>{" "}
                   {userText ? (
                     <>
@@ -595,9 +593,9 @@ export function GenerationGroup({
                         </button>
                       )}
                     </>
-                  ) : jobType === JOB_TYPE.GENERATE_FROM_REFERENCE ? (
+                  ) : (
                     <span className="text-muted-foreground italic">no additional instructions</span>
-                  ) : null}
+                  )}
                 </div>
               );
             })()}
@@ -694,8 +692,8 @@ export function GenerationGroup({
               </div>
             )}
 
-            {/* System prompt (non-inpaint) */}
-            {jobType !== JOB_TYPE.INPAINT && generation.prompt && (
+            {/* System prompt */}
+            {generation.prompt && (
               <div>
                 <button
                   onClick={() => setSysPromptExpanded((e) => !e)}
