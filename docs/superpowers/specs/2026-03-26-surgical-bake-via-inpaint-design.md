@@ -75,20 +75,32 @@ Replace `buildBakeLayersPrompt()` to reflect the new approach — text/images ar
 
 The function no longer lists individual layer names/text since the AI can see the rendered text directly.
 
-### 7. Inpaint toolbar changes
+### 7. Support `imageCount` for inpaint and bake
+
+The worker already supports `imageCount` for inpaint (loops, progress messages, partial failure). But the API and client hardcode it to 1. Pipe it through:
+
+- **`createInpaintSchema`** in `src/lib/validations.ts`: add optional `imageCount` field (same constraints as generation: `z.number().int().min(1).max(8)`)
+- **`CreateInpaintParams`** in `src/lib/api/generations.ts`: add optional `imageCount` field
+- **`/api/inpaint` route**: read `imageCount` from parsed body (default 1), pass to `reserveCredits` and job data. Credit cost = `calculateCreditCost(model, imageCount)`.
+- **`InpaintJobData`** in `inpaint.processor.ts`: `imageCount` field already exists (optional, defaults to 1). No processor changes needed.
+
+### 8. Inpaint toolbar changes
 
 - `handleSubmitBake` calls `onBakeSubmit(bakePrompt)` (new prop from hook)
-- Remove image count slider from bake mode (bake produces 1 image)
-- Credit cost in bake mode = `perImageCost * 1`
-- Style toggle (Stylized/Clean) remains — controls which prompt variant is used
+- Image count slider visible in both bake and inpaint modes
+- Credit cost in bake/inpaint mode = `perImageCost * imageCount`
+- Style toggle (Stylized/Clean) remains for bake — controls which prompt variant is used
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/components/editor/use-inpaint-state.ts` | Add `generateLayerMask()`, `handleBakeSubmit()`, expose via return value and ref |
-| `src/components/editor/inpaint-toolbar.tsx` | Replace `buildBakeLayersPrompt()`, call `onBakeSubmit` instead of `onGenerateSimilar`, remove image count slider from bake mode |
+| `src/components/editor/use-inpaint-state.ts` | Add `generateLayerMask()`, `handleBakeSubmit()`, pass `imageCount` to `createInpaint`, expose via return value and ref |
+| `src/components/editor/inpaint-toolbar.tsx` | Replace `buildBakeLayersPrompt()`, call `onBakeSubmit` instead of `onGenerateSimilar`, show image count slider in bake/inpaint modes |
 | `src/components/editor/editor-shell.tsx` | Wire new `onBakeSubmit` prop from inpaint hook to toolbar |
+| `src/lib/validations.ts` | Add optional `imageCount` to `createInpaintSchema` |
+| `src/lib/api/generations.ts` | Add optional `imageCount` to `CreateInpaintParams` |
+| `src/app/api/inpaint/route.ts` | Read `imageCount` from body, use in `reserveCredits` and job data |
 | `worker/src/services/gemini.service.ts` | Send `maskBuffer` as second `inlineData` part when present |
 | `worker/src/processors/inpaint.processor.ts` | Pass `maskBuffer` through `dispatchInpaint` → `geminiInpaint`, add `padToAspectRatio` on source + mask |
 | `worker/src/processors/generation.processor.ts` | Remove `padToAspectRatio` call and import |
