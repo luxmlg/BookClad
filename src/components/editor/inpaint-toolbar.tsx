@@ -48,11 +48,11 @@ type ToolbarMode = "idle" | "brush" | "similar" | "bake" | "inpaint";
 type BakeStyle = "stylized" | "clean";
 
 function buildBakeLayersPrompt(style: BakeStyle): string {
-  const common = "The second image is a mask showing regions where text/layers were placed onto the cover. Ensure all text is clearly legible with strong contrast against the background. Keep text well away from the image edges — at least 10% margin from all borders.";
+  const common = "Text has been placed onto this cover image. Ensure all text is clearly legible with strong contrast against the background. Keep text well away from the image edges — at least 10% margin from all borders. Do not change the underlying artwork — only enhance the text regions.";
   if (style === "stylized") {
-    return `${common} Integrate the content in these masked regions into the artwork with creative, genre-appropriate effects — embossing, glow, texture, shadows. Make it look like a professionally designed cover. Do not modify anything outside the masked regions.`;
+    return `${common} Integrate the text into the artwork with creative, genre-appropriate effects — embossing, glow, texture, shadows. Make the typography look like a professionally designed cover.`;
   }
-  return `${common} Blend the content in these masked regions cleanly into the composition — add subtle shadows or contrast adjustments for legibility. Do not apply decorative effects. Do not modify anything outside the masked regions.`;
+  return `${common} Blend the text cleanly into the composition — add subtle shadows or contrast adjustments for legibility. Do not apply decorative effects.`;
 }
 
 interface InpaintToolbarProps {

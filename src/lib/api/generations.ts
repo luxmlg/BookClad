@@ -20,7 +20,7 @@ export interface CreateGenerationParams {
 
 export interface CreateInpaintParams {
   imageId: string;
-  maskDataUrl: string;
+  maskDataUrl?: string;
   prompt: string;
   model?: string;
   imageCount?: number;

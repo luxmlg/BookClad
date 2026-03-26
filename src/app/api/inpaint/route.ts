@@ -49,12 +49,15 @@ export async function POST(request: Request) {
 
     const creditCost = calculateCreditCost(model, imageCount);
 
-    const maskBuffer = Buffer.from(
-      maskDataUrl.replace(/^data:image\/\w+;base64,/, ""),
-      "base64",
-    );
-    const maskKey = `projects/${image.generation.projectId}/masks/${crypto.randomUUID()}.png`;
-    await uploadToStorage(maskKey, maskBuffer, "image/png");
+    let maskKey: string | undefined;
+    if (maskDataUrl) {
+      const maskBuffer = Buffer.from(
+        maskDataUrl.replace(/^data:image\/\w+;base64,/, ""),
+        "base64",
+      );
+      maskKey = `projects/${image.generation.projectId}/masks/${crypto.randomUUID()}.png`;
+      await uploadToStorage(maskKey, maskBuffer, "image/png");
+    }
 
     const { generationId } = await reserveCredits(session.user.id, creditCost, {
       projectId: image.generation.projectId,
@@ -76,7 +79,7 @@ export async function POST(request: Request) {
       projectId: image.generation.projectId,
       userId: session.user.id,
       sourceImageKey: image.storageKey,
-      maskBase64: maskDataUrl,
+      maskBase64: maskDataUrl ?? null,
       prompt,
       model,
       imageCount,

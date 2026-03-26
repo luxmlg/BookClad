@@ -29,7 +29,7 @@ export interface InpaintJobData {
 async function dispatchInpaint(
   model: string,
   imageBuffer: Buffer,
-  maskBuffer: Buffer,
+  maskBuffer: Buffer | undefined,
   prompt: string
 ): Promise<Buffer> {
   const geminiModelId = GEMINI_MODEL_IDS[model];
@@ -106,15 +106,20 @@ export async function processInpaint(job: Job<InpaintJobData>) {
       ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
       : await downloadImage(sourceImageKey);
 
-    let maskBuffer = maskBase64
-      ? Buffer.from(maskBase64.replace(/^data:image\/\w+;base64,/, ""), "base64")
-      : await downloadImage(maskKey!);
+    let maskBuffer: Buffer | undefined;
+    if (maskBase64) {
+      maskBuffer = Buffer.from(maskBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    } else if (maskKey) {
+      maskBuffer = await downloadImage(maskKey);
+    }
 
-    // Pad source + mask to generation aspect ratio so cropToKDP only removes padding
+    // Pad source (+ mask if present) to generation aspect ratio so cropToKDP only removes padding
     const aspectRatio = GEMINI_MODEL_CONFIG[model]?.aspectRatio;
     if (aspectRatio) {
       imageBuffer = await padToAspectRatio(imageBuffer, aspectRatio);
-      maskBuffer = await padToAspectRatio(maskBuffer, aspectRatio);
+      if (maskBuffer) {
+        maskBuffer = await padToAspectRatio(maskBuffer, aspectRatio);
+      }
     }
 
     for (let i = alreadyGenerated; i < imageCount; i++) {

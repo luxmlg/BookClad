@@ -81,41 +81,6 @@ export function useInpaintState(
     return dataUrl;
   }
 
-  function generateLayerMask(): string | null {
-    const stage = stageRef.current;
-    if (!stage) return null;
-
-    const scale = KDP.width / CANVAS_WIDTH;
-    const canvas = document.createElement("canvas");
-    canvas.width = KDP.width;
-    canvas.height = KDP.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-
-    // Fill with black (don't edit)
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw white rectangles for each visible user layer node
-    ctx.fillStyle = "#ffffff";
-    const padding = 20 * scale; // 20px canvas-space padding for blending room
-    const layers = stage.getLayers();
-    // Skip layer 0 (background image) — start from layer 1
-    for (let li = 1; li < layers.length; li++) {
-      for (const node of layers[li].getChildren()) {
-        if (!node.visible()) continue;
-        const rect = node.getClientRect();
-        const x = Math.max(0, rect.x * scale - padding);
-        const y = Math.max(0, rect.y * scale - padding);
-        const w = Math.min(canvas.width - x, rect.width * scale + padding * 2);
-        const h = Math.min(canvas.height - y, rect.height * scale + padding * 2);
-        ctx.fillRect(x, y, w, h);
-      }
-    }
-
-    return canvas.toDataURL("image/png");
-  }
-
   function handleIncludeLayersChange(checked: boolean) {
     setIncludeLayers(checked);
   }
@@ -163,17 +128,11 @@ export function useInpaintState(
       toast.error("Please select an image first");
       return;
     }
-    const maskDataUrl = generateLayerMask();
-    if (!maskDataUrl) {
-      toast.error("Failed to generate layer mask");
-      return;
-    }
     setBakeSubmitting(true);
     try {
       const flattenedImageDataUrl = await flattenCanvasToDataUrl();
       const data = await createInpaint({
         imageId: selectedImageId,
-        maskDataUrl,
         prompt,
         model,
         imageCount,

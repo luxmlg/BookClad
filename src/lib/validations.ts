@@ -78,7 +78,7 @@ export const extendGenerationSchema = z.object({
 
 export const createInpaintSchema = z.object({
   imageId: z.string().min(1),
-  maskDataUrl: z.string().min(1),
+  maskDataUrl: z.string().min(1).optional(),
   prompt: z.string().min(1).max(2000),
   model: z.enum(modelValues).optional().default("quick"),
   imageCount: z.number().int().min(1).max(MAX_IMAGES_PER_GENERATION).optional().default(1),
