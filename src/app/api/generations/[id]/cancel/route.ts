@@ -25,6 +25,7 @@ export async function POST(
       id: true,
       status: true,
       creditCost: true,
+      projectId: true,
       project: { select: { userId: true } },
     },
   });
@@ -79,12 +80,15 @@ export async function POST(
   // Publish FAILED event via Redis for WebSocket clients
   try {
     const publisher = getRedisPublisher();
+    const failedEvent = JSON.stringify({ type: EVENT_TYPE.FAILED, error: "Cancelled by user" });
+    await publisher.publish(`generation:${generationId}`, failedEvent);
+    // Also notify project channel for dashboard subscribers
     await publisher.publish(
-      `generation:${generationId}`,
-      JSON.stringify({ type: EVENT_TYPE.FAILED, error: "Cancelled by user" }),
+      `project:${generation.projectId}`,
+      JSON.stringify({ generationId, type: EVENT_TYPE.FAILED, error: "Cancelled by user" }),
     );
   } catch {
-    // Best-effort — polling will catch it
+    // Best-effort
   }
 
   return NextResponse.json({ success: true });
