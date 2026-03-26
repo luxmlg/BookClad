@@ -120,6 +120,38 @@ export default async function LandingPage() {
   const isExistingUser = !!session?.user;
   return (
     <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "BookClad",
+            url: "https://bookclad.com",
+            logo: "https://bookclad.com/icon.svg",
+            description: "AI-powered ebook cover generator for Amazon KDP",
+          }),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            name: "BookClad",
+            url: "https://bookclad.com",
+            applicationCategory: "DesignApplication",
+            operatingSystem: "Web",
+            offers: {
+              "@type": "AggregateOffer",
+              lowPrice: "0",
+              highPrice: "35",
+              priceCurrency: "USD",
+            },
+          }),
+        }}
+      />
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 dot-grid mask-radial-fade" />
