@@ -10,7 +10,9 @@ export function setupWebSocket(server: Server) {
 
   wss.on("connection", (ws) => {
     // Each WS connection gets its own Redis subscriber for pubsub isolation
-    const subscriber = new Redis.default(REDIS_URL);
+    const subscriber = new Redis.default(REDIS_URL, {
+      enableReadyCheck: false,
+    });
     const subscribedChannels = new Set<string>();
 
     subscriber.on("message", (channel: string, message: string) => {
