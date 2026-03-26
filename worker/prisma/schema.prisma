@@ -36,6 +36,7 @@ model User {
   fonts              UserFont[]
   creditTransactions CreditTransaction[]
   creditPools        CreditPool[]
+  apiUsages          ApiUsage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -156,6 +157,7 @@ model Generation {
   images             GeneratedImage[]
   parentImage        GeneratedImage?    @relation("DerivedFrom", fields: [parentImageId], references: [id], onDelete: SetNull)
   creditTransactions CreditTransaction[]
+  apiUsages          ApiUsage[]
 
   createdAt DateTime @default(now())
 
@@ -194,6 +196,42 @@ model CreditPool {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, priority, createdAt])
+}
+
+model ApiUsage {
+  id               String   @id @default(cuid())
+  userId           String?
+  generationId     String?
+  type             String   // "GENERATION", "AI_FILL", "AI_EDIT"
+  provider         String   // "gemini", "replicate", etc.
+  model            String
+
+  promptTokens     Int?
+  candidatesTokens Int?
+  totalTokens      Int?
+  estimatedCostUsd Decimal? @db.Decimal(10, 6)
+
+  success          Boolean
+  durationMs       Int?
+  attempt          Int      @default(1)
+
+  errorCode        String?
+  errorType        String?
+  errorMessage     String?
+  errorDetails     Json?
+
+  responseMetadata Json?
+
+  createdAt        DateTime @default(now())
+
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  generation Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([generationId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([success])
 }
 
 model GeneratedImage {
