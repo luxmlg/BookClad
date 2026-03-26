@@ -275,11 +275,37 @@ Uses the `motion` package (Framer Motion v12+). **Import from `motion/react`**, 
 
 Cover images: `public/landing/covers/cover-{1-8}.jpg`. Product screenshots: `public/landing/{create,editor,results,canvas}-{light,dark}.png`.
 
+## SEO & Content Infrastructure
+
+### Metadata
+
+Root metadata in `src/app/layout.tsx` includes `metadataBase` (`https://bookclad.com`), Open Graph, Twitter Cards, canonical URL, keywords, and Google Search Console verification (from `GOOGLE_SITE_VERIFICATION` env var). Page-level metadata uses the `%s | BookClad` title template. Authenticated pages (`/dashboard`, `/create`, `/editor`, `/settings`, `/sign-in`) export `robots: { index: false, follow: false }`.
+
+### robots.txt & Sitemap
+
+`src/app/robots.ts` — programmatic robots.txt blocking auth routes and `/api/`. `src/app/sitemap.ts` — dynamic sitemap auto-including static routes, blog posts from `content/blog/*.mdx`, and help docs from `content/help/*.mdx`.
+
+### JSON-LD
+
+Landing page (`src/app/page.tsx`) includes `Organization` and `WebApplication` schema.org structured data. Blog posts include `BlogPosting` schema generated from frontmatter.
+
+### MDX Content (Blog & Help)
+
+Content lives in `content/blog/` and `content/help/` as `.mdx` files with YAML frontmatter. Shared utilities in `src/lib/mdx.ts`: `getBlogPosts()`, `getBlogPost(slug)`, `getHelpDocs()`, `getHelpDoc(slug)`, `getHelpDocsByCategory()`. MDX rendering uses `next-mdx-remote/rsc` with custom component map in `src/components/mdx-components.tsx`. Blog frontmatter: `title`, `description`, `date`, `tags`, `image?`. Help frontmatter: `title`, `description`, `category`, `order`. Adding a new `.mdx` file automatically includes it in the sitemap.
+
+### Analytics (Google Analytics 4)
+
+GA4 loads conditionally via cookie consent. `src/components/cookie-consent.tsx` exports `useCookieConsent()` hook (uses `useSyncExternalStore` with localStorage key `cookie-consent`) and `CookieConsent` banner component. `src/components/google-analytics.tsx` renders GA4 `<Script>` tags only when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set and consent is `"accepted"`. Both are rendered in the root layout.
+
+### Terms of Use
+
+`src/app/terms/page.tsx` — static page at `/terms`. Linked from landing page footer and sign-in page. Keep in sync with privacy policy when changing billing terms, acceptable use, or IP ownership rules.
+
 ## Privacy Policy
 
 `src/app/privacy/page.tsx` — static, public page at `/privacy` listing all data BookClad collects, how it's used, third-party services, cookies, retention, user rights, and security. Linked from the landing page footer, sign-in page, and Settings General tab.
 
-**Keep it in sync**: When adding a new third-party service, collecting new user data, adding analytics/tracking, or changing data retention practices, update the privacy policy page to reflect the change. The "Last updated" date at the top should be updated when content changes.
+**Keep it in sync**: When adding a new third-party service, collecting new user data, adding analytics/tracking, or changing data retention practices, update the privacy policy page to reflect the change. The "Last updated" date at the top should be updated when content changes. Also update the terms of use page (`/terms`) if the change affects billing, acceptable use, or IP terms.
 
 ## Account Deletion
 
