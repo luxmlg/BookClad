@@ -207,3 +207,16 @@ export const WS_MESSAGE_TYPE = {
   SUBSCRIBE_PROJECT: "subscribe_project",
   UNSUBSCRIBE_PROJECT: "unsubscribe_project",
 } as const;
+
+export const API_USAGE_TYPE = {
+  GENERATION: "GENERATION",
+  AI_FILL: "AI_FILL",
+  AI_EDIT: "AI_EDIT",
+} as const;
+export type ApiUsageType = typeof API_USAGE_TYPE[keyof typeof API_USAGE_TYPE];
+
+export const GEMINI_PRICING: Record<string, { inputPerMillion: number; outputPerMillion: number; perImage?: number }> = {
+  "gemini-3.1-flash-image-preview": { inputPerMillion: 0.10, outputPerMillion: 0.40, perImage: 0.02 },
+  "gemini-3-pro-image-preview": { inputPerMillion: 1.25, outputPerMillion: 5.00, perImage: 0.07 },
+  "gemini-2.5-flash": { inputPerMillion: 0.15, outputPerMillion: 0.60 },
+};
