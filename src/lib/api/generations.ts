@@ -18,17 +18,6 @@ export interface CreateGenerationParams {
   textLayerSnapshot?: TextLayerEntry[];
 }
 
-export interface CreateInpaintParams {
-  imageId: string;
-  maskDataUrl?: string;
-  prompt: string;
-  model?: string;
-  imageCount?: number;
-  flattenedImageDataUrl?: string;
-  attributeSnapshot?: AttributeSelection;
-  textLayerSnapshot?: TextLayerEntry[];
-}
-
 export interface CreateGenerationResponse {
   generationId: string;
 }
@@ -67,11 +56,6 @@ export async function extendGeneration(
     `/api/generations/${generationId}/extend`,
     params,
   );
-  return data;
-}
-
-export async function createInpaint(params: CreateInpaintParams): Promise<CreateGenerationResponse> {
-  const { data } = await api.post<CreateGenerationResponse>("/api/inpaint", params);
   return data;
 }
 

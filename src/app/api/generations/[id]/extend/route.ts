@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getGenerationQueue } from "@/lib/queue";
 import { extendGenerationSchema } from "@/lib/validations";
-import { JOB_TYPE, GENERATION_STATUS, MAX_IMAGES_PER_GENERATION, AI_MODELS, isModelAvailable, TIER_QUEUE_PRIORITY } from "@/lib/constants";
+import { GENERATION_STATUS, MAX_IMAGES_PER_GENERATION, AI_MODELS, isModelAvailable, TIER_QUEUE_PRIORITY, JOB_TYPE } from "@/lib/constants";
 import { calculateCreditCost, reserveExtensionCredits, InsufficientCreditsError } from "@/lib/credits";
 
 export async function POST(
@@ -38,11 +38,8 @@ export async function POST(
         id: true,
         status: true,
         model: true,
-        jobType: true,
         projectId: true,
         referenceImage: true,
-        maskImage: true,
-        prompt: true,
       },
     });
 
@@ -96,44 +93,21 @@ export async function POST(
 
     const priority = TIER_QUEUE_PRIORITY[user.tier] ?? 10;
 
-    const isInpaintExtension =
-      generation.jobType === JOB_TYPE.INPAINT && !!generation.maskImage;
-
-    if (isInpaintExtension) {
-      await getGenerationQueue().add(JOB_TYPE.INPAINT, {
-        generationId,
-        projectId: generation.projectId,
-        userId: session.user.id,
-        sourceImageKey: generation.referenceImage!,
-        maskBase64: null,
-        maskKey: generation.maskImage,
-        prompt: generation.prompt,
-        model: resolvedModel,
-        imageCount,
-        creditCost,
-        isExtension: true,
-      }, {
-        priority,
-        attempts: 100,
-        backoff: { type: "custom" },
-      });
-    } else {
-      await getGenerationQueue().add(JOB_TYPE.GENERATE, {
-        generationId,
-        projectId: generation.projectId,
-        userId: session.user.id,
-        imageCount,
-        model: resolvedModel,
-        referenceImageKey: generation.referenceImage ?? null,
-        flattenedImageDataUrl: null,
-        creditCost,
-        isExtension: true,
-      }, {
-        priority,
-        attempts: 100,
-        backoff: { type: "custom" },
-      });
-    }
+    await getGenerationQueue().add(JOB_TYPE.GENERATE, {
+      generationId,
+      projectId: generation.projectId,
+      userId: session.user.id,
+      imageCount,
+      model: resolvedModel,
+      referenceImageKey: generation.referenceImage ?? null,
+      flattenedImageDataUrl: null,
+      creditCost,
+      isExtension: true,
+    }, {
+      priority,
+      attempts: 100,
+      backoff: { type: "custom" },
+    });
 
     return NextResponse.json({ generationId }, { status: 202 });
   } catch (err) {

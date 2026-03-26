@@ -97,7 +97,7 @@ export async function DELETE(
     const project = await prisma.coverProject.findFirst({
       where: { id, userId: session.user.id },
       include: {
-        generations: { select: { maskImage: true, images: { select: { storageKey: true } } } },
+        generations: { select: { images: { select: { storageKey: true } } } },
         assets: { select: { storageKey: true } },
       },
     });
@@ -109,7 +109,6 @@ export async function DELETE(
     // Collect all storage keys (generated images + user assets)
     const storageKeys: string[] = [];
     for (const gen of project.generations) {
-      if (gen.maskImage) storageKeys.push(gen.maskImage);
       for (const img of gen.images) {
         storageKeys.push(img.storageKey);
       }

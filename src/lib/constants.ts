@@ -47,7 +47,6 @@ export type GenerationStatus = typeof GENERATION_STATUS[keyof typeof GENERATION_
 
 export const JOB_TYPE = {
   GENERATE: "generate",
-  INPAINT: "inpaint",
   GENERATE_FROM_REFERENCE: "generate-from-reference",
 } as const;
 export type JobType = typeof JOB_TYPE[keyof typeof JOB_TYPE];
@@ -95,7 +94,7 @@ export const AI_MODELS = [
     label: "Quick",
     description:
       "Low-cost drafts for exploring ideas and styles. Not export-ready — upgrade to Detailed or Premium for KDP-ready covers.",
-    capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
+    capabilities: [JOB_TYPE.GENERATE] as const,
     creditCost: CREDIT_COST_PER_IMAGE.quick,
     requiredTier: "FREE",
     exportable: false,
@@ -105,7 +104,7 @@ export const AI_MODELS = [
     label: "Detailed",
     description:
       "Recommended for most covers. High-efficiency generation with improved consistency and detail — the best balance of speed, quality, and cost.",
-    capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
+    capabilities: [JOB_TYPE.GENERATE] as const,
     creditCost: CREDIT_COST_PER_IMAGE.detailed,
     requiredTier: "STARTER",
     exportable: true,
@@ -115,7 +114,7 @@ export const AI_MODELS = [
     label: "Premium",
     description:
       "Professional-grade cover generation with advanced reasoning. Excels at following complex instructions and rendering high-fidelity text and intricate details.",
-    capabilities: [JOB_TYPE.GENERATE, JOB_TYPE.INPAINT] as const,
+    capabilities: [JOB_TYPE.GENERATE] as const,
     creditCost: CREDIT_COST_PER_IMAGE.premium,
     requiredTier: "STARTER",
     exportable: true,

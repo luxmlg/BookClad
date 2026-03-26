@@ -22,7 +22,6 @@ export async function DELETE(): Promise<NextResponse> {
           select: {
             generations: {
               select: {
-                maskImage: true,
                 images: { select: { storageKey: true } },
               },
             },
@@ -38,7 +37,6 @@ export async function DELETE(): Promise<NextResponse> {
     const storageKeys: string[] = [];
     for (const project of user.projects) {
       for (const gen of project.generations) {
-        if (gen.maskImage) storageKeys.push(gen.maskImage);
         for (const img of gen.images) {
           storageKeys.push(img.storageKey);
         }
