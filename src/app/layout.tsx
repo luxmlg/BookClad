@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Navbar } from "@/components/layout/navbar";
+import { NavbarWrapper } from "@/components/layout/navbar-wrapper";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
 import { CreditHydrator } from "@/components/providers/credit-hydrator";
@@ -46,7 +47,7 @@ export default async function RootLayout({
       >
         <Providers>
           {session?.user && <CreditHydrator balance={creditBalance} />}
-          <Navbar />
+          <NavbarWrapper><Navbar /></NavbarWrapper>
           {children}
           <Toaster richColors position="bottom-right" />
         </Providers>

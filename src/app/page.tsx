@@ -1,3 +1,4 @@
+import { auth } from "@/lib/auth";
 import Link from "next/link";
 import {
   BookOpen,
@@ -38,9 +39,9 @@ const features = [
   },
   {
     icon: Paintbrush,
-    title: "AI Region Editing",
+    title: "Describe What to Change",
     description:
-      "Don't like the sky? Paint over it and describe the change. Refine without regenerating the entire cover.",
+      "Want a different sky or warmer tones? Just describe the change and regenerate — no manual editing needed. Bake text directly into covers with genre-matched styling.",
   },
   {
     icon: Wand,
@@ -67,6 +68,7 @@ const plans = [
       "No KDP export",
     ],
     cta: "Start Free",
+    href: "/create",
     highlighted: false,
   },
   {
@@ -79,6 +81,7 @@ const plans = [
       "KDP-ready export",
     ],
     cta: "Get Started",
+    href: "/settings?tab=billing",
     highlighted: false,
   },
   {
@@ -92,6 +95,7 @@ const plans = [
       "Priority queue",
     ],
     cta: "Go Pro",
+    href: "/settings?tab=billing",
     highlighted: true,
   },
   {
@@ -106,11 +110,14 @@ const plans = [
       "Priority feedback & feature requests",
     ],
     cta: "Get Studio",
+    href: "/settings?tab=billing",
     highlighted: false,
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const session = await auth();
+  const isExistingUser = !!session?.user;
   return (
     <main>
       {/* Hero */}
@@ -141,8 +148,8 @@ export default function LandingPage() {
           <FadeIn delay={0.2}>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
               Describe your story, choose a style, and get KDP-ready cover options
-              in minutes. Fine-tune with typography, AI region editing, and
-              one-click export.
+              in minutes. Fine-tune with typography, bake text into covers, and
+              export with one click.
             </p>
           </FadeIn>
           <FadeIn delay={0.3}>
@@ -154,7 +161,7 @@ export default function LandingPage() {
                   className: "h-11 gap-2 px-8 text-base shadow-lg shadow-primary/10",
                 })}
               >
-                Start Free <ArrowRight className="size-4" />
+                {isExistingUser ? "Create a Cover" : "Start Free"} <ArrowRight className="size-4" />
               </Link>
               <Link
                 href="#features"
@@ -169,10 +176,12 @@ export default function LandingPage() {
             </div>
           </FadeIn>
           <FadeIn delay={0.4}>
-            <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
-              <Check className="size-3.5 text-primary" />
-              Start with 15 free credits. No credit card required.
-            </p>
+            {!isExistingUser && (
+              <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+                <Check className="size-3.5 text-primary" />
+                Start with 15 free credits. No credit card required.
+              </p>
+            )}
           </FadeIn>
 
           <CoverShowcase />
@@ -278,7 +287,7 @@ export default function LandingPage() {
                       ))}
                     </ul>
                     <Link
-                      href="/create"
+                      href={plan.href}
                       className={buttonVariants({
                         className: "mt-8 w-full",
                         variant: plan.highlighted ? "secondary" : "outline",
