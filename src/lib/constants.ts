@@ -149,7 +149,6 @@ export const DEFAULT_WS_URL = "ws://localhost:4000/ws/progress";
 export const WS_RECONNECT_INITIAL_MS = 1000;
 export const WS_RECONNECT_MAX_MS = 10000;
 
-export const POLL_INTERVAL_MS = 5000;
 
 export const RETRY_DELAYS = [10_000, 30_000, 60_000, 90_000, 120_000] as const;
 export const MAX_OTHER_RETRIES = 5;
@@ -205,4 +204,6 @@ export type EventType = typeof EVENT_TYPE[keyof typeof EVENT_TYPE];
 export const WS_MESSAGE_TYPE = {
   SUBSCRIBE: "subscribe",
   UNSUBSCRIBE: "unsubscribe",
+  SUBSCRIBE_PROJECT: "subscribe_project",
+  UNSUBSCRIBE_PROJECT: "unsubscribe_project",
 } as const;

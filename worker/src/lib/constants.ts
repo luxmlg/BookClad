@@ -39,6 +39,8 @@ export type EventType = typeof EVENT_TYPE[keyof typeof EVENT_TYPE];
 export const WS_MESSAGE_TYPE = {
   SUBSCRIBE: "subscribe",
   UNSUBSCRIBE: "unsubscribe",
+  SUBSCRIBE_PROJECT: "subscribe_project",
+  UNSUBSCRIBE_PROJECT: "unsubscribe_project",
 } as const;
 
 export const REF_PROMPT_KEY = "ref-instructions";
