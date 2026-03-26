@@ -1,45 +1,48 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 const CONSENT_KEY = "cookie-consent";
 
 type ConsentStatus = "accepted" | "declined" | null;
 
-function getConsent(): ConsentStatus {
-  if (typeof window === "undefined") return null;
+const subscribers = new Set<() => void>();
+
+function subscribe(callback: () => void) {
+  subscribers.add(callback);
+  return () => subscribers.delete(callback);
+}
+
+function getSnapshot(): ConsentStatus {
   return localStorage.getItem(CONSENT_KEY) as ConsentStatus;
 }
 
+function getServerSnapshot(): ConsentStatus {
+  return null;
+}
+
+function setConsent(status: ConsentStatus) {
+  if (status) {
+    localStorage.setItem(CONSENT_KEY, status);
+  }
+  subscribers.forEach((cb) => cb());
+}
+
 export function useCookieConsent() {
-  const [consent, setConsent] = useState<ConsentStatus>(null);
+  const consent = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  useEffect(() => {
-    setConsent(getConsent());
-  }, []);
-
-  const accept = () => {
-    localStorage.setItem(CONSENT_KEY, "accepted");
-    setConsent("accepted");
-  };
-
-  const decline = () => {
-    localStorage.setItem(CONSENT_KEY, "declined");
-    setConsent("declined");
-  };
+  const accept = useCallback(() => setConsent("accepted"), []);
+  const decline = useCallback(() => setConsent("declined"), []);
 
   return { consent, accept, decline };
 }
 
 export function CookieConsent() {
   const { consent, accept, decline } = useCookieConsent();
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted || consent !== null) return null;
+  // During SSR, getServerSnapshot returns null — banner won't render
+  // After hydration, getSnapshot reads localStorage
+  if (consent !== null) return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background p-4 shadow-lg">
