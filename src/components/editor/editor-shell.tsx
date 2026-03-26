@@ -11,7 +11,7 @@ import { DEFAULT_FONT, ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
 import { TextFloatingToolbar } from "./text-floating-toolbar";
-import { InpaintToolbar } from "./inpaint-toolbar";
+import { EditorToolbar } from "./editor-toolbar";
 import { EditorCenterPanel } from "./editor-center-panel";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import { buildDefaultConfig, computeAttributeDiff } from "@/lib/attributes";
@@ -798,7 +798,7 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
         </div>
       )}
 
-      {/* Fixed-position inpaint toolbar */}
+      {/* Fixed-position editor toolbar */}
       {toolbarPos && (
         <div
           className="pointer-events-none fixed z-50"
@@ -809,40 +809,17 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
           }}
         >
           <div className="pointer-events-auto">
-            <InpaintToolbar
-              brushMode={inpaint.brushMode}
-              setBrushMode={inpaint.setBrushMode}
-              selectedImageUrl={selectedImageUrl}
-              brushSize={inpaint.brushSize}
-              setBrushSize={inpaint.setBrushSize}
-              erasing={inpaint.erasing}
-              setErasing={inpaint.setErasing}
-              onBrushUndo={() => inpaint.brushToolRef.current?.undo()}
-              onBrushClear={() => inpaint.brushToolRef.current?.clear()}
-              onBrushDone={() => inpaint.brushToolRef.current?.export()}
-              hasBrushMask={inpaint.hasBrushMask}
+            <EditorToolbar
               onRegenerate={genActions.handleRegenerate}
               activeGenerationCount={genActions.allActiveIds.length}
               selectedImageId={selectedImageId}
-              inpaintMask={inpaint.inpaintMask}
-              inpaintSubmitting={inpaint.inpaintSubmitting}
-              onInpaintSubmit={inpaint.handleInpaintSubmit}
-              onCancelInpaint={() => {
-                inpaint.setBrushMode(false);
-                inpaint.setInpaintMask(null);
-              }}
-              onRepaint={() => inpaint.setInpaintMask(null)}
               onGenerateSimilar={genActions.handleGenerateSimilar}
-              includeLayers={inpaint.includeLayers}
-              onIncludeLayersChange={inpaint.handleIncludeLayersChange}
               model={genActions.model}
               setModel={genActions.setModel}
               imageCount={genActions.imageCount}
               setImageCount={genActions.setImageCount}
               tier={tier}
               nodes={nodes}
-              onBakeSubmit={inpaint.handleBakeSubmit}
-              bakeSubmitting={inpaint.bakeSubmitting}
             />
           </div>
         </div>
