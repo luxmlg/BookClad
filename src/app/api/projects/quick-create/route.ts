@@ -99,7 +99,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const seedSelection: AttributeSelection = { genre };
 
     // Generate attributes via AI Fill
-    const suggestions = await generateAttributeSuggestions(
+    const { suggestions } = await generateAttributeSuggestions(
       config,
       seedSelection,
       description,

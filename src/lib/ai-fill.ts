@@ -21,6 +21,12 @@ export interface AiFillSuggestion {
   };
 }
 
+export interface AiFillResult {
+  suggestions: AiFillSuggestion[];
+  responseJson: Record<string, unknown>;
+  durationMs: number;
+}
+
 // --- Response validation ---
 
 const suggestionSchema = z.object({
@@ -180,11 +186,13 @@ export async function generateAttributeSuggestions(
   config: AttributeConfigJson,
   selections: AttributeSelection,
   userDirection: string
-): Promise<AiFillSuggestion[]> {
+): Promise<AiFillResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not configured");
   }
+
+  const startTime = Date.now();
 
   const userPrompt = buildAiFillPrompt(config, selections, userDirection);
 
@@ -215,16 +223,21 @@ export async function generateAttributeSuggestions(
   );
 
   if (!res.ok) {
+    const durationMs = Date.now() - startTime;
     const errorBody = await res.text().catch(() => "");
     console.error(`[ai-fill] Gemini HTTP ${res.status}:`, errorBody);
-    throw new Error(
-      res.status === 429
-        ? "Rate limited — please try again in a moment"
-        : "Failed to generate attribute suggestions"
+    throw Object.assign(
+      new Error(
+        res.status === 429
+          ? "Rate limited — please try again in a moment"
+          : "Failed to generate attribute suggestions"
+      ),
+      { status: res.status, durationMs, errorBody },
     );
   }
 
   const data = await res.json();
+  const durationMs = Date.now() - startTime;
   const textPart = data?.candidates?.[0]?.content?.parts?.find(
     (p: Record<string, unknown>) => typeof p.text === "string"
   );
@@ -255,7 +268,11 @@ export async function generateAttributeSuggestions(
     previousValue: s.attributeId ? selections[s.attributeId] : undefined,
   }));
 
-  return suggestions;
+  return {
+    suggestions,
+    responseJson: data as Record<string, unknown>,
+    durationMs,
+  };
 }
 
 // --- Apply suggestions utility ---
