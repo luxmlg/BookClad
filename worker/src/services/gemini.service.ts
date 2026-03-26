@@ -158,6 +158,7 @@ export interface GeminiInpaintParams {
  */
 export async function inpaintImage({
   imageBuffer,
+  maskBuffer,
   prompt,
   modelId,
   config,
@@ -171,8 +172,18 @@ export async function inpaintImage({
         data: imageBuffer.toString("base64"),
       },
     },
-    { text: prompt },
   ];
+
+  if (maskBuffer) {
+    parts.push({
+      inlineData: {
+        mimeType: "image/png",
+        data: maskBuffer.toString("base64"),
+      },
+    });
+  }
+
+  parts.push({ text: prompt });
 
   const generationConfig: Record<string, unknown> = {
     responseModalities: ["IMAGE", "TEXT"],
