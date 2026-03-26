@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { aiEditSchema } from "@/lib/validations";
 import { reserveAiFillCredits, InsufficientCreditsError } from "@/lib/credits";
 import type { AttributeConfigJson, Attribute } from "@/lib/attributes";
+import { parseGeminiUsage, classifyError } from "@/lib/api-usage";
+import { API_USAGE_TYPE } from "@/lib/constants";
+import { Prisma } from "@/generated/prisma/client";
 
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -81,6 +84,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     throw err;
   }
 
+  const startTime = Date.now();
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
@@ -117,6 +121,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const geminiData = await res.json();
+    const durationMs = Date.now() - startTime;
     const textPart = geminiData?.candidates?.[0]?.content?.parts?.find(
       (p: Record<string, unknown>) => typeof p.text === "string",
     );
@@ -158,9 +163,52 @@ export async function POST(request: Request): Promise<NextResponse> {
       attributes: afterAttributes,
     };
 
+    // Log API usage (best-effort)
+    try {
+      const parsed = parseGeminiUsage(geminiData as Record<string, unknown>, "gemini-2.5-flash");
+      await prisma.apiUsage.create({
+        data: {
+          userId: session.user.id,
+          type: API_USAGE_TYPE.AI_EDIT,
+          provider: "gemini",
+          model: "gemini-2.5-flash",
+          promptTokens: parsed.promptTokens,
+          candidatesTokens: parsed.candidatesTokens,
+          totalTokens: parsed.totalTokens,
+          estimatedCostUsd: parsed.estimatedCostUsd,
+          success: true,
+          durationMs,
+          responseMetadata: parsed.responseMetadata != null ? parsed.responseMetadata as unknown as Prisma.InputJsonValue : undefined,
+        },
+      });
+    } catch (logErr) {
+      console.error("[api-usage] Failed to log AI Edit usage:", logErr);
+    }
+
     return NextResponse.json({ before, after });
   } catch (err) {
     console.error("[ai-edit] Failed:", err);
+
+    try {
+      const errObj = err as Error & { status?: number; durationMs?: number };
+      const errorType = classifyError(errObj.status ?? 0, errObj.message);
+      await prisma.apiUsage.create({
+        data: {
+          userId: session.user.id,
+          type: API_USAGE_TYPE.AI_EDIT,
+          provider: "gemini",
+          model: "gemini-2.5-flash",
+          success: false,
+          durationMs: errObj.durationMs ?? null,
+          errorCode: errObj.status ? String(errObj.status) : null,
+          errorType,
+          errorMessage: errObj.message,
+        },
+      });
+    } catch (logErr) {
+      console.error("[api-usage] Failed to log AI Edit error:", logErr);
+    }
+
     const message = err instanceof Error ? err.message : "Failed to edit attributes";
     return NextResponse.json({ error: message }, { status: 500 });
   }
