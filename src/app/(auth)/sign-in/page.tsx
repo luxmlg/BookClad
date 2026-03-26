@@ -87,12 +87,21 @@ export default function SignInPage() {
         )}
       </CardContent>
       <div className="px-6 pb-6 text-center">
-        <Link
-          href="/privacy"
-          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Privacy Policy
-        </Link>
+        <div className="flex items-center justify-center gap-3">
+          <Link
+            href="/privacy"
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Privacy Policy
+          </Link>
+          <span className="text-xs text-muted-foreground">·</span>
+          <Link
+            href="/terms"
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Terms of Use
+          </Link>
+        </div>
       </div>
     </Card>
   );

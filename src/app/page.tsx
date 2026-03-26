@@ -373,6 +373,12 @@ export default async function LandingPage() {
               >
                 Privacy
               </Link>
+              <Link
+                href="/terms"
+                className="transition-colors hover:text-foreground"
+              >
+                Terms
+              </Link>
             </div>
             <div className="h-px w-12 bg-border" />
             <p className="text-xs text-muted-foreground/70">
