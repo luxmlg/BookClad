@@ -17,16 +17,15 @@ export function setupWebSocket(server: Server) {
 
     subscriber.on("message", (channel: string, message: string) => {
       if (ws.readyState !== WebSocket.OPEN) return;
-      // channel is "generation:{id}" — extract the generationId
-      const generationId = channel.replace("generation:", "");
       try {
         const event = JSON.parse(message);
-        ws.send(
-          JSON.stringify({
-            generationId,
-            ...event,
-          })
-        );
+        if (channel.startsWith("project:")) {
+          const projectId = channel.slice("project:".length);
+          ws.send(JSON.stringify({ projectId, ...event }));
+        } else {
+          const generationId = channel.replace("generation:", "");
+          ws.send(JSON.stringify({ generationId, ...event }));
+        }
       } catch {
         // Ignore malformed messages
       }
@@ -45,6 +44,20 @@ export function setupWebSocket(server: Server) {
 
         if (msg.type === WS_MESSAGE_TYPE.UNSUBSCRIBE && msg.generationId) {
           const channel = `generation:${msg.generationId}`;
+          if (!subscribedChannels.has(channel)) return;
+          subscribedChannels.delete(channel);
+          await subscriber.unsubscribe(channel);
+        }
+
+        if (msg.type === WS_MESSAGE_TYPE.SUBSCRIBE_PROJECT && msg.projectId) {
+          const channel = `project:${msg.projectId}`;
+          if (subscribedChannels.has(channel)) return;
+          subscribedChannels.add(channel);
+          await subscriber.subscribe(channel);
+        }
+
+        if (msg.type === WS_MESSAGE_TYPE.UNSUBSCRIBE_PROJECT && msg.projectId) {
+          const channel = `project:${msg.projectId}`;
           if (!subscribedChannels.has(channel)) return;
           subscribedChannels.delete(channel);
           await subscriber.unsubscribe(channel);
