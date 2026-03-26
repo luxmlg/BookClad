@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Loader2, Sparkles, AlertTriangle, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { GENERATION_STATUS, JOB_TYPE, MAX_OTHER_RETRIES, type GenerationStatus } from "@/lib/constants";
-import { useGenerationPoller, type GenerationPollerState } from "./generation-poller";
+import { useGenerationProgress } from "@/lib/use-generation-ws";
 import type { Generation } from "./types";
 import {
   JOB_TYPE_ICON,
@@ -76,11 +78,26 @@ function QueueEntry({
   onSelectGeneration?: (generationId: string) => void;
   tier?: string;
 }) {
+  const router = useRouter();
   const isPriorityUser = tier !== undefined && PRIORITY_TIERS.has(tier);
-  const poller = useGenerationPoller({
-    generationId: generation.id,
-    onComplete,
-  });
+
+  const handleComplete = useCallback(
+    (status: GenerationStatus, errorMsg?: string | null) => {
+      if (status === GENERATION_STATUS.FAILED) {
+        toast.error(errorMsg ?? "Generation failed. Please try again.");
+      } else if (errorMsg) {
+        toast.warning(errorMsg);
+      } else {
+        toast.success("Cover generation complete!");
+      }
+      router.refresh();
+      onComplete(generation.id, status);
+    },
+    [generation.id, onComplete, router],
+  );
+
+  const { status, progressMessage, errorMessage, step, totalSteps, progressPercent, retryCount, retryReason, nextRetryAt } =
+    useGenerationProgress(generation.id, { onComplete: handleComplete });
 
   const date =
     typeof generation.createdAt === "string"
@@ -95,15 +112,15 @@ function QueueEntry({
   const imageCount = generation.imageCount ?? generation.images.length;
 
   const isActive =
-    poller.status === GENERATION_STATUS.QUEUED ||
-    poller.status === GENERATION_STATUS.PROCESSING ||
-    poller.status === GENERATION_STATUS.RETRYING;
+    status === GENERATION_STATUS.QUEUED ||
+    status === GENERATION_STATUS.PROCESSING ||
+    status === GENERATION_STATUS.RETRYING;
 
   return (
     <div
       className={`rounded-lg border px-3 py-2.5 space-y-2 cursor-pointer hover:bg-muted/40 transition-colors ${
-        poller.status === GENERATION_STATUS.RETRYING
-          ? poller.retryReason === "high_demand"
+        status === GENERATION_STATUS.RETRYING
+          ? retryReason === "high_demand"
             ? "border-amber-500/30 bg-amber-500/5"
             : "border-destructive/30 bg-destructive/5"
           : "bg-muted/30"
@@ -124,7 +141,7 @@ function QueueEntry({
         >
           {timeStr}
         </span>
-        {isPriorityUser && poller.status === GENERATION_STATUS.QUEUED && (
+        {isPriorityUser && status === GENERATION_STATUS.QUEUED && (
           <span className="text-xs text-amber-600 font-medium">Priority</span>
         )}
         {modelLabel && (
@@ -152,7 +169,15 @@ function QueueEntry({
 
       {/* Progress */}
       <QueueProgress
-        poller={poller}
+        status={status}
+        progressMessage={progressMessage}
+        errorMessage={errorMessage}
+        step={step}
+        totalSteps={totalSteps}
+        progressPercent={progressPercent}
+        retryCount={retryCount}
+        retryReason={retryReason}
+        nextRetryAt={nextRetryAt}
         generationId={generation.id}
         onCancel={() => onComplete(generation.id, GENERATION_STATUS.FAILED)}
       />
@@ -160,16 +185,34 @@ function QueueEntry({
   );
 }
 
-function QueueProgress({
-  poller,
-  generationId,
-  onCancel,
-}: {
-  poller: GenerationPollerState;
+interface QueueProgressProps {
+  status: GenerationStatus;
+  progressMessage: string | null;
+  errorMessage: string | null;
+  step: number;
+  totalSteps: number;
+  progressPercent: number;
+  retryCount: number;
+  retryReason: string | null;
+  nextRetryAt: string | null;
   generationId: string;
   onCancel: () => void;
-}) {
-  if (poller.status === GENERATION_STATUS.QUEUED) {
+}
+
+function QueueProgress({
+  status,
+  progressMessage,
+  errorMessage,
+  progressPercent,
+  step,
+  totalSteps,
+  retryCount,
+  retryReason,
+  nextRetryAt,
+  generationId,
+  onCancel,
+}: QueueProgressProps) {
+  if (status === GENERATION_STATUS.QUEUED) {
     return (
       <QueueCancelRow
         generationId={generationId}
@@ -179,15 +222,15 @@ function QueueProgress({
     );
   }
 
-  if (poller.status === GENERATION_STATUS.PROCESSING) {
+  if (status === GENERATION_STATUS.PROCESSING) {
     return (
       <div className="space-y-1">
-        <Progress value={poller.progressPercent} className="h-1.5" />
+        <Progress value={progressPercent} className="h-1.5" />
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{poller.progressMessage || "Starting..."}</span>
-          {poller.totalSteps > 0 && (
+          <span>{progressMessage || "Starting..."}</span>
+          {totalSteps > 0 && (
             <span className="ml-auto tabular-nums">
-              {poller.step}/{poller.totalSteps}
+              {step}/{totalSteps}
             </span>
           )}
         </div>
@@ -195,20 +238,20 @@ function QueueProgress({
     );
   }
 
-  if (poller.status === GENERATION_STATUS.RETRYING && poller.nextRetryAt) {
+  if (status === GENERATION_STATUS.RETRYING && nextRetryAt) {
     return (
       <RetryingProgress
-        retryCount={poller.retryCount}
-        retryReason={poller.retryReason}
-        nextRetryAt={poller.nextRetryAt}
-        errorMessage={poller.errorMessage}
+        retryCount={retryCount}
+        retryReason={retryReason}
+        nextRetryAt={nextRetryAt}
+        errorMessage={errorMessage}
         generationId={generationId}
         onCancel={onCancel}
       />
     );
   }
 
-  if (poller.status === GENERATION_STATUS.COMPLETED) {
+  if (status === GENERATION_STATUS.COMPLETED) {
     return (
       <div className="flex items-center gap-2">
         <div className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
