@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-BookClad is an AI-powered ebook cover generator for Amazon KDP. Users describe their book, select genre/mood/style, and the app generates KDP-compliant cover images (1600x2560px). It has a canvas editor for typography, inpainting (region editing), and export.
+BookClad is an AI-powered ebook cover generator for Amazon KDP. Users describe their book, select genre/mood/style, and the app generates KDP-compliant cover images (1600x2560px). It has a canvas editor for typography, text baking, and export.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ The two processes share the same Postgres database and Redis instance but are **
 2. User triggers generation from the editor (`/editor/[id]`) → `POST /api/generations` → BullMQ job queued
 3. Worker picks up job → generates images via AI → upscales → crops to KDP → uploads to storage → writes `GeneratedImage` rows
 4. Editor receives real-time progress via WebSocket (singleton in `src/lib/use-generation-ws.ts`, falls back to HTTP polling)
-5. User edits on canvas (Konva/react-konva), can inpaint regions, add typography
+5. User edits on canvas (Konva/react-konva), adds typography, can bake text into covers
 6. Export via `POST /api/projects/[id]/export`
 
 ### Path aliases
@@ -128,7 +128,7 @@ The processor checks for user cancellation before processing and at the top of e
   - `useImageUrls` — fetches signed URLs for generated images
   - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking (includes `RETRYING` in active filters), `flattenCanvasToDataUrl` for bake
 - **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's attribute configuration, fetched from `/api/attributes`)
-- **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot`, `descriptionSnapshot`, and `textLayerSnapshot` with each generation for diff tracking and history display. All generation handlers (`handleRegenerate`, `handleGenerateSimilar`, `handleGenerateMore`, `handleInpaintSubmit`) auto-open the bottom panel and switch to the History tab (`setActiveTab(0)`) so users see the new generation loading.
+- **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot`, `descriptionSnapshot`, and `textLayerSnapshot` with each generation for diff tracking and history display. All generation handlers (`handleRegenerate`, `handleGenerateSimilar`, `handleGenerateMore`) auto-open the bottom panel and switch to the History tab (`setActiveTab(0)`) so users see the new generation loading.
 - **Draft attribute system**: When switching between history images, attribute edits are stashed per-image in `draftStashRef` and restored on return. `baseSnapshot` holds the generation's original attributes; `draftKeys` (derived via `computeAttributeDiff`) drives amber dot indicators on modified attributes.
 - **Bottom panel tabs**: Both History and Queue tabs are **always mounted** (CSS `hidden`, not conditional rendering) in `EditorCenterPanel`. The Queue's `useGenerationPoller` hooks stay alive regardless of active tab — no duplicate pollers needed in History.
 - **Batch delete**: `DELETE /api/images/batch` — deletes entire generations when all images removed, decrements `imageCount` on partial deletes. `handleDeletedImages` in `EditorShell` cleans up all caches and auto-selects the next image.
@@ -221,7 +221,7 @@ Functions: `getSignedDownloadUrl(key)`, `downloadFromStorage(key)`, `uploadToSto
 
 The worker has its own storage module (`worker/src/services/storage.service.ts`) with the same dual-mode pattern, plus `checkStorageHealth()` for preflight checks.
 
-**Storage cleanup on deletion**: Both `DELETE /api/images/batch` and `DELETE /api/projects/[id]` collect all storage keys (generated images, mask images, user assets) and delete them from R2 in the background. Mask images (`Generation.maskImage`) are included in cleanup.
+**Storage cleanup on deletion**: Both `DELETE /api/images/batch` and `DELETE /api/projects/[id]` collect all storage keys (generated images, user assets) and delete them from R2 in the background.
 
 ## Credit Store
 
