@@ -81,6 +81,7 @@ export const createInpaintSchema = z.object({
   maskDataUrl: z.string().min(1),
   prompt: z.string().min(1).max(2000),
   model: z.enum(modelValues).optional().default("quick"),
+  imageCount: z.number().int().min(1).max(MAX_IMAGES_PER_GENERATION).optional().default(1),
   flattenedImageDataUrl: z.string().optional(),
   ...snapshotFields,
 });

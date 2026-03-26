@@ -23,6 +23,7 @@ export interface CreateInpaintParams {
   maskDataUrl: string;
   prompt: string;
   model?: string;
+  imageCount?: number;
   flattenedImageDataUrl?: string;
   attributeSnapshot?: AttributeSelection;
   textLayerSnapshot?: TextLayerEntry[];

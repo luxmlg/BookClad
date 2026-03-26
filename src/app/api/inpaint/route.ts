@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       maskDataUrl,
       prompt,
       model,
+      imageCount,
       flattenedImageDataUrl,
       attributeSnapshot,
       textLayerSnapshot,
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Image not found" }, { status: 404 });
     }
 
-    const creditCost = calculateCreditCost(model, 1);
+    const creditCost = calculateCreditCost(model, imageCount);
 
     const maskBuffer = Buffer.from(
       maskDataUrl.replace(/^data:image\/\w+;base64,/, ""),
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
       projectId: image.generation.projectId,
       prompt,
       status: GENERATION_STATUS.QUEUED,
-      imageCount: 1,
+      imageCount,
       jobType: JOB_TYPE.INPAINT,
       model,
       referenceImage: image.storageKey,
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
       maskBase64: maskDataUrl,
       prompt,
       model,
+      imageCount,
       flattenedImageDataUrl: flattenedImageDataUrl ?? null,
       creditCost,
     });
