@@ -71,7 +71,8 @@ The app and worker deploy as separate Railway services from the same repo. Railw
 - **Migrations**: Run at startup (`prisma migrate deploy && next start`), not during build, because the internal Postgres URL isn't reachable at build time.
 - **Prisma client**: Generated via `postinstall` hook (`prisma generate`). Worker has its own in `worker/package.json` (`npx prisma generate && tsc`).
 - **BullMQ/ioredis**: Must be lazy-initialized in the Next.js app to avoid Redis connection attempts during `next build` (static page generation phase). Use `getGenerationQueue()` instead of a top-level `Queue` instance.
-- **`AUTH_URL`**: Must be set to the deployed URL (e.g., `https://bookclad-dev.up.railway.app`) for OAuth callbacks to work correctly.
+- **`AUTH_URL`**: Must be set to the deployed URL (e.g., `https://dev.bookclad.com`) for OAuth callbacks to work correctly.
+- **Infrastructure docs**: Full deployment architecture, DNS, Cloudflare config, env vars, and production checklist are in `docs/infrastructure.md`. When changing DNS records, Railway services, Cloudflare settings, environment variables, or external service integrations, update that document alongside the code.
 
 ## Generation Pipeline
 
