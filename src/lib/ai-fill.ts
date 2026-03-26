@@ -34,7 +34,7 @@ const suggestionSchema = z.object({
   name: z.string().optional(),
   type: z.enum(["single", "multi", "text", "toggle", "scale", "color", "palette"]).optional(),
   value: z.union([z.string().trim().min(1), z.array(z.string().trim().min(1)).min(1)]),
-  isNew: z.boolean(),
+  isNew: z.boolean().default(false),
   newValues: z
     .array(
       z.object({

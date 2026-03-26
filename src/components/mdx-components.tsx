@@ -1,8 +1,10 @@
 import type { MDXComponents } from "mdx/types";
 import Link from "next/link";
 import Image from "next/image";
+import { ThemedImage } from "@/components/landing/themed-image";
 
 export const mdxComponents: MDXComponents = {
+  ThemedImage,
   a: ({ href, children, ...props }) => {
     if (href?.startsWith("/")) {
       return (

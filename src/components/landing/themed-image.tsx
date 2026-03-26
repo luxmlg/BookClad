@@ -16,8 +16,8 @@ interface ThemedImageProps {
   lightSrc: ImageProps["src"];
   darkSrc: ImageProps["src"];
   alt: string;
-  width: number;
-  height: number;
+  width?: number | string;
+  height?: number | string;
   priority?: boolean;
   className?: string;
 }
@@ -26,11 +26,13 @@ export function ThemedImage({
   lightSrc,
   darkSrc,
   alt,
-  width,
-  height,
+  width: rawWidth,
+  height: rawHeight,
   priority,
   className,
 }: ThemedImageProps) {
+  const width = Number(rawWidth) || 800;
+  const height = Number(rawHeight) || 450;
   const { resolvedTheme } = useTheme();
   const mounted = useMounted();
 

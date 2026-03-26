@@ -47,8 +47,6 @@ Your cover will be judged primarily at thumbnail size — roughly 300 pixels wid
 
 **Taglines and series information** — only if they fit without crowding the rest of the cover. If adding a series name makes the cover feel cramped, leave it out. Clutter is the bigger risk than omission.
 
-{/* Screenshot: Cover at full size vs. same cover at 300px wide — showing thumbnail legibility test */}
-
 ---
 
 ## Placement Basics
@@ -65,8 +63,6 @@ The standard approach — and it's standard because it works — is **title at t
 
 **Handling text on busy backgrounds** is one of the most common practical problems. If the image underneath your title is complex and variable in tone, the text will fight for legibility in some areas even if it reads fine in others. Two reliable solutions: a subtle drop shadow behind the letters, or a semi-transparent color bar behind the title area. Both preserve the artwork while ensuring the text is always legible, regardless of what's happening underneath.
 
-{/* Screenshot: Text placement examples — title top/author bottom vs. crowded middle placement */}
-
 ---
 
 ## The Layer Approach
@@ -79,7 +75,7 @@ It also means that if you regenerate the artwork — try a different mood, a dif
 
 For most use cases, the layer approach is where you should start and, often, where you should finish. Standard text on a well-designed cover, with a legible font and good contrast, does its job without needing anything more elaborate.
 
-{/* Screenshot: Editor showing multiple text layers with layer panel — title, author, series name as separate items */}
+<ThemedImage lightSrc="/screenshots/layer-panel-light.png" darkSrc="/screenshots/layer-panel-dark.png" alt="Editor showing multiple text layers in the layer panel" width={800} height={450} />
 
 ---
 
@@ -101,7 +97,13 @@ Two styles control how the bake behaves:
 
 A practical workflow: bake the title, keep the author name as a standard text layer. Get the dramatic integrated effect where it matters most, with reliable legibility where you can't afford variation.
 
-{/* Screenshot: Before/after bake — same cover with standard text layer vs. baked title integrated into the artwork */}
+<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+
+<ThemedImage lightSrc="/screenshots/bake-before-light.png" darkSrc="/screenshots/bake-before-dark.png" alt="Editor canvas with flat text layer on cover art" width={400} height={225} />
+
+<ThemedImage lightSrc="/screenshots/bake-after-light.png" darkSrc="/screenshots/bake-after-dark.png" alt="Baked result with text integrated into the artwork" width={400} height={225} />
+
+</div>
 
 ---
 
@@ -127,7 +129,7 @@ Here's the full process from cover art to finished typography in BookClad's canv
 
 **9. Export.** When you're happy with the result, export from the right sidebar. BookClad composites all layers and exports a KDP-ready JPEG at 1600 × 2560 pixels — the exact dimensions Amazon requires, at 300 DPI. Ready to upload directly to KDP.
 
-{/* Screenshot: Right sidebar showing font picker organized by category, with size/color/opacity controls */}
+<ThemedImage lightSrc="/screenshots/floating-toolbar-light.png" darkSrc="/screenshots/floating-toolbar-dark.png" alt="Floating text toolbar with font picker, size, color, and letter-spacing controls" width={800} height={450} />
 
 ---
 

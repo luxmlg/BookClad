@@ -277,8 +277,14 @@ export default function TermsPage() {
             Contact
           </h2>
           <p>
-            If you have questions about these terms, please use the feedback
-            form inside the app.
+            If you have questions about these terms, email us at{" "}
+            <a
+              href="mailto:support@bookclad.com"
+              className="text-foreground underline underline-offset-2"
+            >
+              support@bookclad.com
+            </a>{" "}
+            or use the feedback form inside the app.
           </p>
         </section>
       </div>

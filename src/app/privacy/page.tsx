@@ -226,8 +226,14 @@ export default function PrivacyPage() {
             Contact
           </h2>
           <p>
-            Questions about your data or this policy? Use the feedback form
-            inside the app.
+            Questions about your data or this policy? Email us at{" "}
+            <a
+              href="mailto:support@bookclad.com"
+              className="text-foreground underline underline-offset-2"
+            >
+              support@bookclad.com
+            </a>{" "}
+            or use the feedback form inside the app.
           </p>
         </section>
       </div>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import Link from "next/link";
+import remarkGfm from "remark-gfm";
 import { getHelpDoc, getHelpDocs } from "@/lib/mdx";
 import { mdxComponents } from "@/components/mdx-components";
 
@@ -45,7 +46,11 @@ export default async function HelpDocPage({ params }: HelpDocPageProps) {
       <article>
         <h1 className="mb-8 text-3xl font-bold">{doc.frontmatter.title}</h1>
         <div className="prose prose-neutral dark:prose-invert max-w-none">
-          <MDXRemote source={doc.content} components={mdxComponents} />
+          <MDXRemote
+            source={doc.content}
+            components={mdxComponents}
+            options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
+          />
         </div>
       </article>
     </main>
