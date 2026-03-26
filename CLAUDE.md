@@ -75,25 +75,21 @@ The app and worker deploy as separate Railway services from the same repo. Railw
 
 ## Generation Pipeline
 
-Three job types in BullMQ, each routed to a processor in the worker:
-- `JOB_TYPE.GENERATE` → `generation.processor.ts` — text-to-image from attribute prompt
-- `JOB_TYPE.GENERATE_FROM_REFERENCE` → `generation.processor.ts` — image-to-image using `referenceImageKey`
-- `JOB_TYPE.INPAINT` → `inpaint.processor.ts` — masked region editing via Gemini
+Two job types in BullMQ, both routed to `generation.processor.ts`:
+- `JOB_TYPE.GENERATE` — text-to-image from attribute prompt
+- `JOB_TYPE.GENERATE_FROM_REFERENCE` — image-to-image using `referenceImageKey` (also used for bake)
 
-All processors run a **preflight health check** (`preflight()` in `worker/src/lib/health.ts`) before any work — verifies R2 storage and Postgres are reachable. If either is down, the job fails immediately without calling the Gemini API, saving API costs.
+The processor runs a **preflight health check** (`preflight()` in `worker/src/lib/health.ts`) before any work — verifies R2 storage and Postgres are reachable. If either is down, the job fails immediately without calling the Gemini API, saving API costs.
 
-**Per-image pipeline**: Both processors generate, process, and save each image to DB before starting the next (`generateSingleImage()` in `worker/src/services/gemini.service.ts`). This ensures that if an API call fails mid-sequence, previously generated images are already persisted and Path 2 (partial success) triggers correctly.
+**Per-image pipeline**: The processor generates, processes, and saves each image to DB before starting the next (`generateSingleImage()` in `worker/src/services/gemini.service.ts`). This ensures that if an API call fails mid-sequence, previously generated images are already persisted and Path 2 (partial success) triggers correctly.
 
 Pipeline branches on model:
 - **Quick**: generate at 1K → upload raw (no upscale, no KDP crop) → store actual dimensions from Sharp metadata. Prototyping only, not export-ready.
 - **Detailed/Premium**: generate at 4K → skip upscale (already exceeds KDP) → crop to 1600x2560 → upload to R2 → create `GeneratedImage` rows with KDP dimensions.
 
-**Extension flow**: `POST /api/generations/[id]/extend` adds more images to an existing generation. Routes to the correct processor based on `generation.jobType`:
-- Inpaint extensions → `JOB_TYPE.INPAINT` with persisted `maskImage` key and `prompt`
-- Similar/reference extensions → `JOB_TYPE.GENERATE` with `referenceImage` key
-- Regular extensions → `JOB_TYPE.GENERATE` without reference
+**Extension flow**: `POST /api/generations/[id]/extend` adds more images to an existing generation. Queues a `JOB_TYPE.GENERATE` job with `isExtension: true`, using the original generation's `referenceImage` if present.
 
-Both processors support `isExtension` flag for partial-failure handling: if some images succeed before an error, mark COMPLETED with `imageCount` set to actual images created, then refund only the cost of images that weren't generated (not the full extension cost). Extensions do NOT auto-retry.
+The processor supports `isExtension` flag for partial-failure handling: if some images succeed before an error, mark COMPLETED with `imageCount` set to actual images created, then refund only the cost of images that weren't generated (not the full extension cost). Extensions do NOT auto-retry.
 
 **Partial failure status**: When some images are generated before an error (Path 2), the generation is marked `COMPLETED` (not `FAILED`) with `errorMessage` set to a human-readable summary (e.g., "4 of 8 images generated. 20 credits refunded."). The original `imageCount` is preserved (not overwritten to the actual count) so the frontend can compute failed slot count as `imageCount - images.length`. Only `creditCost` is adjusted. `errorMessage` is cleared on successful extension, or updated with fresh numbers on extension partial failure. The frontend renders amber "failed slots" in generation history with retry capability via `onGenerateMore`.
 
@@ -108,21 +104,15 @@ On retryable failure: sets `status: RETRYING` with `retryCount`, `retryReason` (
 
 On non-retryable failure with images: sets `status: COMPLETED` with `errorMessage`, partial refund. On non-retryable failure without images: sets `status: FAILED`, full refund.
 
-Both processors check for user cancellation before processing and at the top of error handling: if `generation.status === FAILED` (set by cancel API), the processor returns early without doing any work or refunding (cancel API already refunded). Status updates in error handlers use conditional `updateMany` with `status: { not: FAILED }` to prevent double refunds.
+The processor checks for user cancellation before processing and at the top of error handling: if `generation.status === FAILED` (set by cancel API), the processor returns early without doing any work or refunding (cancel API already refunded). Status updates in error handlers use conditional `updateMany` with `status: { not: FAILED }` to prevent double refunds.
 
 **Cancellation**: `POST /api/generations/[id]/cancel` — only works on `RETRYING` or `QUEUED` status (rejects `PROCESSING`). Marks FAILED, refunds credits via `refundCredits()` from `src/lib/credits.ts`, best-effort removes the BullMQ job, and publishes a FAILED event via `getRedisPublisher()` from `src/lib/queue.ts`.
 
-**Bake Layers**: Surgically adds text/image layers into a generated cover via the inpaint pipeline. Flow: user clicks "Bake Layers" → `generateLayerMask()` in `use-inpaint-state.ts` creates a mask from visible layer bounding boxes (white rectangles on black, KDP resolution, 20px canvas-space padding for blending room) → flattens the canvas (image + text rendered) → calls `createInpaint()` with the auto-generated mask + flattened image → creates `JOB_TYPE.INPAINT` job. The mask tells Gemini exactly which regions to edit, leaving the rest untouched. Style toggle (`BakeStyle`: `"stylized"` or `"clean"`, defaults to stylized) controls whether text gets creative genre-appropriate effects or clean simple blending. Editing the prompt textarea deselects the style toggle; clicking a style button rebuilds the prompt.
+**Bake Layers**: Adds text/image layers into a generated cover via `GENERATE_FROM_REFERENCE`. Flow: user clicks "Bake Layers" in the toolbar → `flattenCanvasToDataUrl()` renders the canvas (image + text) at KDP resolution → calls `handleGenerateSimilar(prompt, true)` with `includeLayers: true` → creates `GENERATE_FROM_REFERENCE` job with flattened canvas as reference. Style toggle (`BakeStyle`: `"stylized"` or `"clean"`, defaults to stylized) controls whether text gets creative genre-appropriate effects or clean simple blending. Editing the prompt textarea deselects the style toggle; clicking a style button rebuilds the prompt.
 
-Gemini receives the mask as a second `inlineData` part in the `generateContent` call (`inpaintImage()` in `gemini.service.ts`). The prompt references the mask: "Edit ONLY the white regions." Regular inpaint (user-painted mask) also sends the mask when present.
-
-**Inpaint aspect-ratio padding**: `padToAspectRatio()` in `worker/src/services/image.service.ts` pads both source image and mask before sending to Gemini in the inpaint processor. Source image uses `extendWith: "mirror"` (natural-looking edges), mask uses `extendWith: "background"` (black = don't edit padding regions). After generation, `cropToKDP()` removes only the padding — zero original content loss. This protects both baked text and inpainted regions near edges from being cropped.
-
-**Inpaint `imageCount`**: The inpaint API (`POST /api/inpaint`) supports optional `imageCount` (1-8, default 1). The worker already loops and handles partial failure for multiple images. Both bake and regular inpaint show the image count slider in the toolbar.
+**Bake aspect-ratio padding**: `padToAspectRatio()` in `worker/src/services/image.service.ts` pads the reference image from 5:8 (KDP) to 9:16 (Gemini output) using mirrored edges when `generation.includeLayers` is true. After generation, `cropToKDP()` removes only the padding — zero original content loss.
 
 **Post-bake layer cleanup**: When a generation completes with `includeLayers === true`, visible layers are cleared from the image's layer cache (hidden layers preserved) to prevent baked text from appearing twice on subsequent edits.
-
-**Mask persistence**: Inpaint masks are uploaded to R2 as `projects/{projectId}/masks/{uuid}.png` and stored in `Generation.maskImage`. Original inpaints send the mask as base64 in job data (`maskBase64`); extensions download it from storage via `maskKey`.
 
 ## Editor Architecture
 
@@ -130,14 +120,13 @@ Gemini receives the mask as a second `inlineData` part in the `generateContent` 
 
 - **Canvas types & constants** (`canvas-types.ts`): `TextNodeConfig`, `ImageNodeConfig`, `CanvasNode`, `CanvasState`, `NODE_TYPE`, `CANVAS_WIDTH`/`CANVAS_HEIGHT`/`SCALE`, `parseCanvasState`, `getDefaultCanvasState`. All editor files import types from here, not from `cover-canvas.tsx`.
 - **Canvas snap-guide logic** (`src/lib/canvas.ts`): Pure `computeSnapGuides()` function, `Guide` interface, `SNAP_THRESHOLD`, grid line arrays.
-- **Extracted hooks** (`hooks.ts`, `use-inpaint-state.ts`, `use-generation-actions.ts`):
+- **Extracted hooks** (`hooks.ts`, `use-generation-actions.ts`):
   - `useLayerCache` — per-image layer caching with `layersCacheRef`
   - `useAutoSave` — debounced canvas + project persistence
   - `useToolbarPosition` — ResizeObserver/scroll tracking for fixed toolbars
   - `useKindlePreview` — debounced Konva-to-dataURL for Kindle preview
   - `useImageUrls` — fetches signed URLs for generated images
-  - `useInpaintState` — brush mode, mask, inpaint submission
-  - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking (includes `RETRYING` in active filters)
+  - `useGenerationActions` — generation lifecycle, model/imageCount state, active generation tracking (includes `RETRYING` in active filters), `flattenCanvasToDataUrl` for bake
 - **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's attribute configuration, fetched from `/api/attributes`)
 - **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot`, `descriptionSnapshot`, and `textLayerSnapshot` with each generation for diff tracking and history display. All generation handlers (`handleRegenerate`, `handleGenerateSimilar`, `handleGenerateMore`, `handleInpaintSubmit`) auto-open the bottom panel and switch to the History tab (`setActiveTab(0)`) so users see the new generation loading.
 - **Draft attribute system**: When switching between history images, attribute edits are stashed per-image in `draftStashRef` and restored on return. `baseSnapshot` holds the generation's original attributes; `draftKeys` (derived via `computeAttributeDiff`) drives amber dot indicators on modified attributes.
@@ -325,7 +314,7 @@ Triggered from Settings General tab → "Danger Zone" → `DeleteAccountDialog` 
 - **Prisma client import**: Use `import { PrismaClient } from "@/generated/prisma/client"` (not `@prisma/client`) — the client is generated to a custom output path.
 - **Validation**: All API request bodies are validated with Zod schemas from `src/lib/validations.ts`. Schemas derive allowed values from `src/lib/constants.ts`.
 - **Auth pattern**: Auth.js v5 with database sessions. Providers: Google, Apple, Amazon (custom OAuth) — all with `allowDangerousEmailAccountLinking` (safe because all providers verify emails). Apple and Amazon buttons are conditionally shown based on env vars (`AUTH_APPLE_ID`/`AUTH_APPLE_SECRET`, `AUTH_AMAZON_ID`/`AUTH_AMAZON_SECRET`). API routes check `const session = await auth()` from `src/lib/auth.ts`, then verify `session?.user?.id`. Protected pages redirect via middleware in `src/proxy.ts` (checks `/dashboard`, `/create`, `/editor` routes for session cookie). `createUser` event auto-creates `AttributeConfig` and grants initial credits.
-- **BullMQ queue**: `QUEUE_NAME` (`"cover-generation"`). The Next.js app uses `getGenerationQueue()` from `src/lib/queue.ts` (lazy-initialized to avoid Redis connections at build time). The worker consumes via its own BullMQ Worker. Job type constants in `JOB_TYPE`: `GENERATE`, `INPAINT`, `GENERATE_FROM_REFERENCE`. Redis connections must include `password` and `username` from the URL — don't parse only host/port.
+- **BullMQ queue**: `QUEUE_NAME` (`"cover-generation"`). The Next.js app uses `getGenerationQueue()` from `src/lib/queue.ts` (lazy-initialized to avoid Redis connections at build time). The worker consumes via its own BullMQ Worker. Job type constants in `JOB_TYPE`: `GENERATE`, `GENERATE_FROM_REFERENCE`. Redis connections must include `password` and `username` from the URL — don't parse only host/port.
 - **Storage**: Images go to Cloudflare R2 (S3-compatible). Dev can use local `uploads/` directory.
 - **UI components**: shadcn/ui in `src/components/ui/`. The canvas editor uses Konva via `react-konva` (dynamically imported to avoid SSR).
 - **UI primitives are `@base-ui/react`** (not Radix). shadcn/ui provides the component structure/styling but all primitives (`Dialog`, `Menu`, `Select`, `Collapsible`, etc.) come from base-ui. Key gotchas vs Radix:
