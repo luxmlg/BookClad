@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { publishProgress } from "../lib/progress.js";
 import { inpaintImage as geminiInpaint } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
-import { cropToKDP } from "../services/image.service.js";
+import { cropToKDP, padToAspectRatio } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG, RETRY_DELAYS, MAX_OTHER_RETRIES, MAX_HIGH_DEMAND_RETRIES, CREDIT_COST_PER_IMAGE } from "../lib/constants.js";
 import { refundCredits } from "../lib/credits.js";
@@ -35,7 +35,7 @@ async function dispatchInpaint(
   const geminiModelId = GEMINI_MODEL_IDS[model];
   if (!geminiModelId) throw new Error(`Unknown model: ${model}`);
   const config = GEMINI_MODEL_CONFIG[model];
-  return geminiInpaint({ imageBuffer, prompt, modelId: geminiModelId, config });
+  return geminiInpaint({ imageBuffer, maskBuffer, prompt, modelId: geminiModelId, config });
 }
 
 export async function processInpaint(job: Job<InpaintJobData>) {
@@ -102,13 +102,20 @@ export async function processInpaint(job: Job<InpaintJobData>) {
 
     step++;
     await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Downloading source image...", step, totalSteps });
-    const imageBuffer = job.data.flattenedImageDataUrl
+    let imageBuffer = job.data.flattenedImageDataUrl
       ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
       : await downloadImage(sourceImageKey);
 
-    const maskBuffer = maskBase64
+    let maskBuffer = maskBase64
       ? Buffer.from(maskBase64.replace(/^data:image\/\w+;base64,/, ""), "base64")
       : await downloadImage(maskKey!);
+
+    // Pad source + mask to generation aspect ratio so cropToKDP only removes padding
+    const aspectRatio = GEMINI_MODEL_CONFIG[model]?.aspectRatio;
+    if (aspectRatio) {
+      imageBuffer = await padToAspectRatio(imageBuffer, aspectRatio);
+      maskBuffer = await padToAspectRatio(maskBuffer, aspectRatio, "background");
+    }
 
     for (let i = alreadyGenerated; i < imageCount; i++) {
       step++;
