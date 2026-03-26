@@ -3,9 +3,6 @@ import { UnrecoverableError } from "bullmq";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FETCH_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes — premium models can be slow
 
-const NO_IMAGES_MESSAGE =
-  "No images were generated. Try adjusting your description or a different quality setting.";
-
 const GEMINI_ERROR_MESSAGES: Record<number, string> = {
   400: "Something about your request was invalid. Try adjusting your description or settings.",
   401: "Image generation service authentication failed. Please contact support.",

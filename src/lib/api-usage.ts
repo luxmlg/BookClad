@@ -41,7 +41,7 @@ export function parseGeminiUsage(
   const metadata: Record<string, unknown> = {};
   const candidates = responseJson.candidates as Array<Record<string, unknown>> | undefined;
   if (candidates?.[0]) {
-    const { content, ...rest } = candidates[0];
+    const { content: _content, ...rest } = candidates[0];
     if (Object.keys(rest).length > 0) metadata.candidate = rest;
   }
   if (usage) metadata.usageMetadata = usage;
