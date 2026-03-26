@@ -195,7 +195,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
         }),
       ]);
 
-      const preExtensionCount = (gen?.imageCount ?? 0) - (job.data.imageCount ?? 0);
+      const preExtensionCount = (gen?.imageCount ?? 0) - (job.data.extensionImageCount ?? job.data.imageCount ?? 0);
       const newImagesCreated = Math.max(0, actualCount - preExtensionCount);
       const perImageCost = CREDIT_COST_PER_IMAGE[job.data.model];
       if (perImageCost === undefined) throw new Error(`Unknown model "${job.data.model}"`);

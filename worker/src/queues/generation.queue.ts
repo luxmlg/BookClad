@@ -21,4 +21,5 @@ export interface GenerationJobData {
   flattenedImageDataUrl?: string | null;
   creditCost: number;
   isExtension?: boolean;
+  extensionImageCount?: number;
 }
