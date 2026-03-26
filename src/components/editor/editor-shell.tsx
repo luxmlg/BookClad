@@ -37,7 +37,6 @@ import {
   useKindlePreview,
   useImageUrls,
 } from "./hooks";
-import { useInpaintState } from "./use-inpaint-state";
 import { useGenerationActions } from "./use-generation-actions";
 import { useCreditStore } from "@/lib/stores/credit-store";
 
@@ -159,16 +158,11 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
     ? (completedGenerations.find((g) => g.images.some((img) => img.id === selectedImageId))?.model ?? null)
     : null;
 
-  // Forward ref for inpaint — allows genActions to read live inpaint state in handlers
-  const inpaintRef = useRef<{ flattenCanvasToDataUrl: () => Promise<string | undefined> }>({
-    flattenCanvasToDataUrl: async () => undefined,
-  });
-
-  // Generation actions (created first with ref — only reads inpaint in event handlers)
+  // Generation actions
   const genActions = useGenerationActions(
     project.id, project.generations,
     attributes, nodes, selectedImageId,
-    inpaintRef, router, tier,
+    stageRef, router, tier,
   );
 
   const historyGenerations = useMemo(() => {
@@ -191,20 +185,6 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
     },
     [handleGenerationComplete, refreshCredits]
   );
-
-  // Inpaint state (uses genActions' stable setters)
-  const inpaint = useInpaintState(
-    stageRef, selectedImageId, setSelectedNodeId,
-    genActions.setActiveGenerationIds,
-    genActions.setPanelOpen,
-    genActions.setActiveTab,
-    genActions.setPendingSlotCounts,
-    genActions.model,
-    attributes, nodes, router,
-  );
-
-  // Keep inpaint ref in sync
-  inpaintRef.current = inpaint;
 
   // Auto-save
   useAutoSave(nodes, selectedImageId, project.id, attributes);

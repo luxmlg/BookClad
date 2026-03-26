@@ -4,14 +4,13 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CanvasNode } from "./canvas-types";
-import { NODE_TYPE } from "./canvas-types";
-import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, QUICK_CREATE_TIER_CONFIG, isModelAvailable, AI_MODELS } from "@/lib/constants";
+import { NODE_TYPE, CANVAS_WIDTH } from "./canvas-types";
+import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, QUICK_CREATE_TIER_CONFIG, isModelAvailable, AI_MODELS, KDP } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
 import { REF_PROMPT_KEY } from "@/lib/attributes";
 import { createGeneration, extendGeneration } from "@/lib/api";
 import { useCreditStore } from "@/lib/stores/credit-store";
 import type { Generation } from "./types";
-import type { UseInpaintStateResult } from "./use-inpaint-state";
 
 export interface UseGenerationActionsResult {
   activeGenerationIds: string[];
@@ -41,7 +40,7 @@ export function useGenerationActions(
   attributes: AttributeSelection,
   canvasNodes: CanvasNode[],
   selectedImageId: string | null,
-  inpaintRef: React.RefObject<Pick<UseInpaintStateResult, "flattenCanvasToDataUrl">>,
+  stageRef: React.RefObject<import("konva").default.Stage | null>,
   router: ReturnType<typeof useRouter>,
   tier: string = "FREE",
 ): UseGenerationActionsResult {
@@ -105,6 +104,30 @@ export function useGenerationActions(
     );
   }, [projectGenerations]);
 
+  async function flattenCanvasToDataUrl(): Promise<string | undefined> {
+    const stage = stageRef.current;
+    if (!stage) return undefined;
+    await new Promise((r) => setTimeout(r, 50));
+    await document.fonts.ready;
+    const layers = stage.getLayers();
+    const hiddenLayers: import("konva").default.Layer[] = [];
+    for (let i = 2; i < layers.length; i++) {
+      if (layers[i].visible()) {
+        layers[i].visible(false);
+        hiddenLayers.push(layers[i]);
+      }
+    }
+    const dataUrl = stage.toDataURL({
+      pixelRatio: KDP.width / CANVAS_WIDTH,
+      mimeType: "image/jpeg",
+      quality: 0.9,
+    });
+    for (const layer of hiddenLayers) {
+      layer.visible(true);
+    }
+    return dataUrl;
+  }
+
   async function handleRegenerate() {
     try {
       const data = await createGeneration({
@@ -142,7 +165,7 @@ export function useGenerationActions(
 
   async function handleGenerateSimilar(prompt: string, includeLayers: boolean) {
     if (!selectedImageId) return;
-    const flattenedImageDataUrl = includeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
+    const flattenedImageDataUrl = includeLayers ? await flattenCanvasToDataUrl() : undefined;
     const snapshot: AttributeSelection = { ...attributes };
     if (prompt) snapshot[REF_PROMPT_KEY] = prompt;
     const data = await createGeneration({
