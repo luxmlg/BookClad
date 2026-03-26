@@ -160,7 +160,7 @@ Added to the landing page (`src/app/page.tsx`) as a `<script type="application/l
   "offers": {
     "@type": "AggregateOffer",
     "lowPrice": "0",
-    "highPrice": "29",
+    "highPrice": "35",
     "priceCurrency": "USD"
   }
 }
@@ -263,10 +263,10 @@ Manual setup (not code):
 1. Add DNS TXT record in Cloudflare to verify `bookclad.com`
 2. Add verification meta tag to root metadata as a fallback
 
-Code adds the meta tag:
+Code reads from env var and adds the meta tag:
 ```ts
 verification: {
-  google: "VERIFICATION_CODE_HERE",  // from env var
+  google: process.env.GOOGLE_SITE_VERIFICATION,
 }
 ```
 
@@ -321,11 +321,13 @@ Add footer link and sign-in page link (same pattern as privacy policy).
 
 ### 4a. Logo Design
 
-Use `frontend-design` skill to create an SVG logo:
+Interactive step using `frontend-design` skill to create an SVG logo:
 - Clean, modern design that works at all sizes (favicon to hero)
 - Book/cover-related iconography
 - Works in both light and dark themes
 - Iterate with user until approved
+
+**Blocking dependency:** Logo must be approved before 4b (icon set) and 4c (OG image) can proceed. Section 1f (favicons in metadata) also depends on this.
 
 ### 4b. Icon Set
 
