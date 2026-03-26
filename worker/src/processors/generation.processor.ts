@@ -105,6 +105,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       refBuffer = job.data.flattenedImageDataUrl
         ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
         : await downloadImage(referenceImageKey);
+
     }
 
     for (let i = alreadyGenerated; i < imageCount; i++) {
