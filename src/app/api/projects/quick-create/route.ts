@@ -21,7 +21,6 @@ import {
 import { getGenerationQueue } from "@/lib/queue";
 import {
   buildDefaultConfig,
-  buildDefaultSelection,
   ensureBuiltInAttributes,
   sanitizeConfig,
 } from "@/lib/attributes";
@@ -97,8 +96,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     // Build seed selection with genre pre-set
-    const seedSelection: AttributeSelection = buildDefaultSelection(config);
-    seedSelection.genre = genre;
+    const seedSelection: AttributeSelection = { genre };
 
     // Generate attributes via AI Fill
     const suggestions = await generateAttributeSuggestions(
