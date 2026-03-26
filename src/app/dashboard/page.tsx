@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
@@ -14,6 +15,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DeleteProjectButton } from "@/components/dashboard/delete-project-button";
 import { ActiveGenerationRows } from "@/components/dashboard/active-generation-row";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function DashboardPage() {
   const session = await auth();

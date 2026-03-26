@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 const showApple = !!(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET);
 const showAmazon = !!(process.env.AUTH_AMAZON_ID && process.env.AUTH_AMAZON_SECRET);
