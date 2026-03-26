@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { GENERATION_STATUS, EVENT_TYPE, WS_MESSAGE_TYPE, DEFAULT_WS_URL, WS_RECONNECT_INITIAL_MS, WS_RECONNECT_MAX_MS, type GenerationStatus } from "@/lib/constants";
+import { getGeneration } from "@/lib/api";
 
-interface GenerationProgress {
+// ── Types ────────────────────────────────────────────────────────
+
+export interface GenerationProgress {
   status: GenerationStatus;
   progressMessage: string | null;
   errorMessage: string | null;
@@ -14,19 +17,46 @@ interface GenerationProgress {
   nextRetryAt: string | null;
 }
 
-type Listener = (event: GenerationProgress & { generationId: string }) => void;
+type GenerationListener = (event: GenerationProgress & { generationId: string }) => void;
 
-// Singleton WebSocket manager shared across all hook instances
+export interface ProjectGenerationEvent {
+  projectId: string;
+  generationId: string;
+  type: string;
+  status?: GenerationStatus;
+  imageCount?: number;
+  errorMessage?: string | null;
+  retryCount?: number;
+  retryReason?: string | null;
+  nextRetryAt?: string | null;
+}
+
+type ProjectListener = (event: ProjectGenerationEvent) => void;
+
+// ── Singleton state ──────────────────────────────────────────────
+
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = WS_RECONNECT_INITIAL_MS;
-const listeners = new Map<string, Set<Listener>>();
+let isReconnect = false;
+
+// Generation subscriptions
+const listeners = new Map<string, Set<GenerationListener>>();
 const subscriptions = new Set<string>();
+
+// Project subscriptions
+const projectListeners = new Map<string, Set<ProjectListener>>();
+const projectSubscriptions = new Set<string>();
+
+// Reconnect callbacks
+const reconnectCallbacks = new Set<() => void>();
 
 const WS_URL =
   typeof window !== "undefined"
     ? (process.env.NEXT_PUBLIC_WS_URL ?? DEFAULT_WS_URL)
     : "";
+
+// ── Socket management ────────────────────────────────────────────
 
 function getSocket(): WebSocket | null {
   if (typeof window === "undefined") return null;
@@ -46,16 +76,43 @@ function getSocket(): WebSocket | null {
     ws = socket;
 
     socket.onopen = () => {
+      const wasReconnect = isReconnect;
+      isReconnect = true;
       reconnectDelay = WS_RECONNECT_INITIAL_MS;
-      // Re-subscribe all active subscriptions
+
+      // Re-subscribe all active generation subscriptions
       for (const generationId of subscriptions) {
         socket.send(JSON.stringify({ type: WS_MESSAGE_TYPE.SUBSCRIBE, generationId }));
+      }
+      // Re-subscribe all active project subscriptions
+      for (const projectId of projectSubscriptions) {
+        socket.send(JSON.stringify({ type: WS_MESSAGE_TYPE.SUBSCRIBE_PROJECT, projectId }));
+      }
+
+      // Fire reconnect callbacks to sync state missed during gap
+      if (wasReconnect) {
+        for (const cb of reconnectCallbacks) {
+          cb();
+        }
       }
     };
 
     socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+
+        // Route project channel messages
+        if (data.projectId) {
+          const pListeners = projectListeners.get(data.projectId);
+          if (pListeners) {
+            for (const listener of pListeners) {
+              listener(data as ProjectGenerationEvent);
+            }
+          }
+          return;
+        }
+
+        // Route generation channel messages
         const { generationId, ...rest } = data;
         if (!generationId) return;
 
@@ -110,7 +167,8 @@ function getSocket(): WebSocket | null {
 
     socket.onclose = () => {
       if (ws === socket) ws = null;
-      if (subscriptions.size > 0) {
+      const hasSubscriptions = subscriptions.size > 0 || projectSubscriptions.size > 0;
+      if (hasSubscriptions) {
         reconnectTimer = setTimeout(() => {
           reconnectTimer = null;
           getSocket();
@@ -129,7 +187,20 @@ function getSocket(): WebSocket | null {
   return ws;
 }
 
-function subscribe(generationId: string, listener: Listener) {
+function cleanupIfEmpty() {
+  if (subscriptions.size === 0 && projectSubscriptions.size === 0 && ws) {
+    ws.close();
+    ws = null;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  }
+}
+
+// ── Generation subscriptions ─────────────────────────────────────
+
+function subscribe(generationId: string, listener: GenerationListener) {
   if (!listeners.has(generationId)) {
     listeners.set(generationId, new Set());
   }
@@ -155,21 +226,63 @@ function subscribe(generationId: string, listener: Listener) {
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: WS_MESSAGE_TYPE.UNSUBSCRIBE, generationId }));
         }
-        // If no subscriptions left, clean up connection
-        if (subscriptions.size === 0 && ws) {
-          ws.close();
-          ws = null;
-          if (reconnectTimer) {
-            clearTimeout(reconnectTimer);
-            reconnectTimer = null;
-          }
-        }
+        cleanupIfEmpty();
       }
     }
   };
 }
 
-export function useGenerationProgress(generationId: string) {
+// ── Project subscriptions ────────────────────────────────────────
+
+function subscribeProject(projectId: string, listener: ProjectListener) {
+  if (!projectListeners.has(projectId)) {
+    projectListeners.set(projectId, new Set());
+  }
+  projectListeners.get(projectId)!.add(listener);
+
+  const isNew = !projectSubscriptions.has(projectId);
+  projectSubscriptions.add(projectId);
+
+  if (isNew) {
+    const socket = getSocket();
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: WS_MESSAGE_TYPE.SUBSCRIBE_PROJECT, projectId }));
+    }
+  }
+
+  return () => {
+    const pListeners = projectListeners.get(projectId);
+    if (pListeners) {
+      pListeners.delete(listener);
+      if (pListeners.size === 0) {
+        projectListeners.delete(projectId);
+        projectSubscriptions.delete(projectId);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: WS_MESSAGE_TYPE.UNSUBSCRIBE_PROJECT, projectId }));
+        }
+        cleanupIfEmpty();
+      }
+    }
+  };
+}
+
+// ── Reconnect callback registration ─────────────────────────────
+
+function onReconnect(cb: () => void) {
+  reconnectCallbacks.add(cb);
+  return () => { reconnectCallbacks.delete(cb); };
+}
+
+// ── Hook: useGenerationProgress ──────────────────────────────────
+
+interface UseGenerationProgressOptions {
+  onComplete?: (status: GenerationStatus, errorMessage?: string | null) => void;
+}
+
+export function useGenerationProgress(
+  generationId: string,
+  options?: UseGenerationProgressOptions,
+) {
   const [status, setStatus] = useState<GenerationStatus>(GENERATION_STATUS.QUEUED);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -179,38 +292,154 @@ export function useGenerationProgress(generationId: string) {
   const [retryReason, setRetryReason] = useState<string | null>(null);
   const [nextRetryAt, setNextRetryAt] = useState<string | null>(null);
   const completedRef = useRef(false);
+  const onCompleteRef = useRef(options?.onComplete);
+  onCompleteRef.current = options?.onComplete;
+
+  const applyState = useCallback(
+    (data: {
+      status: GenerationStatus;
+      progressMessage?: string | null;
+      errorMessage?: string | null;
+      step?: number;
+      totalSteps?: number;
+      retryCount?: number;
+      retryReason?: string | null;
+      nextRetryAt?: string | null;
+    }) => {
+      if (completedRef.current) return;
+      setStatus(data.status);
+      if (data.progressMessage !== undefined && data.progressMessage !== null) setProgressMessage(data.progressMessage);
+      if (data.errorMessage !== undefined && data.errorMessage !== null) setErrorMessage(data.errorMessage);
+      if (data.step) setStep(data.step);
+      if (data.totalSteps) setTotalSteps(data.totalSteps);
+      if (data.retryCount !== undefined) setRetryCount(data.retryCount);
+      if (data.retryReason !== undefined) setRetryReason(data.retryReason);
+      if (data.nextRetryAt !== undefined) setNextRetryAt(data.nextRetryAt);
+      if (data.status === GENERATION_STATUS.COMPLETED || data.status === GENERATION_STATUS.FAILED) {
+        completedRef.current = true;
+        onCompleteRef.current?.(data.status, data.errorMessage);
+      }
+    },
+    [],
+  );
 
   const handleEvent = useCallback(
     (event: GenerationProgress & { generationId: string }) => {
-      if (completedRef.current) return;
-      setStatus(event.status);
-      if (event.progressMessage !== null) setProgressMessage(event.progressMessage);
-      if (event.errorMessage !== null) setErrorMessage(event.errorMessage);
-      if (event.step) setStep(event.step);
-      if (event.totalSteps) setTotalSteps(event.totalSteps);
-      if (event.retryCount !== undefined) setRetryCount(event.retryCount);
-      if (event.retryReason !== undefined) setRetryReason(event.retryReason);
-      if (event.nextRetryAt !== undefined) setNextRetryAt(event.nextRetryAt);
-      if (event.status === GENERATION_STATUS.COMPLETED || event.status === GENERATION_STATUS.FAILED) {
-        completedRef.current = true;
-      }
+      applyState(event);
     },
-    []
+    [applyState],
   );
+
+  // One-shot fetch for initialization and reconnect sync
+  const syncFromApi = useCallback(async () => {
+    if (completedRef.current) return;
+    try {
+      const data = await getGeneration(generationId);
+      applyState({
+        status: data.status as GenerationStatus,
+        errorMessage: data.errorMessage,
+        retryCount: data.retryCount ?? 0,
+        retryReason: data.retryReason ?? null,
+        nextRetryAt: data.nextRetryAt ? String(data.nextRetryAt) : null,
+      });
+    } catch {
+      // Ignore fetch errors
+    }
+  }, [generationId, applyState]);
 
   useEffect(() => {
     completedRef.current = false;
     const unsubscribe = subscribe(generationId, handleEvent);
-    return unsubscribe;
-  }, [generationId, handleEvent]);
+    // One-shot fetch on mount for initial state
+    syncFromApi();
+    // Re-sync on reconnect
+    const unregReconnect = onReconnect(syncFromApi);
+    return () => {
+      unsubscribe();
+      unregReconnect();
+    };
+  }, [generationId, handleEvent, syncFromApi]);
 
-  /** Allow the poller to inject API-fetched state when WebSocket misses events. */
-  const syncState = useCallback(
-    (data: Partial<GenerationProgress>) => {
-      handleEvent({ generationId, status: data.status ?? status, progressMessage: data.progressMessage ?? null, errorMessage: data.errorMessage ?? null, step: data.step ?? 0, totalSteps: data.totalSteps ?? 0, retryCount: data.retryCount ?? 0, retryReason: data.retryReason ?? null, nextRetryAt: data.nextRetryAt ?? null });
+  const progressPercent =
+    totalSteps > 0 ? Math.round((step / totalSteps) * 100) : 0;
+
+  return { status, progressMessage, errorMessage, step, totalSteps, progressPercent, retryCount, retryReason, nextRetryAt };
+}
+
+// ── Hook: useProjectGenerations ──────────────────────────────────
+
+interface ActiveGeneration {
+  id: string;
+  projectId: string;
+  status: string;
+  imageCount: number;
+  model: string | null;
+  retryCount: number;
+  retryReason: string | null;
+  nextRetryAt: Date | string | null;
+  errorMessage: string | null;
+  createdAt: Date | string;
+}
+
+export function useProjectGenerations(
+  projectId: string,
+  initialGenerations: ActiveGeneration[],
+) {
+  const [generations, setGenerations] = useState(initialGenerations);
+
+  const syncFromApi = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/generations/active?projectId=${projectId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setGenerations(data.generations);
+      }
+    } catch {
+      // Ignore fetch errors
+    }
+  }, [projectId]);
+
+  const handleEvent = useCallback(
+    (event: ProjectGenerationEvent) => {
+      const isTerminal =
+        event.status === GENERATION_STATUS.COMPLETED ||
+        event.status === GENERATION_STATUS.FAILED;
+
+      if (isTerminal) {
+        // Remove completed/failed generation from list
+        setGenerations((prev) => prev.filter((g) => g.id !== event.generationId));
+      } else {
+        // Update existing generation's status fields
+        setGenerations((prev) =>
+          prev.map((g) =>
+            g.id === event.generationId
+              ? {
+                  ...g,
+                  status: event.status ?? g.status,
+                  retryCount: event.retryCount ?? g.retryCount,
+                  retryReason: event.retryReason ?? g.retryReason,
+                  nextRetryAt: event.nextRetryAt ?? g.nextRetryAt,
+                  errorMessage: event.errorMessage ?? g.errorMessage,
+                }
+              : g,
+          ),
+        );
+      }
     },
-    [generationId, handleEvent, status],
+    [],
   );
 
-  return { status, progressMessage, errorMessage, step, totalSteps, retryCount, retryReason, nextRetryAt, syncState };
+  useEffect(() => {
+    const unsubscribe = subscribeProject(projectId, handleEvent);
+    // One-shot fetch on mount
+    syncFromApi();
+    // Re-sync on reconnect
+    const unregReconnect = onReconnect(syncFromApi);
+    return () => {
+      unsubscribe();
+      unregReconnect();
+    };
+  }, [projectId, handleEvent, syncFromApi]);
+
+  return { generations };
 }

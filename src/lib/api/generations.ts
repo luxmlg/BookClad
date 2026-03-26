@@ -27,7 +27,7 @@ export async function createGeneration(params: CreateGenerationParams): Promise<
   return data;
 }
 
-export interface GenerationPollData {
+export interface GenerationStatusData {
   status: string;
   errorMessage: string | null;
   retryCount: number;
@@ -35,8 +35,8 @@ export interface GenerationPollData {
   nextRetryAt: string | null;
 }
 
-export async function getGeneration(id: string): Promise<GenerationPollData> {
-  const { data } = await api.get<GenerationPollData>(`/api/generations/${id}`);
+export async function getGeneration(id: string): Promise<GenerationStatusData> {
+  const { data } = await api.get<GenerationStatusData>(`/api/generations/${id}`);
   return data;
 }
 
