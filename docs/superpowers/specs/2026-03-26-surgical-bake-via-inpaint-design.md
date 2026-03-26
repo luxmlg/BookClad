@@ -12,78 +12,84 @@ Bake uses `GENERATE_FROM_REFERENCE` → `generateSingleImage()`. Even with the "
 
 ### 1. Auto-generate mask from layer bounding boxes
 
-On the client, before submitting a bake job, generate a mask image from visible canvas layers:
+Add a `generateLayerMask()` function in `use-inpaint-state.ts` (which has `stageRef` access). It uses Konva's `getClientRect()` on each visible node to get axis-aligned bounding rects (handles rotation correctly), then draws them as white rectangles on a black offscreen canvas at KDP resolution.
 
-- Create an offscreen canvas at KDP resolution (1600×2560)
-- Fill with black (unedited regions)
-- For each visible text/image layer, draw a white filled rectangle at its bounding box (with some padding, ~20px, for blending room)
-- Export as a PNG data URL
+Steps:
+- Get stage via `stageRef.current`
+- For each visible text/image node, call `node.getClientRect()` → returns `{ x, y, width, height }` in canvas space, axis-aligned (accounts for rotation)
+- Create an offscreen HTML canvas at KDP resolution (1600×2560)
+- Fill with black
+- For each bounding rect, scale by `KDP.width / CANVAS_WIDTH` (4×) and draw a white filled rectangle with 80px padding (20px canvas-space × 4× scale) for blending room
+- Export as PNG data URL
 
-`CanvasNode` has `x`, `y`, `width` for both text and image nodes. Text nodes don't store `height` — get it from the Konva node's `getClientRect()` or compute from `fontSize` + line count. Image nodes have explicit `height`.
-
-Coordinates are in canvas space (400×640), scale by `KDP.width / CANVAS_WIDTH` (4×) to get KDP-resolution mask.
+Expose `generateLayerMask` via the inpaint ref so `inpaint-toolbar.tsx` can call it.
 
 ### 2. Route bake through inpaint API
 
-Currently bake calls `handleGenerateSimilar(prompt, true)` which creates a `GENERATE_FROM_REFERENCE` job. Change to call the inpaint API instead:
+Add a new `handleBakeSubmit` function in `use-inpaint-state.ts` (alongside existing `handleInpaintSubmit`). This function:
+- Generates the layer mask via `generateLayerMask()`
+- Flattens the canvas via `flattenCanvasToDataUrl()`
+- Calls `createInpaint()` with: `imageId` (selected image), `maskDataUrl` (auto-generated mask), `prompt` (bake instructions), `model`, `flattenedImageDataUrl`
+- Handles post-submit state: `setActiveGenerationIds`, `setPendingSlotCounts`, `setActiveTab(0)`, `setPanelOpen(true)`, `refreshCredits()`, `router.refresh()`
 
-- `handleSubmitBake` in `inpaint-toolbar.tsx` calls `createInpaint()` directly (not `onGenerateSimilar`)
-- Passes: `imageId` (selected image), `maskDataUrl` (auto-generated mask), `prompt` (bake instructions), `model`, `flattenedImageDataUrl` (canvas with text rendered)
-- The inpaint API route creates a `JOB_TYPE.INPAINT` job as usual
+`handleSubmitBake` in `inpaint-toolbar.tsx` calls `onBakeSubmit(prompt)` (a new prop from the hook) instead of `onGenerateSimilar(bakePrompt, true)`.
 
-The bake prompt changes from "incorporate these elements" to "integrate/blend the text that is already rendered in the masked regions into the artwork naturally" — since the flattened image already has text rendered, the AI just needs to blend it.
+Bake produces 1 image per job (same as inpaint). Remove the image count slider from bake mode in the toolbar.
 
 ### 3. Send mask to Gemini
 
-`inpaintImage()` in `gemini.service.ts` has a `maskBuffer` parameter that is currently unused. Start sending it as a second `inlineData` part when present:
+`inpaintImage()` in `gemini.service.ts` has a `maskBuffer` parameter that is currently unused. When present, send it as a second `inlineData` part:
 
 ```
 parts: [
   { inlineData: { mimeType: "image/png", data: sourceImage } },
-  { inlineData: { mimeType: "image/png", data: maskImage } },   // NEW
-  { text: "The second image is a mask. Edit ONLY the white regions..." }
+  { inlineData: { mimeType: "image/png", data: maskImage } },
+  { text: prompt }
 ]
 ```
 
-For regular inpaint (user-painted mask), the mask is already available. For bake, it's the auto-generated mask. When no mask is provided, behavior is unchanged (prompt-only editing).
+The prompt text references the mask: "The second image is a mask. Edit ONLY the white regions of the first image."
+
+`dispatchInpaint` in `inpaint.processor.ts` must also pass `maskBuffer` through to `geminiInpaint()` (currently it receives the mask but doesn't forward it).
+
+When no mask is provided, behavior is unchanged (single image + prompt).
 
 ### 4. Add padding to inpaint processor
 
-Move `padToAspectRatio()` from generation processor to inpaint processor. Both regular inpaint and bake benefit — any edit near edges risks being cropped.
+In `inpaint.processor.ts`, after downloading the source image (and mask), pad both to the generation aspect ratio before sending to Gemini:
+- **Source image**: `padToAspectRatio(imageBuffer, aspectRatio)` — uses `extendWith: "mirror"` (existing behavior)
+- **Mask image**: `padToAspectRatio(maskBuffer, aspectRatio, "black")` — extend with black (= "don't edit padding regions"). Add an `extendWith` parameter to `padToAspectRatio()`.
 
-In `inpaint.processor.ts`, after downloading the source image (and flattened image if present), pad to the generation aspect ratio before sending to Gemini. The existing `cropToKDP` step after generation removes only the padding.
-
-Also pad the mask image to match (extend mask with black = "don't edit the padding").
+The existing `cropToKDP` step after generation removes only the padding.
 
 ### 5. Remove padding from generation processor
 
-Remove the `padToAspectRatio` call from `generation.processor.ts`. Generate and Similar don't need it — they create new artwork where 10% crop loss is acceptable.
+Remove the `padToAspectRatio` call and import from `generation.processor.ts`. This code only runs for bake (guarded by `generation.includeLayers`), and bake is moving to inpaint.
 
 ### 6. Bake prompt adjustments
 
-The system prompt's `buildTextPolicy` and reference clause remain as-is for regular generation. For bake-via-inpaint, the prompt is built client-side (in `buildBakeLayersPrompt`) and sent directly through the inpaint API. Adjust the bake prompt to reflect that text is already rendered:
+Replace `buildBakeLayersPrompt()` to reflect the new approach — text/images are already rendered on the flattened canvas, the AI just needs to blend them:
 
-- **Stylized**: "The text in the masked regions has been placed onto the image. Integrate it into the artwork with creative, genre-appropriate effects — embossing, glow, texture, shadows. Make it look like a professionally designed cover. Do not modify anything outside the masked regions."
-- **Clean**: "The text in the masked regions has been placed onto the image. Blend it cleanly into the composition — add subtle shadows or contrast adjustments for legibility. Do not apply decorative effects. Do not modify anything outside the masked regions."
+- **Stylized**: "The second image is a mask showing regions where text/layers were placed onto the cover. Integrate the content in these masked regions into the artwork with creative, genre-appropriate effects — embossing, glow, texture, shadows. Make it look like a professionally designed cover. Do not modify anything outside the masked regions."
+- **Clean**: "The second image is a mask showing regions where text/layers were placed onto the cover. Blend the content in these masked regions cleanly into the composition — add subtle shadows or contrast adjustments for legibility. Do not apply decorative effects. Do not modify anything outside the masked regions."
+
+The function no longer lists individual layer names/text since the AI can see the rendered text directly.
 
 ### 7. Inpaint toolbar changes
 
-`handleSubmitBake` currently calls `onGenerateSimilar(bakePrompt, true)`. Change to:
-
-1. Generate mask from visible layer bounding boxes
-2. Flatten canvas to data URL (already done when `includeLayers=true`)
-3. Call `createInpaint()` with the auto-generated mask and flattened image
-4. Set active generation IDs, open History tab, refresh credits (same post-submit flow)
-
-The `onGenerateSimilar` prop is no longer used for bake — it still exists for the Similar flow.
+- `handleSubmitBake` calls `onBakeSubmit(bakePrompt)` (new prop from hook)
+- Remove image count slider from bake mode (bake produces 1 image)
+- Credit cost in bake mode = `perImageCost * 1`
+- Style toggle (Stylized/Clean) remains — controls which prompt variant is used
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/components/editor/inpaint-toolbar.tsx` | Auto-generate mask from layer bounds, call `createInpaint()` for bake instead of `onGenerateSimilar()` |
-| `src/components/editor/use-inpaint-state.ts` | Export `flattenCanvasToDataUrl` and potentially a new `generateLayerMask` utility |
+| `src/components/editor/use-inpaint-state.ts` | Add `generateLayerMask()`, `handleBakeSubmit()`, expose via return value and ref |
+| `src/components/editor/inpaint-toolbar.tsx` | Replace `buildBakeLayersPrompt()`, call `onBakeSubmit` instead of `onGenerateSimilar`, remove image count slider from bake mode |
+| `src/components/editor/editor-shell.tsx` | Wire new `onBakeSubmit` prop from inpaint hook to toolbar |
 | `worker/src/services/gemini.service.ts` | Send `maskBuffer` as second `inlineData` part when present |
-| `worker/src/processors/inpaint.processor.ts` | Add `padToAspectRatio` on source image + mask before Gemini call |
+| `worker/src/processors/inpaint.processor.ts` | Pass `maskBuffer` through `dispatchInpaint` → `geminiInpaint`, add `padToAspectRatio` on source + mask |
 | `worker/src/processors/generation.processor.ts` | Remove `padToAspectRatio` call and import |
-| `worker/src/lib/prompt.ts` | No changes needed — bake prompt is built client-side for inpaint |
+| `worker/src/services/image.service.ts` | Add `extendWith` parameter to `padToAspectRatio()` (default "mirror", mask uses "black") |
