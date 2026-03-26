@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — BookClad",
+  title: "Privacy Policy",
+  description:
+    "How BookClad collects, uses, and protects your data. Learn about our analytics, cookies, and your privacy rights.",
 };
 
 export default function PrivacyPage() {
@@ -10,7 +12,7 @@ export default function PrivacyPage() {
     <div className="container mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-3xl font-bold">Privacy Policy</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Last updated: March 24, 2026
+        Last updated: March 26, 2026
       </p>
 
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
@@ -111,6 +113,22 @@ export default function PrivacyPage() {
               <strong className="text-foreground">Cloudflare R2</strong> — file
               storage for generated images and uploaded assets.
             </li>
+            <li>
+              <strong className="text-foreground">Google Analytics</strong> —
+              website analytics to understand how visitors use BookClad.
+              Collects page views, device type, browser, referrer, and
+              approximate location (country/city). You can opt out via the
+              cookie consent banner or use the{" "}
+              <a
+                href="https://tools.google.com/dlpage/gaoptout"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground underline underline-offset-2"
+              >
+                Google Analytics Opt-out Browser Add-on
+              </a>
+              .
+            </li>
           </ul>
         </section>
 
@@ -120,14 +138,36 @@ export default function PrivacyPage() {
           </h2>
           <p>
             We use a single authentication cookie to maintain your session. It is
-            HttpOnly and Secure in production. We do not use tracking cookies or
-            third-party analytics.
+            HttpOnly and Secure in production.
           </p>
           <p className="mt-2">
-            We store UI preferences (panel height, per-project image count) in
-            your browser&apos;s localStorage. No personal data is stored in
-            localStorage.
+            If you accept analytics cookies via our consent banner, Google
+            Analytics sets the following cookies:
           </p>
+          <ul className="mt-2 list-disc space-y-1.5 pl-5">
+            <li>
+              <strong className="text-foreground">_ga</strong> — identifies
+              unique visitors, expires after 2 years.
+            </li>
+            <li>
+              <strong className="text-foreground">_ga_*</strong> — maintains
+              session state, expires after 2 years.
+            </li>
+          </ul>
+          <p className="mt-2">
+            We also store the following in your browser&apos;s localStorage:
+          </p>
+          <ul className="mt-2 list-disc space-y-1.5 pl-5">
+            <li>
+              <strong className="text-foreground">cookie-consent</strong> —
+              your cookie preference (&quot;accepted&quot; or
+              &quot;declined&quot;). No expiry.
+            </li>
+            <li>
+              <strong className="text-foreground">UI preferences</strong> —
+              panel height, per-project image count. No personal data.
+            </li>
+          </ul>
         </section>
 
         <section>
