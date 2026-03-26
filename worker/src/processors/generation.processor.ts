@@ -1,16 +1,86 @@
 import { Job, UnrecoverableError } from "bullmq";
 import sharp from "sharp";
 import { prisma } from "../lib/prisma.js";
+import { Prisma } from "../generated/prisma/client.js";
 import { publishProgress } from "../lib/progress.js";
-import { generateSingleImage } from "../services/gemini.service.js";
+import { generateSingleImage, SafetyFilterError } from "../services/gemini.service.js";
+import type { GenerationResult } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
 import { cropToKDP, padToAspectRatio } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
 import { buildSystemPrompt, buildAttributeContext, buildAttributeValues, extractDescriptions, type TextLayerInfo } from "../lib/prompt.js";
-import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG, RETRY_DELAYS, MAX_OTHER_RETRIES, MAX_HIGH_DEMAND_RETRIES, CREDIT_COST_PER_IMAGE } from "../lib/constants.js";
+import { KDP, GENERATION_STATUS, EVENT_TYPE, GEMINI_MODEL_IDS, GEMINI_MODEL_CONFIG, RETRY_DELAYS, MAX_OTHER_RETRIES, MAX_HIGH_DEMAND_RETRIES, CREDIT_COST_PER_IMAGE, API_USAGE_TYPE } from "../lib/constants.js";
+import { parseGeminiUsage, classifyError, isRetryableError } from "../lib/api-usage.js";
 import { refundCredits } from "../lib/credits.js";
 import { preflight } from "../lib/health.js";
+
+async function logApiUsage(data: {
+  userId: string;
+  generationId: string;
+  modelId: string;
+  attempt: number;
+  result?: GenerationResult;
+  error?: { message: string; status?: number; durationMs?: number; errorJson?: Record<string, unknown>; responseJson?: Record<string, unknown> };
+}): Promise<void> {
+  try {
+    const { userId, generationId, modelId, attempt } = data;
+
+    if (data.result) {
+      const parsed = parseGeminiUsage(data.result.responseJson, modelId);
+      await prisma.apiUsage.create({
+        data: {
+          userId,
+          generationId,
+          type: API_USAGE_TYPE.GENERATION,
+          provider: "gemini",
+          model: modelId,
+          promptTokens: parsed.promptTokens,
+          candidatesTokens: parsed.candidatesTokens,
+          totalTokens: parsed.totalTokens,
+          estimatedCostUsd: parsed.estimatedCostUsd,
+          success: true,
+          durationMs: data.result.durationMs,
+          attempt,
+          responseMetadata: (parsed.responseMetadata as Prisma.InputJsonValue) ?? undefined,
+        },
+      });
+    } else if (data.error) {
+      const errorType = classifyError(
+        data.error.status ?? 0,
+        data.error.message,
+        data.error.responseJson,
+      );
+      const parsed = data.error.responseJson
+        ? parseGeminiUsage(data.error.responseJson, modelId)
+        : null;
+
+      await prisma.apiUsage.create({
+        data: {
+          userId,
+          generationId,
+          type: API_USAGE_TYPE.GENERATION,
+          provider: "gemini",
+          model: modelId,
+          promptTokens: parsed?.promptTokens ?? null,
+          candidatesTokens: parsed?.candidatesTokens ?? null,
+          totalTokens: parsed?.totalTokens ?? null,
+          estimatedCostUsd: parsed?.estimatedCostUsd ?? null,
+          success: false,
+          durationMs: data.error.durationMs ?? null,
+          attempt,
+          errorCode: data.error.status ? String(data.error.status) : null,
+          errorType,
+          errorMessage: data.error.message,
+          errorDetails: (data.error.errorJson ?? data.error.responseJson ?? undefined) as Prisma.InputJsonValue | undefined,
+          responseMetadata: (parsed?.responseMetadata ?? undefined) as Prisma.InputJsonValue | undefined,
+        },
+      });
+    }
+  } catch (logErr) {
+    console.error("[api-usage] Failed to log API usage:", logErr);
+  }
+}
 
 export async function processGeneration(job: Job<GenerationJobData>) {
   const { generationId, projectId, userId, imageCount, referenceImageKey, model } =
@@ -121,12 +191,41 @@ export async function processGeneration(job: Job<GenerationJobData>) {
         step,
         totalSteps,
       });
-      const rawImage = await generateSingleImage({
-        prompt: fullPrompt,
-        referenceImage: refBuffer,
+      let result: GenerationResult;
+      try {
+        result = await generateSingleImage({
+          prompt: fullPrompt,
+          referenceImage: refBuffer,
+          modelId: geminiModelId,
+          config: geminiConfig,
+        });
+      } catch (genErr) {
+        const errObj = genErr as Error & { status?: number; durationMs?: number; errorJson?: Record<string, unknown>; responseJson?: Record<string, unknown> };
+        await logApiUsage({
+          userId,
+          generationId,
+          modelId: geminiModelId,
+          attempt: job.attemptsMade + 1,
+          error: {
+            message: errObj.message,
+            status: errObj.status,
+            durationMs: errObj.durationMs,
+            errorJson: errObj.errorJson,
+            responseJson: errObj.responseJson,
+          },
+        });
+        throw genErr;
+      }
+
+      await logApiUsage({
+        userId,
+        generationId,
         modelId: geminiModelId,
-        config: geminiConfig,
+        attempt: job.attemptsMade + 1,
+        result,
       });
+
+      const rawImage = result.imageBuffer;
 
       // Process
       let finalImage: Buffer;
@@ -183,6 +282,11 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     });
     if (genStatus?.status === GENERATION_STATUS.FAILED) {
       throw new UnrecoverableError("Cancelled by user");
+    }
+
+    // Guard: SafetyFilterError is non-retryable (extends UnrecoverableError)
+    if (error instanceof SafetyFilterError) {
+      throw error;
     }
 
     // Path 1: Extensions don't auto-retry
@@ -244,19 +348,17 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     const statusCode = error instanceof Error && "status" in error
       ? (error as Error & { status: number }).status
       : 0;
-    const isHighDemand =
-      statusCode === 429 || statusCode === 503 ||
-      /rate.?limit/i.test(errorMsg) ||
-      /too many requests/i.test(errorMsg) ||
-      /overloaded/i.test(errorMsg) ||
-      /high demand/i.test(errorMsg);
+    const errorType = classifyError(statusCode, errorMsg);
+    const retryable = isRetryableError(errorType) && !job.data.isExtension;
+
+    const isHighDemand = errorType === "rate_limit" || errorType === "server_error";
     const retryReason = isHighDemand ? "high_demand" : "error";
     const maxRetries = isHighDemand ? MAX_HIGH_DEMAND_RETRIES : MAX_OTHER_RETRIES;
 
     const attemptNumber = job.attemptsMade + 1;
-    const retryable = attemptNumber < maxRetries;
+    const canRetry = retryable && attemptNumber < maxRetries;
 
-    if (retryable) {
+    if (canRetry) {
       const delayIdx = Math.min(job.attemptsMade, RETRY_DELAYS.length - 1);
       const delay = RETRY_DELAYS[delayIdx];
       const nextRetryAt = new Date(Date.now() + delay);
