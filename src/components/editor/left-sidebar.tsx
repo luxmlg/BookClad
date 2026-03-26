@@ -333,29 +333,31 @@ export function LeftSidebar({
             );
           })}
 
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 gap-1.5 border-dashed text-xs"
-              onClick={() => setPickerOpen(true)}
-            >
-              <PlusIcon className="size-3.5" />
-              Add Attribute
-            </Button>
-            <div className="flex-1">
-              <AiFillPopover
-                projectId={projectId}
-                open={popoverOpen}
-                onOpenChange={setPopoverOpen}
-                prompt={aiFillPrompt}
-                onPromptChange={setAiFillPrompt}
-                loading={aiFillLoading}
-                onLoadingChange={setAiFillLoading}
-                onSuggestions={handleAiFillSuggestions}
-              />
-            </div>
-          </div>
+        </div>
+      </div>
+
+      {/* Sticky footer */}
+      <div className="flex gap-2 border-t px-4 py-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 gap-1.5 border-dashed text-xs"
+          onClick={() => setPickerOpen(true)}
+        >
+          <PlusIcon className="size-3.5" />
+          Add Attribute
+        </Button>
+        <div className="flex-1">
+          <AiFillPopover
+            projectId={projectId}
+            open={popoverOpen}
+            onOpenChange={setPopoverOpen}
+            prompt={aiFillPrompt}
+            onPromptChange={setAiFillPrompt}
+            loading={aiFillLoading}
+            onLoadingChange={setAiFillLoading}
+            onSuggestions={handleAiFillSuggestions}
+          />
         </div>
       </div>
 
