@@ -81,6 +81,10 @@ export const aiFillSchema = z.object({
   prompt: z.string().min(1).max(AI_FILL_PROMPT_MAX_LENGTH),
 });
 
+export const aiEditSchema = z.object({
+  prompt: z.string().min(1).max(AI_FILL_PROMPT_MAX_LENGTH),
+});
+
 const genreValues = GENRES.map((g) => g.value) as [string, ...string[]];
 
 export const quickCreateSchema = z.object({
