@@ -88,4 +88,5 @@ export const quickCreateSchema = z.object({
   author: z.string().min(1, "Author name is required").max(200),
   genre: z.enum(genreValues),
   description: z.string().min(1, "Description is required").max(AI_FILL_PROMPT_MAX_LENGTH),
+  imageCount: z.number().int().min(1).max(MAX_IMAGES_PER_GENERATION).optional(),
 });

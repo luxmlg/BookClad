@@ -5,6 +5,7 @@ export interface QuickCreateParams {
   author: string;
   genre: string;
   description: string;
+  imageCount?: number;
 }
 
 export interface QuickCreateResponse {

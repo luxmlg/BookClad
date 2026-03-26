@@ -54,7 +54,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
 
     const tierConfig = QUICK_CREATE_TIER_CONFIG[user.tier];
-    const { model, imageCount } = tierConfig;
+    const { model } = tierConfig;
+    const imageCount = parsed.data.imageCount ?? tierConfig.imageCount;
     const generationCreditCost = calculateCreditCost(model, imageCount);
     const totalCost = AI_FILL_CREDIT_COST + generationCreditCost;
 
