@@ -197,6 +197,7 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
     stageRef, selectedImageId, setSelectedNodeId,
     genActions.setActiveGenerationIds,
     genActions.setPanelOpen,
+    genActions.setActiveTab,
     genActions.setPendingSlotCounts,
     genActions.model,
     attributes, nodes, router,

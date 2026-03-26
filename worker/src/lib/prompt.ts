@@ -112,33 +112,55 @@ function isEmpty(val: string | string[]): boolean {
 
 // ── System prompt ────────────────────────────────────────────────
 
-function buildTypographySpacing(options: PromptOptions): string {
-  if (!options.includeLayers || options.textLayers.length === 0) {
-    return "- Keep the upper 20% and lower 15% of the image relatively uncluttered to allow text overlay later";
+function getVisibleTextLayers(options: PromptOptions): TextLayerInfo[] {
+  if (!options.includeLayers) return [];
+  return options.textLayers.filter((l) => l.visible && l.text.trim());
+}
+
+function buildTextPolicy(visibleTextLayers: TextLayerInfo[]): string {
+  if (visibleTextLayers.length > 0) {
+    const layerLines = visibleTextLayers
+      .map((l) => `- ${l.name}: "${l.text}"`)
+      .join("\n");
+    return `Typography — render these text elements directly in the image:
+${layerLines}
+- Render each piece of text exactly as written — correct spelling, no extra characters
+- Use a font style and placement that fits the genre and overall cover design
+- Ensure text is clearly legible against the background (use contrast, shadows, or overlays as needed)
+- Integrate the text as a natural part of the cover composition`;
   }
 
-  const visibleLayers = options.textLayers.filter((l) => l.visible);
-  if (visibleLayers.length === 0) {
-    return "- Keep the upper 20% and lower 15% of the image relatively uncluttered to allow text overlay later";
-  }
+  return `Text in the image:
+- Do NOT render any text, letters, or typography unless the instructions below explicitly request it
+- If the instructions request specific text, render it exactly as specified
+- Never add random, decorative, or hallucinated text — only render text that is explicitly requested`;
+}
 
-  return `- Text overlays will be composited after generation. Keep these regions clear:\n  - Upper area for title\n  - Lower area for author name`;
+function buildTypographySpacing(visibleTextLayers: TextLayerInfo[]): string {
+  if (visibleTextLayers.length > 0) {
+    return `- Position the text elements as integral parts of the cover layout — title near the top, author near the bottom is typical but follow the genre conventions
+- IMPORTANT: Place all text at least 10% inset from every edge — the image will be cropped and text near borders will be cut off`;
+  }
+  return "- Keep the upper 20% and lower 15% of the image relatively uncluttered to allow text overlay later";
 }
 
 /** Fixed system instructions — no user attributes. */
 export function buildSystemPrompt(options: PromptOptions): string {
-  const typographySpacing = buildTypographySpacing(options);
-  const referenceClause = options.isReference
-    ? `\nYou are provided with a reference cover image. Use it as a mood board — match its overall atmosphere, composition approach, and color temperature. Generate an original image inspired by it, not a copy.\n`
-    : "";
+  const visibleTextLayers = getVisibleTextLayers(options);
+  const isBake = visibleTextLayers.length > 0 && options.isReference;
+  const textPolicy = buildTextPolicy(visibleTextLayers);
+  const typographySpacing = buildTypographySpacing(visibleTextLayers);
+
+  let referenceClause = "";
+  if (options.isReference) {
+    referenceClause = isBake
+      ? `\nYou are provided with a cover image. Preserve this image EXACTLY as-is — do NOT redraw, modify, or reinterpret the artwork, composition, colors, lighting, or any visual elements. Your ONLY task is to add the specified text elements onto the existing image.\n`
+      : `\nYou are provided with a reference cover image. Use it as a mood board — match its overall atmosphere, composition approach, and color temperature. Generate an original image inspired by it, not a copy.\n`;
+  }
 
   return `You are a professional book cover designer creating covers for Amazon Kindle Direct Publishing.
 ${referenceClause}
-CRITICAL — No text in the image:
-- Do NOT render any text, letters, words, numbers, titles, or typography anywhere in the image
-- This includes stylized, decorative, or partially obscured text — generate none whatsoever
-- The image must be purely visual with zero readable characters
-- Unless the user's attributes below explicitly request specific text to appear in the image
+${textPolicy}
 
 Output format:
 - Portrait orientation, 1.6:1 aspect ratio (will be cropped to 1600×2560 px at 300 DPI)

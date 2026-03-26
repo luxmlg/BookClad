@@ -45,15 +45,19 @@ import { useCreditStore } from "@/lib/stores/credit-store";
 import type { CanvasNode } from "./canvas-types";
 
 type ToolbarMode = "idle" | "brush" | "similar" | "bake" | "inpaint";
+type BakeStyle = "stylized" | "clean";
 
-function buildBakeLayersPrompt(nodes: CanvasNode[]): string {
+function buildBakeLayersPrompt(nodes: CanvasNode[], style: BakeStyle): string {
   const visible = nodes.filter((n) => n.visible);
   if (visible.length === 0) return "";
   const lines = visible.map((n) => {
     if (n.type === "text") return `${n.name ?? "Text"} text: "${n.text}"`;
     return `Image layer: "${n.name ?? n.id}"`;
   });
-  return `Incorporate these elements into the cover image naturally:\n${lines.map((l) => `- ${l}`).join("\n")}`;
+  const styleInstruction = style === "stylized"
+    ? "Render these text elements with creative, genre-appropriate typography — stylized, decorative, and integrated into the cover artwork as a professional book cover designer would. Use effects like embossing, glow, texture, or shadow that match the cover's mood."
+    : "Render these text elements in clean, simple, readable fonts — no decorative effects, just well-placed legible text that complements the artwork.";
+  return `Incorporate these elements into the cover image naturally:\n${lines.map((l) => `- ${l}`).join("\n")}\n\n${styleInstruction}`;
 }
 
 interface InpaintToolbarProps {
@@ -127,6 +131,7 @@ export function InpaintToolbar({
   const [bakeOpen, setBakeOpen] = useState(false);
   const [bakePrompt, setBakePrompt] = useState("");
   const [bakeSubmitting, setBakeSubmitting] = useState(false);
+  const [bakeStyle, setBakeStyle] = useState<BakeStyle | null>("stylized");
 
   const hasVisibleLayers = nodes.some((n) => n.visible);
 
@@ -162,13 +167,20 @@ export function InpaintToolbar({
   }
 
   function handleOpenBake() {
-    setBakePrompt(buildBakeLayersPrompt(nodes));
+    const style: BakeStyle = bakeStyle ?? "stylized";
+    setBakeStyle(style);
+    setBakePrompt(buildBakeLayersPrompt(nodes, style));
     setBakeOpen(true);
   }
 
   function handleCancelBake() {
     setBakeOpen(false);
     setBakePrompt("");
+  }
+
+  function handleBakeStyleChange(style: BakeStyle) {
+    setBakeStyle(style);
+    setBakePrompt(buildBakeLayersPrompt(nodes, style));
   }
 
   async function handleSubmitBake() {
@@ -291,6 +303,35 @@ export function InpaintToolbar({
           }
         }}
       >
+        {isBake && (
+          <div className="space-y-1">
+            <Label className="text-xs">Text style</Label>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => handleBakeStyleChange("stylized")}
+                className={`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                  bakeStyle === "stylized"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Stylized
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBakeStyleChange("clean")}
+                className={`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                  bakeStyle === "clean"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Clean
+              </button>
+            </div>
+          </div>
+        )}
         <div className="space-y-1">
           <Label className="text-xs">
             {isBake ? "Instructions" : isSimilar ? "Additional instructions" : "Describe the replacement"}
@@ -300,7 +341,10 @@ export function InpaintToolbar({
           </Label>
           <textarea
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => {
+              setPrompt(e.target.value);
+              if (isBake) setBakeStyle(null);
+            }}
             placeholder={
               isBake
                 ? "Describe how to incorporate the layers..."

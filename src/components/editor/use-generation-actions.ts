@@ -116,6 +116,7 @@ export function useGenerationActions(
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setPendingSlotCounts(prev => new Map(prev).set(data.generationId, imageCount));
       setPanelOpen(true);
+      setActiveTab(0);
       refreshCredits();
       toast.success("Regeneration queued!");
       router.refresh();
@@ -130,6 +131,7 @@ export function useGenerationActions(
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setPendingSlotCounts(prev => new Map(prev).set(data.generationId, count));
       setPanelOpen(true);
+      setActiveTab(0);
       refreshCredits();
       toast.success("Generating more images...");
       router.refresh();
@@ -161,6 +163,7 @@ export function useGenerationActions(
     setActiveGenerationIds((prev) => [...prev, data.generationId]);
     setPendingSlotCounts(prev => new Map(prev).set(data.generationId, imageCount));
     setPanelOpen(true);
+    setActiveTab(0);
     refreshCredits();
     toast.success("Reference generation queued!");
     router.refresh();

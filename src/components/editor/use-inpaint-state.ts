@@ -35,6 +35,7 @@ export function useInpaintState(
   setSelectedNodeId: (id: string | null) => void,
   setActiveGenerationIds: React.Dispatch<React.SetStateAction<string[]>>,
   setPanelOpen: React.Dispatch<React.SetStateAction<boolean>>,
+  setActiveTab: React.Dispatch<React.SetStateAction<number>>,
   setPendingSlotCounts: React.Dispatch<React.SetStateAction<Map<string, number>>>,
   model: string,
   attributes: AttributeSelection,
@@ -105,6 +106,7 @@ export function useInpaintState(
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setPendingSlotCounts(prev => new Map(prev).set(data.generationId, 1));
       setPanelOpen(true);
+      setActiveTab(0);
       toast.success("Inpainting job queued!");
       setBrushMode(false);
       setInpaintMask(null);
