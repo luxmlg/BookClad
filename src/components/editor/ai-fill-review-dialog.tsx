@@ -403,7 +403,7 @@ export function AiFillReviewDialog({
           <DialogTitle>Review AI Suggestions</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="max-h-[50vh] space-y-3 overflow-y-auto">
           {updatedSuggestions.length > 0 && (
             <div>
               <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
