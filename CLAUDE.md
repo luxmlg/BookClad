@@ -20,7 +20,7 @@ The two processes share the same Postgres database and Redis instance but are **
 1. User creates a `CoverProject` via the wizard (`/create`)
 2. User triggers generation from the editor (`/editor/[id]`) → `POST /api/generations` → BullMQ job queued
 3. Worker picks up job → generates images via AI → upscales → crops to KDP → uploads to storage → writes `GeneratedImage` rows
-4. Editor receives real-time progress via WebSocket (singleton in `src/lib/use-generation-ws.ts`, falls back to HTTP polling)
+4. Editor receives real-time progress via WebSocket (singleton in `src/lib/use-generation-ws.ts`, one-shot HTTP fetch on mount/reconnect for reliability)
 5. User edits on canvas (Konva/react-konva), adds typography, can bake text into covers
 6. Export via `POST /api/projects/[id]/export`
 
@@ -87,9 +87,9 @@ Pipeline branches on model:
 - **Quick**: generate at 1K → upload raw (no upscale, no KDP crop) → store actual dimensions from Sharp metadata. Prototyping only, not export-ready.
 - **Detailed/Premium**: generate at 4K → skip upscale (already exceeds KDP) → crop to 1600x2560 → upload to R2 → create `GeneratedImage` rows with KDP dimensions.
 
-**Extension flow**: `POST /api/generations/[id]/extend` adds more images to an existing generation. Queues a `JOB_TYPE.GENERATE` job with `isExtension: true`, using the original generation's `referenceImage` if present.
+**Extension flow**: `POST /api/generations/[id]/extend` adds more images to an existing generation. Queues a `JOB_TYPE.GENERATE` job with `isExtension: true` and `imageCount` set to the **total** count (existing + new), not just the new images. `extensionImageCount` carries the new-images-only count for refund calculation. The processor loop `for (i = alreadyGenerated; i < imageCount)` skips already-persisted images and generates only the remainder.
 
-The processor supports `isExtension` flag for partial-failure handling: if some images succeed before an error, mark COMPLETED with `imageCount` set to actual images created, then refund only the cost of images that weren't generated (not the full extension cost). Extensions do NOT auto-retry.
+The processor supports `isExtension` flag for partial-failure handling: if some images succeed before an error, mark COMPLETED with `imageCount` set to actual images created, then refund only the cost of images that weren't generated (using `extensionImageCount` for the math, not the total `imageCount`). Extensions do NOT auto-retry.
 
 **Partial failure status**: When some images are generated before an error (Path 2), the generation is marked `COMPLETED` (not `FAILED`) with `errorMessage` set to a human-readable summary (e.g., "4 of 8 images generated. 20 credits refunded."). The original `imageCount` is preserved (not overwritten to the actual count) so the frontend can compute failed slot count as `imageCount - images.length`. Only `creditCost` is adjusted. `errorMessage` is cleared on successful extension, or updated with fresh numbers on extension partial failure. The frontend renders amber "failed slots" in generation history with retry capability via `onGenerateMore`.
 
@@ -130,7 +130,7 @@ The processor checks for user cancellation before processing and at the top of e
 - **Attribute state**: `attributes` (per-project selections) + `attributeConfig` (user's attribute configuration, fetched from `/api/attributes`)
 - **Generation lifecycle**: triggers generation via API, tracks active/completed generations, stores `attributeSnapshot`, `descriptionSnapshot`, and `textLayerSnapshot` with each generation for diff tracking and history display. All generation handlers (`handleRegenerate`, `handleGenerateSimilar`, `handleGenerateMore`) auto-open the bottom panel and switch to the History tab (`setActiveTab(0)`) so users see the new generation loading.
 - **Draft attribute system**: When switching between history images, attribute edits are stashed per-image in `draftStashRef` and restored on return. `baseSnapshot` holds the generation's original attributes; `draftKeys` (derived via `computeAttributeDiff`) drives amber dot indicators on modified attributes.
-- **Bottom panel tabs**: Both History and Queue tabs are **always mounted** (CSS `hidden`, not conditional rendering) in `EditorCenterPanel`. The Queue's `useGenerationPoller` hooks stay alive regardless of active tab — no duplicate pollers needed in History.
+- **Bottom panel tabs**: Both History and Queue tabs are **always mounted** (CSS `hidden`, not conditional rendering) in `EditorCenterPanel`. The Queue's `useGenerationProgress` hooks stay alive regardless of active tab.
 - **Batch delete**: `DELETE /api/images/batch` — deletes entire generations when all images removed, decrements `imageCount` on partial deletes. `handleDeletedImages` in `EditorShell` cleans up all caches and auto-selects the next image.
 
 Key sub-components: `EditorCenterPanel` (canvas viewport + bottom panel), `LeftSidebar` (attribute inputs, presets, brief), `RightSidebar` (layers, properties, export), `CoverCanvas` (Konva canvas), `GenerationHistory` → `GenerationGroup` (past generations with diffs via `DiffDisplay`), `GenerationQueue` (active jobs with WebSocket progress, retrying state with countdown timer + cancel button). Shared generation helpers (`getModelLabel`, `formatRelativeTime`, `JOB_TYPE_ICON`) live in `generation-helpers.ts`.
@@ -153,7 +153,7 @@ Defined in `src/lib/attributes.ts`. Provides a flexible, user-customizable syste
 
 **Validation**: Zod schemas in `src/lib/attribute-validations.ts`. Attribute selection schema is also in `src/lib/validations.ts` as `attributeSelectionField`.
 
-**Built-in attributes**: Genre, Mood, Art Style — defined in `buildDefaultConfig()` with values from `src/lib/constants.ts`. `ensureBuiltInAttributes()` handles adding new built-in values to existing user configs.
+**Built-in attributes**: Genre, Mood, Art Style, Visual Elements, Color Palette — defined in `buildDefaultConfig()` with values from `src/lib/constants.ts`. `ensureBuiltInAttributes()` handles adding new built-in values to existing user configs. Built-in attributes can be hard-deleted in Settings; "Restore Built-in Attributes" adds them back via `ensureBuiltInAttributes()`.
 
 **Worker prompt building**: `worker/src/lib/prompt.ts` builds prompts in three parts: `buildSystemPrompt(options)` (fixed instructions, controlled by `PromptOptions` = `{ includeLayers, textLayers, isReference }` — branches on bake mode vs normal reference vs no reference), `buildAttributeContext()` (attribute-level descriptions as context), and `buildAttributeValues()` (selected values with value descriptions). Text policy: when baking, lists exact text to render; otherwise, blocks text unless explicitly requested in user attributes. All attributes are treated uniformly — no hardcoded labels or special-casing. Attribute names, descriptions, and value labels come from the user's `AttributeConfig` via `extractDescriptions()`. The worker is a separate package and cannot import from `src/lib/`.
 
@@ -241,6 +241,18 @@ The worker has its own storage module (`worker/src/services/storage.service.ts`)
 
 **Client API**: `src/lib/api/ai-fill.ts` — `generateAttributes(projectId, prompt)`.
 
+## AI Edit (Settings)
+
+`POST /api/attributes/edit` provides AI-powered attribute config editing in Settings → Attributes tab. Users describe structural changes in natural language (add/remove attributes, add/remove values, modify descriptions), and Gemini returns a modified `AttributeConfigJson`. The client diffs before/after via `diffAttributeConfigs()` in `src/lib/attribute-diff.ts` and shows a review dialog with checkboxes.
+
+**Cost**: 1 credit per call (same `reserveAiFillCredits()` pattern as AI Fill). Credits are not refunded on Gemini failure.
+
+**Diff engine**: `src/lib/attribute-diff.ts` — pure functions `diffAttributeConfigs(before, after)` returns `ConfigChange[]`, `applyConfigChanges(config, changes, selectedIndices)` applies only checked changes. Changes are typed: `add-attribute`, `remove-attribute`, `modify-attribute` (per field), `add-value`, `remove-value`, `modify-value`.
+
+**Built-in attribute deletion**: All attributes (including built-in) can be hard-deleted from the config. "Restore Built-in Attributes" button calls `ensureBuiltInAttributes()` to add back missing ones without touching custom attributes.
+
+**UI**: `AiEditPopover` (`src/app/settings/ai-edit-popover.tsx`) + `AiEditReviewDialog` (`src/app/settings/ai-edit-review-dialog.tsx`), wired into `attributes-tab.tsx`.
+
 ## Landing Page
 
 `src/app/page.tsx` is a server component that composes client landing components. Page flow: Hero (with `CoverShowcase`) → `ProductShowcase` → Features → Pricing → Footer.
@@ -323,10 +335,11 @@ Triggered from Settings General tab → "Danger Zone" → `DeleteAccountDialog` 
   - `SelectValue` doesn't auto-map values to labels — pass explicit children: `<SelectValue>{label}</SelectValue>`.
 - **AI models**: All Gemini — quick (`gemini-3.1-flash-image-preview` at 1K, no thinking), detailed (`gemini-3.1-flash-image-preview` at 4K, High thinking), premium (`gemini-3-pro-image-preview` at 4K, no explicit thinking config). Quick and Detailed share the same model ID but differ by resolution and thinking settings. Model IDs mapped in `GEMINI_MODEL_IDS` in `worker/src/lib/constants.ts`. Per-model generation config in `GEMINI_MODEL_CONFIG`. Quick is prototyping-only: no upscale, no KDP crop, not export-ready. Detailed/Premium output at 4K, skip upscale (already exceeds KDP), crop to 1600x2560. `AI_MODELS` entries have `exportable: boolean` field — Quick is `false`, others are `true`. Export API and UI gate on this.
 - **KDP constants**: Defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts` as `KDP` object (1600x2560, 300 DPI, JPEG quality 92). Gemini generates at 9:16 aspect ratio; `cropToKDP()` center-crops to 5:8 (KDP). For bake mode, `padToAspectRatio()` pads to 9:16 first so the crop only removes padding.
-- **WebSocket**: Singleton manager in `src/lib/use-generation-ws.ts`. Worker endpoint at `NEXT_PUBLIC_WS_URL` (defaults to `ws://localhost:4000/ws/progress`). Falls back to HTTP polling if WebSocket fails. The worker bridges Redis pubsub → WebSocket: `publishProgress()` in `worker/src/lib/progress.ts` publishes to `generation:{id}` channels, and `worker/src/lib/websocket.ts` relays those to connected clients.
+- **Redis subscriber connections**: ioredis connections used for pubsub (`subscriber.subscribe()`) must set `enableReadyCheck: false` to prevent the `INFO` health-check command from crashing in subscribe mode.
+- **WebSocket**: Singleton manager in `src/lib/use-generation-ws.ts`. Worker endpoint at `NEXT_PUBLIC_WS_URL` (defaults to `ws://localhost:4000/ws/progress`). No polling fallback — reliability is ensured by one-shot HTTP fetches on mount and WebSocket reconnect. Supports two subscription types: `generation:{id}` (granular progress for editor) and `project:{projectId}` (status transitions for dashboard). The worker bridges Redis pubsub → WebSocket: `publishProgress()` in `worker/src/lib/progress.ts` publishes to both channels, and `worker/src/lib/websocket.ts` relays to connected clients. Hooks: `useGenerationProgress(id, options?)` for per-generation progress, `useProjectGenerations(projectId, initial)` for dashboard active generations.
 - **Event constants**: Event type discriminators (`EVENT_TYPE`: STATUS, PROGRESS, COMPLETED, FAILED, RETRYING) and WebSocket control messages (`WS_MESSAGE_TYPE`: SUBSCRIBE, UNSUBSCRIBE) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts`. Use these instead of raw strings like `"completed"` or `"subscribe"`.
 - **Generation statuses**: `GENERATION_STATUS` includes `QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`, `RETRYING`. The `RETRYING` status is used during auto-retry — generation has retry fields (`retryCount`, `retryReason`, `nextRetryAt`) that drive countdown timers and retry labels in the UI. `GenerationProgress` interface in `use-generation-ws.ts` also carries these fields.
-- **Dashboard active generations**: `src/components/dashboard/active-generation-row.tsx` (client component) renders active generation rows under project cards on the dashboard. Polls `GET /api/generations/active?projectId=X` every 5s. Clicking navigates to the editor with `?tab=history&gen=ID`.
+- **Dashboard active generations**: `src/components/dashboard/active-generation-row.tsx` (client component) renders active generation rows under project cards on the dashboard. Uses `useProjectGenerations` hook (WebSocket subscription to `project:{projectId}` channel) with one-shot HTTP fetch on mount/reconnect. Clicking navigates to the editor with `?tab=history&gen=ID`.
 - **Redis publisher**: `getRedisPublisher()` from `src/lib/queue.ts` provides a lazy-initialized ioredis instance for publishing WebSocket events from the Next.js app (used by the cancel API).
 - **Attribute defaults**: Always use `getDefaultValue(type)` from `src/lib/attributes.ts` — never hardcode default values like `"false"`, `"5"`, `"#6366f1"` inline.
 - **API client**: Client-side API calls use an axios instance from `src/lib/api/client.ts` with domain-specific modules in `src/lib/api/` (projects, generations, images, fonts, settings, credits, checkout). Use `fireAndForget()` for best-effort calls (auto-save). Import via `@/lib/api`.
