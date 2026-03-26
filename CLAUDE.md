@@ -94,8 +94,11 @@ The processor supports `isExtension` flag for partial-failure handling: if some 
 
 **Partial failure status**: When some images are generated before an error (Path 2), the generation is marked `COMPLETED` (not `FAILED`) with `errorMessage` set to a human-readable summary (e.g., "4 of 8 images generated. 20 credits refunded."). The original `imageCount` is preserved (not overwritten to the actual count) so the frontend can compute failed slot count as `imageCount - images.length`. Only `creditCost` is adjusted. `errorMessage` is cleared on successful extension, or updated with fresh numbers on extension partial failure. The frontend renders amber "failed slots" in generation history with retry capability via `onGenerateMore`.
 
-**Auto-retry**: Failed generations automatically retry with exponential backoff (`RETRY_DELAYS`: 10s→30s→60s→90s→120s cap). BullMQ jobs are created with `attempts: 100` and a custom backoff strategy. The processor catch block classifies errors:
-- **High demand** (429/503 or rate-limit patterns): retries up to `MAX_HIGH_DEMAND_RETRIES` (10), total ~13 min
+**Safety filter handling**: `SafetyFilterError` (extends `UnrecoverableError`) in `worker/src/services/gemini.service.ts` — thrown on `finishReason === "SAFETY"`, empty image buffers, or safety-related error messages. Non-retryable by design (BullMQ skips retry for `UnrecoverableError`). The processor has an explicit guard before retry classification as a safety net. Error classification uses `classifyError()` and `isRetryableError()` from `worker/src/lib/api-usage.ts` instead of inline regex.
+
+**Auto-retry**: Failed generations automatically retry with exponential backoff (`RETRY_DELAYS`: 10s→30s→60s→90s→120s cap). BullMQ jobs are created with `attempts: 100` and a custom backoff strategy. The processor catch block classifies errors via `classifyError()`:
+- **High demand** (`rate_limit`/`server_error`): retries up to `MAX_HIGH_DEMAND_RETRIES` (10), total ~13 min
+- **Safety filter**: never retry (throws `SafetyFilterError` → `UnrecoverableError`)
 - **Other errors**: retries up to `MAX_OTHER_RETRIES` (5), total ~5 min
 - **Extensions**: never retry (throw `UnrecoverableError`)
 
@@ -317,6 +320,28 @@ GA4 loads conditionally via cookie consent. `src/components/cookie-consent.tsx` 
 
 Triggered from Settings General tab → "Danger Zone" → `DeleteAccountDialog` (requires typing "DELETE" to confirm). Uses client-side `signOut` from `next-auth/react` after deletion.
 
+## API Usage Tracking
+
+`ApiUsage` model logs every AI API call (image generation, AI Fill, AI Edit) with token counts, estimated USD cost, duration, and structured error details. One row per API call, not per generation.
+
+**Shared utility**: `src/lib/api-usage.ts` (app) and `worker/src/lib/api-usage.ts` (worker) — `parseGeminiUsage(responseJson, modelId)` extracts token counts and computes `estimatedCostUsd` from `GEMINI_PRICING`. `classifyError()` returns an `ErrorType` for retry decisions. `isRetryableError()` checks if the error type should trigger retry.
+
+**Pricing**: `GEMINI_PRICING` in both constants files, keyed by model ID. Rates from https://ai.google.dev/gemini-api/docs/pricing. Image models have `perImage` cost (resolution-dependent). Update manually when Google changes pricing.
+
+**Data capture**: Worker writes `ApiUsage` for each `generateSingleImage()` call (success and failure). AI Fill route writes after `generateAttributeSuggestions()` returns. AI Edit route writes inline. All logging is **best-effort** — wrapped in try/catch, never breaks the main flow.
+
+**`onDelete: SetNull`**: `ApiUsage` rows survive user and generation deletion (userId/generationId set to null) to preserve historical cost data.
+
+## Admin Dashboard
+
+`/admin` — admin-only analytics dashboard showing revenue, API costs, profitability, and anomaly detection. Server components querying Prisma directly, Recharts for charts.
+
+**Access control**: `ADMIN_EMAILS` env var (comma-separated). `src/proxy.ts` requires authentication. `src/app/admin/layout.tsx` checks email against the list, returns **404** (not 403) for unauthorized users. Exports `robots: { index: false, follow: false }`. Also in `src/app/robots.ts` disallow list.
+
+**Query functions**: `src/app/admin/lib/queries.ts` — all dashboard data. Revenue (subscribers, MRR, credit pack sales), AI costs (by type, model, daily, retry), anomalies (money leaks, overcharges, duplicate refunds, credit balance desync, orphaned processing, cancellation races).
+
+**Anomaly flags**: Detect financial integrity issues — e.g., all API calls succeeded but credits refunded (money leak), generation failed with no refund (overcharged), `User.creditBalance` != sum of `CreditPool.remaining` (desync).
+
 ## Code Standards
 
 ### File size & component structure
@@ -375,4 +400,7 @@ Triggered from Settings General tab → "Danger Zone" → `DeleteAccountDialog` 
 - **Cross-package constants**: Constants shared between app and worker (like `GENERATION_STATUS`, `EVENT_TYPE`, `KDP`, `CREDIT_COST_PER_IMAGE`) are defined in both `src/lib/constants.ts` and `worker/src/lib/constants.ts` — kept in sync manually since the packages cannot import from each other.
 - **Credit costs**: Always use `CREDIT_COST_PER_IMAGE[model]` and `calculateCreditCost()` from `src/lib/credits.ts` — never hardcode credit amounts inline.
 - **GeneratedImage ordering**: Always include `orderBy: { id: "asc" }` when querying `images` on a generation. CUIDs are monotonically increasing, so this ensures images render in creation order — critical for extend-generation where new images must appear after existing ones.
+- **`generateSingleImage()` returns `GenerationResult`**: Not a raw `Buffer`. Contains `{ imageBuffer, responseJson, durationMs }`. The `responseJson` includes `usageMetadata` for token tracking. Callers must destructure `result.imageBuffer`.
+- **`generateAttributeSuggestions()` returns `AiFillResult`**: Not a raw `AiFillSuggestion[]`. Contains `{ suggestions, responseJson, durationMs }`. Callers must destructure.
+- **API usage pricing**: `GEMINI_PRICING` in both constants files maps model IDs to `{ inputPerMillion, outputPerMillion, perImage? }`. `perImage` applies to image generation models. Quick (1K) and Detailed (4K) share the same model ID but have different per-image costs at Google — we use the 4K rate since Detailed is the primary tier.
 - **Webhook endpoint**: `POST /api/webhooks/dodo` must NOT use `auth()` — it's called by DodoPayments servers and authenticated via webhook signature verification. Raw body must be read with `request.text()` before any JSON parsing for signature verification to work.
