@@ -26,12 +26,16 @@ import {
   updateValueInAttribute,
   updateAttributeDescription,
   getDefaultAttributeDescription,
+  ensureBuiltInAttributes,
   getActiveValues,
   type AttributeConfigJson,
   type Attribute,
   type AttributeValue,
 } from "@/lib/attributes";
+import { useCreditStore } from "@/lib/stores/credit-store";
 import { ValueRow } from "./value-row";
+import { AiEditPopover } from "./ai-edit-popover";
+import { AiEditReviewDialog } from "./ai-edit-review-dialog";
 
 interface AttributesTabProps {
   config: AttributeConfigJson;
@@ -42,6 +46,12 @@ export function AttributesTab({ config, onSave }: AttributesTabProps) {
   const [addingAttribute, setAddingAttribute] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<Attribute["type"]>("single");
+  const [aiEditOpen, setAiEditOpen] = useState(false);
+  const [aiEditPrompt, setAiEditPrompt] = useState("");
+  const [aiEditLoading, setAiEditLoading] = useState(false);
+  const [aiEditBefore, setAiEditBefore] = useState<AttributeConfigJson | null>(null);
+  const [aiEditAfter, setAiEditAfter] = useState<AttributeConfigJson | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   function toggleAttribute(attributeId: string, enabled: boolean) {
     onSave({
@@ -107,8 +117,48 @@ export function AttributesTab({ config, onSave }: AttributesTabProps) {
     toast.success("Attribute removed");
   }
 
+  function handleAiEditResult(before: AttributeConfigJson, after: AttributeConfigJson) {
+    setAiEditBefore(before);
+    setAiEditAfter(after);
+    setReviewOpen(true);
+  }
+
+  function handleAiEditApply(newConfig: AttributeConfigJson) {
+    onSave(newConfig);
+    useCreditStore.getState().refreshCredits();
+    setAiEditPrompt("");
+    toast.success("AI changes applied");
+  }
+
+  function handleAiEditRegenerate() {
+    setReviewOpen(false);
+    setAiEditOpen(true);
+  }
+
+  function handleRestoreBuiltIn() {
+    const restored = ensureBuiltInAttributes(config);
+    if (restored === config) {
+      toast.info("All built-in attributes are already present");
+      return;
+    }
+    onSave(restored);
+    toast.success("Built-in attributes restored");
+  }
+
   return (
     <div className="space-y-4">
+      <div className="flex gap-2">
+        <AiEditPopover
+          open={aiEditOpen}
+          onOpenChange={setAiEditOpen}
+          prompt={aiEditPrompt}
+          onPromptChange={setAiEditPrompt}
+          loading={aiEditLoading}
+          onLoadingChange={setAiEditLoading}
+          onResult={handleAiEditResult}
+        />
+      </div>
+
       {config.attributes.map((attr) => (
         <AttributeCard
           key={attr.id}
@@ -177,6 +227,24 @@ export function AttributesTab({ config, onSave }: AttributesTabProps) {
           Add Attribute
         </Button>
       )}
+
+      <Button
+        variant="outline"
+        className="w-full gap-2"
+        onClick={handleRestoreBuiltIn}
+      >
+        <RotateCcwIcon className="size-4" />
+        Restore Built-in Attributes
+      </Button>
+
+      <AiEditReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        before={aiEditBefore}
+        after={aiEditAfter}
+        onApply={handleAiEditApply}
+        onRegenerate={handleAiEditRegenerate}
+      />
     </div>
   );
 }
@@ -263,16 +331,14 @@ function AttributeCard({
                 checked={attribute.enabled}
                 onCheckedChange={onToggle}
               />
-              {!attribute.builtIn && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={onRemoveAttribute}
-                >
-                  <Trash2Icon className="size-3.5" />
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={onRemoveAttribute}
+              >
+                <Trash2Icon className="size-3.5" />
+              </Button>
             </div>
           </div>
         </CardHeader>

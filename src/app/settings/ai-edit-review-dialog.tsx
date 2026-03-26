@@ -12,7 +12,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { diffAttributeConfigs, applyConfigChanges, type ConfigChange } from "@/lib/attribute-diff";
-import { AI_FILL_CREDIT_COST } from "@/lib/constants";
 import type { AttributeConfigJson } from "@/lib/attributes";
 
 interface AiEditReviewDialogProps {
