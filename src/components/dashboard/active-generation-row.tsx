@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { GENERATION_STATUS, POLL_INTERVAL_MS } from "@/lib/constants";
+import { GENERATION_STATUS } from "@/lib/constants";
 import { cancelGeneration } from "@/lib/api";
 import { getModelLabel, formatRelativeTime } from "@/components/editor/generation-helpers";
+import { useProjectGenerations } from "@/lib/use-generation-ws";
 
 interface ActiveGeneration {
   id: string;
@@ -28,25 +29,14 @@ interface ActiveGenerationRowsProps {
 
 export function ActiveGenerationRows({ projectId, initialGenerations }: ActiveGenerationRowsProps) {
   const router = useRouter();
-  const [generations, setGenerations] = useState(initialGenerations);
+  const { generations } = useProjectGenerations(projectId, initialGenerations);
 
+  // Refresh server components when all generations complete
   useEffect(() => {
-    const timer = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/generations/active?projectId=${projectId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setGenerations(data.generations);
-          if (data.generations.length === 0) {
-            router.refresh();
-          }
-        }
-      } catch {
-        // Ignore polling errors
-      }
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [projectId, router]);
+    if (initialGenerations.length > 0 && generations.length === 0) {
+      router.refresh();
+    }
+  }, [generations.length, initialGenerations.length, router]);
 
   if (generations.length === 0) return null;
 
@@ -57,10 +47,7 @@ export function ActiveGenerationRows({ projectId, initialGenerations }: ActiveGe
           key={gen.id}
           generation={gen}
           projectId={projectId}
-          onCancelled={() => {
-            setGenerations((prev) => prev.filter((g) => g.id !== gen.id));
-            router.refresh();
-          }}
+          onCancelled={() => router.refresh()}
         />
       ))}
     </div>
