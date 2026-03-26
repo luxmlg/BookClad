@@ -154,7 +154,7 @@ export function buildSystemPrompt(options: PromptOptions): string {
   let referenceClause = "";
   if (options.isReference) {
     referenceClause = isBake
-      ? `\nYou are provided with a cover image. Preserve this image EXACTLY as-is — do NOT redraw, modify, or reinterpret the artwork, composition, colors, lighting, or any visual elements. Your ONLY task is to add the specified text elements onto the existing image.\n`
+      ? `\nYou are provided with a cover image. Do NOT change, redraw, modify, or reinterpret the image in any way — the artwork, composition, colors, lighting, and every visual element must remain pixel-perfect identical. Your ONLY task is to overlay the specified text elements onto the existing image. The underlying image must be completely unchanged.\n`
       : `\nYou are provided with a reference cover image. Use it as a mood board — match its overall atmosphere, composition approach, and color temperature. Generate an original image inspired by it, not a copy.\n`;
   }
 
