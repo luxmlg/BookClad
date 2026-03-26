@@ -114,7 +114,7 @@ export async function processInpaint(job: Job<InpaintJobData>) {
     const aspectRatio = GEMINI_MODEL_CONFIG[model]?.aspectRatio;
     if (aspectRatio) {
       imageBuffer = await padToAspectRatio(imageBuffer, aspectRatio);
-      maskBuffer = await padToAspectRatio(maskBuffer, aspectRatio, "background");
+      maskBuffer = await padToAspectRatio(maskBuffer, aspectRatio);
     }
 
     for (let i = alreadyGenerated; i < imageCount; i++) {
