@@ -1,3 +1,5 @@
+import { UnrecoverableError } from "bullmq";
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FETCH_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes — premium models can be slow
 
@@ -25,6 +27,13 @@ export class GeminiApiError extends Error {
   }
 }
 
+export class SafetyFilterError extends UnrecoverableError {
+  constructor(message?: string) {
+    super(message ?? "Content blocked by safety filter. Try adjusting your description.");
+    this.name = "SafetyFilterError";
+  }
+}
+
 function geminiEndpoint(modelId: string): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`;
 }
@@ -43,7 +52,16 @@ interface GeminiResponse {
     content?: {
       parts?: GeminiPart[];
     };
+    finishReason?: string;
+    safetyRatings?: Array<{ category: string; probability: string }>;
   }[];
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+    cachedContentTokenCount?: number;
+  };
+  modelVersion?: string;
 }
 
 function extractImageBuffers(response: GeminiResponse): Buffer[] {
@@ -72,13 +90,21 @@ export interface GenerateSingleImageParams {
   config?: GeminiImageConfig;
 }
 
+export interface GenerationResult {
+  imageBuffer: Buffer;
+  responseJson: Record<string, unknown>;
+  durationMs: number;
+}
+
 export async function generateSingleImage({
   prompt,
   referenceImage,
   modelId,
   config,
-}: GenerateSingleImageParams): Promise<Buffer> {
+}: GenerateSingleImageParams): Promise<GenerationResult> {
   if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const startTime = Date.now();
 
   const parts: Array<Record<string, unknown>> = [];
 
@@ -122,24 +148,58 @@ export async function generateSingleImage({
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (err) {
+    const durationMs = Date.now() - startTime;
     console.error(`[gemini] fetch failed for model ${modelId}:`, err);
-    throw new Error(
-      "Could not reach the image generation service. Please try again.",
-      { cause: err },
+    throw Object.assign(
+      new Error("Could not reach the image generation service. Please try again.", { cause: err }),
+      { durationMs },
     );
   }
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");
+    const durationMs = Date.now() - startTime;
     console.error(`[gemini] HTTP ${res.status} for model ${modelId}:`, errBody);
-    throw new GeminiApiError(res.status);
+
+    let errorJson: Record<string, unknown> | undefined;
+    try { errorJson = JSON.parse(errBody); } catch { /* ignore */ }
+
+    if (errorJson && /safety|blocked|harmful|prohibited/i.test(errBody)) {
+      throw Object.assign(
+        new SafetyFilterError(),
+        { status: res.status, durationMs, errorJson },
+      );
+    }
+
+    throw Object.assign(
+      new GeminiApiError(res.status),
+      { durationMs, errorJson },
+    );
   }
 
   const data = (await res.json()) as GeminiResponse;
+  const durationMs = Date.now() - startTime;
+
+  const finishReason = data.candidates?.[0]?.finishReason;
+  if (finishReason === "SAFETY" || finishReason === "BLOCKED_REASON_UNSPECIFIED") {
+    throw Object.assign(
+      new SafetyFilterError(),
+      { status: 200, durationMs, responseJson: data as unknown as Record<string, unknown> },
+    );
+  }
+
   const buffers = extractImageBuffers(data);
   if (buffers.length === 0) {
-    throw new Error(NO_IMAGES_MESSAGE);
+    throw Object.assign(
+      new SafetyFilterError("No images generated — content may have been filtered. Try adjusting your description."),
+      { status: 200, durationMs, responseJson: data as unknown as Record<string, unknown> },
+    );
   }
-  return buffers[0];
+
+  return {
+    imageBuffer: buffers[0],
+    responseJson: data as unknown as Record<string, unknown>,
+    durationMs,
+  };
 }
 
