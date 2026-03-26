@@ -3,10 +3,9 @@ import { createServer } from "http";
 import express from "express";
 import { Job, Worker, UnrecoverableError } from "bullmq";
 import { processGeneration } from "./processors/generation.processor.js";
-import { processInpaint } from "./processors/inpaint.processor.js";
 import type { GenerationJobData } from "./queues/generation.queue.js";
 import { setupWebSocket } from "./lib/websocket.js";
-import { QUEUE_NAME, JOB_TYPE, GENERATION_STATUS, RETRY_DELAYS, EVENT_TYPE } from "./lib/constants.js";
+import { QUEUE_NAME, GENERATION_STATUS, RETRY_DELAYS, EVENT_TYPE } from "./lib/constants.js";
 import { refundStaleGeneration, refundCredits } from "./lib/credits.js";
 import { startCreditExpirySweep } from "./lib/credit-expiry.js";
 import { prisma } from "./lib/prisma.js";
@@ -28,11 +27,7 @@ const worker = new Worker<GenerationJobData>(
   QUEUE_NAME,
   async (job) => {
     console.log(`[worker] Processing job ${job.id} (${job.name}): generation ${job.data.generationId} (attempt ${job.attemptsMade + 1})`);
-    if (job.name === JOB_TYPE.INPAINT) {
-      await processInpaint(job as any); // eslint-disable-line @typescript-eslint/no-explicit-any
-    } else {
-      await processGeneration(job);
-    }
+    await processGeneration(job);
     console.log(`[worker] Completed job ${job.id}`);
   },
   {

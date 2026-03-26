@@ -19,7 +19,6 @@ export type GenerationStatus = typeof GENERATION_STATUS[keyof typeof GENERATION_
 
 export const JOB_TYPE = {
   GENERATE: "generate",
-  INPAINT: "inpaint",
   GENERATE_FROM_REFERENCE: "generate-from-reference",
 } as const;
 export type JobType = typeof JOB_TYPE[keyof typeof JOB_TYPE];

@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { publishProgress } from "../lib/progress.js";
 import { generateSingleImage } from "../services/gemini.service.js";
 import { upscaleImage } from "../services/upscale.service.js";
-import { cropToKDP } from "../services/image.service.js";
+import { cropToKDP, padToAspectRatio } from "../services/image.service.js";
 import { uploadImage, downloadImage } from "../services/storage.service.js";
 import type { GenerationJobData } from "../queues/generation.queue.js";
 import { buildSystemPrompt, buildAttributeContext, buildAttributeValues, extractDescriptions, type TextLayerInfo } from "../lib/prompt.js";
@@ -105,7 +105,11 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       refBuffer = job.data.flattenedImageDataUrl
         ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
         : await downloadImage(referenceImageKey);
+    }
 
+    // Bake mode: pad reference to generation aspect ratio so crop only removes padding
+    if (generation.includeLayers && geminiConfig?.aspectRatio && refBuffer) {
+      refBuffer = await padToAspectRatio(refBuffer, geminiConfig.aspectRatio);
     }
 
     for (let i = alreadyGenerated; i < imageCount; i++) {

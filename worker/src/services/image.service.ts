@@ -9,7 +9,6 @@ import { KDP } from "../lib/constants.js";
 export async function padToAspectRatio(
   imageBuffer: Buffer,
   targetAspectRatio: string,
-  extendWith: "mirror" | "copy" | "background" = "mirror",
 ): Promise<Buffer> {
   const [aw, ah] = targetAspectRatio.split(":").map(Number);
   if (!aw || !ah) return imageBuffer;
@@ -31,16 +30,9 @@ export async function padToAspectRatio(
   const padTop = Math.floor(extraHeight / 2);
   const padBottom = extraHeight - padTop;
 
-  const extendOptions: Parameters<ReturnType<typeof sharp>["extend"]>[0] = {
-    top: padTop,
-    bottom: padBottom,
-    extendWith: extendWith === "background" ? "background" : extendWith,
-    ...(extendWith === "background" && {
-      background: { r: 0, g: 0, b: 0, alpha: 255 },
-    }),
-  };
-
-  return sharp(imageBuffer).extend(extendOptions).toBuffer();
+  return sharp(imageBuffer)
+    .extend({ top: padTop, bottom: padBottom, extendWith: "mirror" })
+    .toBuffer();
 }
 
 export async function cropToKDP(imageBuffer: Buffer): Promise<Buffer> {
