@@ -33,7 +33,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     where: { id: generationId },
     data: { status: GENERATION_STATUS.PROCESSING },
   });
-  await publishProgress(job, generationId, { type: EVENT_TYPE.STATUS, status: GENERATION_STATUS.PROCESSING });
+  await publishProgress(job, generationId, projectId, { type: EVENT_TYPE.STATUS, status: GENERATION_STATUS.PROCESSING });
 
   try {
     await preflight();
@@ -101,7 +101,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     let refBuffer: Buffer | undefined;
     if (referenceImageKey) {
       step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: "Downloading reference image...", step, totalSteps });
+      await publishProgress(job, generationId, projectId, { type: EVENT_TYPE.PROGRESS, message: "Downloading reference image...", step, totalSteps });
       refBuffer = job.data.flattenedImageDataUrl
         ? Buffer.from(job.data.flattenedImageDataUrl.replace(/^data:image\/\w+;base64,/, ""), "base64")
         : await downloadImage(referenceImageKey);
@@ -115,7 +115,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     for (let i = alreadyGenerated; i < imageCount; i++) {
       // Generate
       step++;
-      await publishProgress(job, generationId, {
+      await publishProgress(job, generationId, projectId, {
         type: EVENT_TYPE.PROGRESS,
         message: `Generating image ${i + 1}/${imageCount}...`,
         step,
@@ -140,11 +140,11 @@ export async function processGeneration(job: Job<GenerationJobData>) {
         imageHeight = metadata.height ?? 0;
       } else {
         step++;
-        await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Upscaling image ${i + 1}/${imageCount}...`, step, totalSteps });
+        await publishProgress(job, generationId, projectId, { type: EVENT_TYPE.PROGRESS, message: `Upscaling image ${i + 1}/${imageCount}...`, step, totalSteps });
         const upscaled = await upscaleImage(rawImage);
 
         step++;
-        await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Cropping image ${i + 1} to KDP dimensions...`, step, totalSteps });
+        await publishProgress(job, generationId, projectId, { type: EVENT_TYPE.PROGRESS, message: `Cropping image ${i + 1} to KDP dimensions...`, step, totalSteps });
         finalImage = await cropToKDP(upscaled);
         imageWidth = KDP.width;
         imageHeight = KDP.height;
@@ -152,7 +152,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
 
       // Upload + save
       step++;
-      await publishProgress(job, generationId, { type: EVENT_TYPE.PROGRESS, message: `Uploading image ${i + 1}/${imageCount}...`, step, totalSteps });
+      await publishProgress(job, generationId, projectId, { type: EVENT_TYPE.PROGRESS, message: `Uploading image ${i + 1}/${imageCount}...`, step, totalSteps });
       const storageKey = await uploadImage(finalImage, `projects/${projectId}`);
 
       await prisma.generatedImage.create({
@@ -171,7 +171,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       data: { status: GENERATION_STATUS.COMPLETED, errorMessage: null },
     });
 
-    await publishProgress(job, generationId, { type: EVENT_TYPE.COMPLETED });
+    await publishProgress(job, generationId, projectId, { type: EVENT_TYPE.COMPLETED });
   } catch (error) {
     const generationId = job.data.generationId;
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
@@ -232,7 +232,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       if (refundAmount > 0) {
         await refundCredits(job.data.userId, generationId, refundAmount);
       }
-      await publishProgress(job, generationId, {
+      await publishProgress(job, generationId, projectId, {
         type: EVENT_TYPE.FAILED,
         error: errorMsg,
       });
@@ -274,7 +274,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       if (retryUpdated.count === 0) {
         throw new UnrecoverableError("Cancelled by user");
       }
-      await publishProgress(job, generationId, {
+      await publishProgress(job, generationId, projectId, {
         type: EVENT_TYPE.RETRYING,
         retryCount: attemptNumber,
         retryReason,
@@ -307,7 +307,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
       if (updated.count > 0 && partialRefund > 0) {
         await refundCredits(job.data.userId, generationId, partialRefund);
       }
-      await publishProgress(job, generationId, {
+      await publishProgress(job, generationId, projectId, {
         type: EVENT_TYPE.COMPLETED,
         errorMessage: partialMsg,
       });
@@ -322,7 +322,7 @@ export async function processGeneration(job: Job<GenerationJobData>) {
     if (failUpdated.count > 0 && job.data.creditCost > 0) {
       await refundCredits(job.data.userId, generationId, job.data.creditCost);
     }
-    await publishProgress(job, generationId, {
+    await publishProgress(job, generationId, projectId, {
       type: EVENT_TYPE.FAILED,
       error: errorMsg,
     });
