@@ -9,6 +9,7 @@ import { CANVAS_WIDTH, NODE_TYPE } from "./canvas-types";
 import { KDP } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
 import { createInpaint } from "@/lib/api";
+import { useCreditStore } from "@/lib/stores/credit-store";
 
 export interface UseInpaintStateResult {
   brushMode: boolean;
@@ -25,6 +26,8 @@ export interface UseInpaintStateResult {
   setHasBrushMask: React.Dispatch<React.SetStateAction<boolean>>;
   brushToolRef: React.RefObject<import("./brush-tool").BrushToolHandle | null>;
   handleInpaintSubmit: (prompt: string) => Promise<void>;
+  handleBakeSubmit: (prompt: string, imageCount: number) => Promise<void>;
+  bakeSubmitting: boolean;
   handleIncludeLayersChange: (checked: boolean) => void;
   flattenCanvasToDataUrl: () => Promise<string | undefined>;
 }
@@ -49,7 +52,9 @@ export function useInpaintState(
   const [brushSize, setBrushSize] = useState(30);
   const [erasing, setErasing] = useState(false);
   const [hasBrushMask, setHasBrushMask] = useState(false);
+  const [bakeSubmitting, setBakeSubmitting] = useState(false);
   const brushToolRef = useRef<import("./brush-tool").BrushToolHandle>(null);
+  const refreshCredits = useCreditStore((s) => s.refreshCredits);
 
   async function flattenCanvasToDataUrl(): Promise<string | undefined> {
     const stage = stageRef.current;
@@ -74,6 +79,41 @@ export function useInpaintState(
       layer.visible(true);
     }
     return dataUrl;
+  }
+
+  function generateLayerMask(): string | null {
+    const stage = stageRef.current;
+    if (!stage) return null;
+
+    const scale = KDP.width / CANVAS_WIDTH;
+    const canvas = document.createElement("canvas");
+    canvas.width = KDP.width;
+    canvas.height = KDP.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    // Fill with black (don't edit)
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw white rectangles for each visible user layer node
+    ctx.fillStyle = "#ffffff";
+    const padding = 20 * scale; // 20px canvas-space padding for blending room
+    const layers = stage.getLayers();
+    // Skip layer 0 (background image) — start from layer 1
+    for (let li = 1; li < layers.length; li++) {
+      for (const node of layers[li].getChildren()) {
+        if (!node.visible()) continue;
+        const rect = node.getClientRect();
+        const x = Math.max(0, rect.x * scale - padding);
+        const y = Math.max(0, rect.y * scale - padding);
+        const w = Math.min(canvas.width - x, rect.width * scale + padding * 2);
+        const h = Math.min(canvas.height - y, rect.height * scale + padding * 2);
+        ctx.fillRect(x, y, w, h);
+      }
+    }
+
+    return canvas.toDataURL("image/png");
   }
 
   function handleIncludeLayersChange(checked: boolean) {
@@ -118,6 +158,47 @@ export function useInpaintState(
     }
   }
 
+  async function handleBakeSubmit(prompt: string, imageCount: number): Promise<void> {
+    if (!selectedImageId) {
+      toast.error("Please select an image first");
+      return;
+    }
+    const maskDataUrl = generateLayerMask();
+    if (!maskDataUrl) {
+      toast.error("Failed to generate layer mask");
+      return;
+    }
+    setBakeSubmitting(true);
+    try {
+      const flattenedImageDataUrl = await flattenCanvasToDataUrl();
+      const data = await createInpaint({
+        imageId: selectedImageId,
+        maskDataUrl,
+        prompt,
+        model,
+        imageCount,
+        flattenedImageDataUrl,
+        attributeSnapshot: attributes,
+        textLayerSnapshot: canvasNodes.filter(n => n.visible !== false).map((n) => ({
+          name: n.name ?? n.id,
+          text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
+          type: n.type,
+        })),
+      });
+      setActiveGenerationIds((prev) => [...prev, data.generationId]);
+      setPendingSlotCounts(prev => new Map(prev).set(data.generationId, imageCount));
+      setPanelOpen(true);
+      setActiveTab(0);
+      refreshCredits();
+      toast.success("Bake layers queued!");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bake failed");
+    } finally {
+      setBakeSubmitting(false);
+    }
+  }
+
   return {
     brushMode, setBrushMode,
     inpaintMask, setInpaintMask,
@@ -128,6 +209,8 @@ export function useInpaintState(
     hasBrushMask, setHasBrushMask,
     brushToolRef,
     handleInpaintSubmit,
+    handleBakeSubmit,
+    bakeSubmitting,
     handleIncludeLayersChange,
     flattenCanvasToDataUrl,
   };
