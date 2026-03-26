@@ -215,8 +215,11 @@ export const API_USAGE_TYPE = {
 } as const;
 export type ApiUsageType = typeof API_USAGE_TYPE[keyof typeof API_USAGE_TYPE];
 
+// Pricing from https://ai.google.dev/gemini-api/docs/pricing (March 2026)
+// Image models: perImage uses the resolution tier matching our generation config
+// Quick generates at 1K ($0.067), Detailed/Premium at 4K ($0.151/$0.24)
 export const GEMINI_PRICING: Record<string, { inputPerMillion: number; outputPerMillion: number; perImage?: number }> = {
-  "gemini-3.1-flash-image-preview": { inputPerMillion: 0.10, outputPerMillion: 0.40, perImage: 0.02 },
-  "gemini-3-pro-image-preview": { inputPerMillion: 1.25, outputPerMillion: 5.00, perImage: 0.07 },
-  "gemini-2.5-flash": { inputPerMillion: 0.15, outputPerMillion: 0.60 },
+  "gemini-3.1-flash-image-preview": { inputPerMillion: 0.50, outputPerMillion: 60.00, perImage: 0.151 },
+  "gemini-3-pro-image-preview": { inputPerMillion: 2.00, outputPerMillion: 120.00, perImage: 0.24 },
+  "gemini-2.5-flash": { inputPerMillion: 0.30, outputPerMillion: 2.50 },
 };
