@@ -720,13 +720,6 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
         imageUrls={imageUrls}
         loadingUrls={loadingUrls}
         allImagesLength={allImages.length}
-        brushMode={inpaint.brushMode}
-        inpaintMask={inpaint.inpaintMask}
-        brushSize={inpaint.brushSize}
-        erasing={inpaint.erasing}
-        brushToolRef={inpaint.brushToolRef}
-        setInpaintMask={inpaint.setInpaintMask}
-        setHasBrushMask={inpaint.setHasBrushMask}
         crossfadeSnapshot={crossfadeSnapshot}
         bgLoaded={bgLoaded}
         setCrossfadeSnapshot={setCrossfadeSnapshot}
