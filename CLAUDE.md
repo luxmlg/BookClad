@@ -294,7 +294,9 @@ Landing page (`src/app/page.tsx`) includes `Organization` and `WebApplication` s
 
 ### MDX Content (Blog & Help)
 
-Content lives in `content/blog/` and `content/help/` as `.mdx` files with YAML frontmatter. Shared utilities in `src/lib/mdx.ts`: `getBlogPosts()`, `getBlogPost(slug)`, `getHelpDocs()`, `getHelpDoc(slug)`, `getHelpDocsByCategory()`. MDX rendering uses `next-mdx-remote/rsc` with custom component map in `src/components/mdx-components.tsx`. Blog frontmatter: `title`, `description`, `date`, `tags`, `image?`. Help frontmatter: `title`, `description`, `category`, `order`. Adding a new `.mdx` file automatically includes it in the sitemap.
+Content lives in `content/blog/` and `content/help/` as `.mdx` files with YAML frontmatter. Shared utilities in `src/lib/mdx.ts`: `getBlogPosts()`, `getBlogPost(slug)`, `getHelpDocs()`, `getHelpDoc(slug)`, `getHelpDocsByCategory()`. MDX rendering uses `next-mdx-remote/rsc` with `remark-gfm` (for GFM tables/strikethrough) and `@tailwindcss/typography` (`@plugin` in `globals.css`, prose classes on article wrappers). Custom component map in `src/components/mdx-components.tsx` includes `ThemedImage` (light/dark image switching), `Link` (internal routing), and `Image` (Next.js optimized images). Blog frontmatter: `title`, `description`, `date`, `tags`, `image?`. Help frontmatter: `title`, `description`, `category`, `order`. Adding a new `.mdx` file automatically includes it in the sitemap.
+
+**Themed screenshots**: Screenshots live in `public/screenshots/` with `-light.png`/`-dark.png` suffixes. Use `<ThemedImage lightSrc="/screenshots/name-light.png" darkSrc="/screenshots/name-dark.png" alt="Description" width={800} height={450} />` in MDX. The `ThemedImage` component (`src/components/landing/themed-image.tsx`) crossfades between variants based on the active theme. Width/height accept strings (MDX coercion) and default to 800×450.
 
 ### Analytics (Google Analytics 4)
 
