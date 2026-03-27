@@ -171,10 +171,10 @@ export const PLAN_PRICES: Record<string, number> = {
 };
 
 export const CREDIT_PACKS = [
-  { id: "CREDITS_50", credits: 50, price: 5 },
-  { id: "CREDITS_100", credits: 100, price: 9 },
-  { id: "CREDITS_250", credits: 250, price: 20 },
-  { id: "CREDITS_500", credits: 500, price: 35 },
+  { id: "CREDITS_50", credits: 50, price: 7 },
+  { id: "CREDITS_100", credits: 100, price: 12 },
+  { id: "CREDITS_250", credits: 250, price: 25 },
+  { id: "CREDITS_500", credits: 500, price: 45 },
 ] as const;
 
 export type CreditPackId = typeof CREDIT_PACKS[number]["id"];
