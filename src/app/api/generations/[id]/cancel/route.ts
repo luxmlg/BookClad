@@ -44,9 +44,12 @@ export async function POST(
     );
   }
 
-  // Mark as failed and clear retry state
-  await prisma.generation.update({
-    where: { id: generationId },
+  // Atomically mark as failed — status guard prevents double-cancel race
+  const updated = await prisma.generation.updateMany({
+    where: {
+      id: generationId,
+      status: { in: [GENERATION_STATUS.QUEUED, GENERATION_STATUS.RETRYING] },
+    },
     data: {
       status: GENERATION_STATUS.FAILED,
       nextRetryAt: null,
@@ -54,7 +57,14 @@ export async function POST(
     },
   });
 
-  // Refund credits
+  if (updated.count === 0) {
+    return NextResponse.json(
+      { error: "Generation already cancelled or completed" },
+      { status: 409 },
+    );
+  }
+
+  // Refund credits — only reached if we won the status transition
   if (generation.creditCost && generation.creditCost > 0) {
     await refundCredits(
       session.user.id,
