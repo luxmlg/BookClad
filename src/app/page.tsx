@@ -368,6 +368,12 @@ export default async function LandingPage() {
                 Pricing
               </Link>
               <Link
+                href="/blog"
+                className="transition-colors hover:text-foreground"
+              >
+                Blog
+              </Link>
+              <Link
                 href="/privacy"
                 className="transition-colors hover:text-foreground"
               >
