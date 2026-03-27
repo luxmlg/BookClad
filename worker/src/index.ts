@@ -121,11 +121,12 @@ async function sweepStaleGenerations(): Promise<void> {
     if (!generation) continue;
 
     if (generation.status === GENERATION_STATUS.RETRYING) {
-      await prisma.generation.update({
-        where: { id: gen.id },
+      // Use updateMany with status guard to prevent race with processor retry
+      const updated = await prisma.generation.updateMany({
+        where: { id: gen.id, status: GENERATION_STATUS.RETRYING },
         data: { status: GENERATION_STATUS.FAILED, nextRetryAt: null, errorMessage: "Generation timed out after extended retrying" },
       });
-      if (generation.creditCost && generation.creditCost > 0) {
+      if (updated.count > 0 && generation.creditCost && generation.creditCost > 0) {
         await refundCredits(generation.project.userId, gen.id, generation.creditCost);
       }
       await redisPublisher.publish(

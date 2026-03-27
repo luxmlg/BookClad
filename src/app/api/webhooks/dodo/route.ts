@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { dodo, tierFromProductId } from "@/lib/dodo";
+import { dodo, tierFromProductId, creditsFromProductId } from "@/lib/dodo";
 import { grantCredits } from "@/lib/credits";
 import { TIER_CREDITS, SUBSCRIPTION_STATUS } from "@/lib/constants";
 import type { UnwrapWebhookEvent } from "dodopayments/resources/webhooks/webhooks";
@@ -53,15 +53,22 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   console.log(`[webhook] Received ${event.type} (id: ${webhookId})`);
 
-  // Idempotency: check if this webhook was already processed
-  const existing = await prisma.webhookEvent.findUnique({ where: { id: webhookId } });
-  if (existing?.processed) {
-    return NextResponse.json({ received: true });
-  }
-  if (!existing) {
+  // Idempotency: atomically claim the webhook via unique constraint
+  try {
     await prisma.webhookEvent.create({
       data: { id: webhookId, eventType: event.type, processed: false },
     });
+  } catch (err) {
+    // Unique constraint violation — another request already claimed this webhook
+    if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2002") {
+      const existing = await prisma.webhookEvent.findUnique({ where: { id: webhookId } });
+      if (existing?.processed) {
+        return NextResponse.json({ received: true });
+      }
+      // Not yet processed but claimed — another request is handling it
+      return NextResponse.json({ received: true });
+    }
+    throw err;
   }
 
   try {
@@ -402,9 +409,17 @@ async function handlePaymentSucceeded(
   }
 
   const userId = metadata.userId;
-  const credits = parseInt(metadata.credits, 10);
-  if (!userId || !credits || isNaN(credits)) {
-    console.error(`[webhook] payment.succeeded: invalid metadata`, metadata);
+  if (!userId) {
+    console.error(`[webhook] payment.succeeded: missing userId in metadata`, metadata);
+    return;
+  }
+
+  // Derive credit amount from product_id (defense-in-depth: don't trust metadata.credits)
+  const productCart = event.data.product_cart;
+  const productId = productCart?.[0]?.product_id;
+  const credits = productId ? creditsFromProductId(productId) : null;
+  if (!credits) {
+    console.error(`[webhook] payment.succeeded: could not derive credits from product_id ${productId}`, metadata);
     return;
   }
 

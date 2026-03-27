@@ -194,6 +194,9 @@ export async function refundCredits(
   creditCost: number,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    // Lock user row to serialize concurrent refunds (same pattern as spendCredits)
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+
     await tx.creditPool.create({
       data: {
         userId,
