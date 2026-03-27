@@ -77,7 +77,7 @@ const plans = [
     period: "/month",
     features: [
       "100 credits / month",
-      "All generation modes",
+      "All quality modes",
       "KDP-ready export",
     ],
     cta: "Get Started",
@@ -90,7 +90,7 @@ const plans = [
     period: "/month",
     features: [
       "250 credits / month",
-      "All generation modes",
+      "All quality modes",
       "KDP-ready export",
       "Priority queue",
     ],
@@ -104,7 +104,7 @@ const plans = [
     period: "/month",
     features: [
       "500 credits / month",
-      "All generation modes",
+      "All quality modes",
       "KDP-ready export",
       "Priority queue",
       "Priority feedback & feature requests",

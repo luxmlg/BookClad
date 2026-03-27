@@ -26,9 +26,9 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "second
 };
 
 const PLAN_FEATURES: Record<string, string[]> = {
-  STARTER: ["100 credits / month", "All AI models", "Priority support"],
-  PRO: ["250 credits / month", "All AI models", "Priority support", "Early access to features"],
-  STUDIO: ["500 credits / month", "All AI models", "Priority support", "Early access to features", "Priority feedback & feature requests"],
+  STARTER: ["100 credits / month", "All quality modes", "KDP-ready export"],
+  PRO: ["250 credits / month", "All quality modes", "KDP-ready export", "Priority queue"],
+  STUDIO: ["500 credits / month", "All quality modes", "KDP-ready export", "Priority queue", "Priority feedback & feature requests"],
   STUDIO_SHORT: ["Everything in Pro", "500 credits / month", "Priority feedback & feature requests"],
 };
 
