@@ -7,6 +7,7 @@ import Image from "next/image";
 import { Plus, BookOpen, MoreHorizontal, Pencil } from "lucide-react";
 import { GENRES, GENERATION_STATUS } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
+import { getSignedDownloadUrl } from "@/lib/storage";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,6 +67,17 @@ export default async function DashboardPage() {
     activeByProject.set(gen.projectId, list);
   }
 
+  // Resolve signed URLs for project thumbnails
+  const thumbnailUrls = new Map<string, string>();
+  await Promise.all(
+    projects.map(async (project) => {
+      const key = project.generations[0]?.images[0]?.storageKey;
+      if (key) {
+        thumbnailUrls.set(project.id, await getSignedDownloadUrl(key));
+      }
+    }),
+  );
+
   return (
     <div className="container mx-auto max-w-6xl px-4 py-10">
       <div className="mb-8">
@@ -85,8 +97,7 @@ export default async function DashboardPage() {
           </Card>
         </Link>
         {projects.map((project) => {
-            const thumbnail =
-              project.generations[0]?.images[0]?.storageKey;
+            const thumbnailUrl = thumbnailUrls.get(project.id);
             return (
               <Card
                 key={project.id}
@@ -94,9 +105,9 @@ export default async function DashboardPage() {
               >
                 <Link href={`/editor/${project.id}`}>
                   <div className="relative aspect-5/8 bg-linear-to-br from-muted to-muted/50 flex items-center justify-center overflow-hidden">
-                    {thumbnail ? (
+                    {thumbnailUrl ? (
                       <Image
-                        src={`/api/uploads/${thumbnail}`}
+                        src={thumbnailUrl}
                         alt={`${project.title} cover`}
                         fill
                         className="object-cover"
