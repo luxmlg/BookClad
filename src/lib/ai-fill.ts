@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { slugify, addValueToAttribute } from "@/lib/attributes";
+import { slugify, addValueToAttribute, deduplicateValues } from "@/lib/attributes";
 import type { AttributeConfigJson, AttributeSelection, Attribute } from "@/lib/attributes";
 
 // --- Types ---
 
 export interface AiFillSuggestion {
   attributeId: string | null;
-  name: string;
-  type: Attribute["type"];
+  name?: string;
+  type?: Attribute["type"];
   value: string | string[];
   previousValue?: string | string[];
   isNew: boolean;
@@ -21,14 +21,20 @@ export interface AiFillSuggestion {
   };
 }
 
+export interface AiFillResult {
+  suggestions: AiFillSuggestion[];
+  responseJson: Record<string, unknown>;
+  durationMs: number;
+}
+
 // --- Response validation ---
 
 const suggestionSchema = z.object({
   attributeId: z.string().nullable(),
-  name: z.string(),
-  type: z.enum(["single", "multi", "text", "toggle", "scale", "color", "palette"]),
-  value: z.union([z.string(), z.array(z.string())]),
-  isNew: z.boolean(),
+  name: z.string().optional(),
+  type: z.enum(["single", "multi", "text", "toggle", "scale", "color", "palette"]).optional(),
+  value: z.union([z.string().trim().min(1), z.array(z.string().trim().min(1)).min(1)]),
+  isNew: z.boolean().default(false),
   newValues: z
     .array(
       z.object({
@@ -158,6 +164,7 @@ Respond with valid JSON:
 - Set "isNew": true and include "newAttribute" for brand new attributes not in the current config.
 - Set "newValues" when adding values that don't exist in the attribute's current value list.
 - CRITICAL: For "attributeId", use the exact id shown in brackets [id: "..."] in the attribute list. Set to null only for brand new attributes.
+- NEVER return an empty value ("" or []). Every suggestion must have a concrete value. Only suggest attributes you are setting a value for.
 - Do NOT include explanations, reasoning, or commentary — only the JSON object.`;
 
 export function buildAiFillPrompt(
@@ -179,11 +186,13 @@ export async function generateAttributeSuggestions(
   config: AttributeConfigJson,
   selections: AttributeSelection,
   userDirection: string
-): Promise<AiFillSuggestion[]> {
+): Promise<AiFillResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not configured");
   }
+
+  const startTime = Date.now();
 
   const userPrompt = buildAiFillPrompt(config, selections, userDirection);
 
@@ -214,16 +223,21 @@ export async function generateAttributeSuggestions(
   );
 
   if (!res.ok) {
+    const durationMs = Date.now() - startTime;
     const errorBody = await res.text().catch(() => "");
     console.error(`[ai-fill] Gemini HTTP ${res.status}:`, errorBody);
-    throw new Error(
-      res.status === 429
-        ? "Rate limited — please try again in a moment"
-        : "Failed to generate attribute suggestions"
+    throw Object.assign(
+      new Error(
+        res.status === 429
+          ? "Rate limited — please try again in a moment"
+          : "Failed to generate attribute suggestions"
+      ),
+      { status: res.status, durationMs, errorBody },
     );
   }
 
   const data = await res.json();
+  const durationMs = Date.now() - startTime;
   const textPart = data?.candidates?.[0]?.content?.parts?.find(
     (p: Record<string, unknown>) => typeof p.text === "string"
   );
@@ -254,7 +268,11 @@ export async function generateAttributeSuggestions(
     previousValue: s.attributeId ? selections[s.attributeId] : undefined,
   }));
 
-  return suggestions;
+  return {
+    suggestions,
+    responseJson: data as Record<string, unknown>,
+    durationMs,
+  };
 }
 
 // --- Apply suggestions utility ---
@@ -268,12 +286,29 @@ export function applySuggestions(
   const updatedSelection = { ...baseSelection };
 
   for (const suggestion of suggestions) {
-    const resolvedId =
+    let resolvedId =
       suggestion.isNew && suggestion.newAttribute
         ? slugify(suggestion.newAttribute.name)
         : suggestion.attributeId;
 
     if (!resolvedId) continue;
+
+    // Skip suggestions with empty/whitespace-only values before modifying config
+    const isEmpty = Array.isArray(suggestion.value)
+      ? suggestion.value.length === 0
+      : suggestion.value.trim() === "";
+    if (isEmpty) continue;
+
+    // Disambiguate new attribute IDs that collide with existing ones
+    if (suggestion.isNew && suggestion.newAttribute) {
+      let candidateId = resolvedId;
+      let suffix = 2;
+      while (updatedConfig.attributes.some((a) => a.id === candidateId)) {
+        candidateId = `${resolvedId}-${suffix}`;
+        suffix++;
+      }
+      resolvedId = candidateId;
+    }
 
     const existingAttr = updatedConfig.attributes.find((a) => a.id === resolvedId);
 
@@ -285,10 +320,12 @@ export function applySuggestions(
         builtIn: false,
         enabled: true,
         description: suggestion.newAttribute.description,
-        values: (suggestion.newAttribute.values ?? []).map((v) => ({
-          ...v,
-          builtIn: false,
-        })),
+        values: deduplicateValues(
+          (suggestion.newAttribute.values ?? []).map((v) => ({
+            ...v,
+            builtIn: false,
+          })),
+        ),
         scaleLabels: suggestion.newAttribute.scaleLabels,
       };
       updatedConfig = {

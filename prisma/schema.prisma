@@ -36,6 +36,8 @@ model User {
   assets             UserAsset[]
   fonts              UserFont[]
   creditTransactions CreditTransaction[]
+  creditPools        CreditPool[]
+  apiUsages          ApiUsage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -91,6 +93,7 @@ enum Tier {
   FREE
   STARTER
   PRO
+  STUDIO
 }
 
 enum CreditTxnType {
@@ -105,6 +108,7 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+  RETRYING
 }
 
 model CoverProject {
@@ -137,12 +141,14 @@ model Generation {
   creditCost        Int?
   imageCount        Int       @default(4)
   referenceImage    String?
-  maskImage         String?
   jobType           String    @default("generate")
-  model             String    @default("openai")
+  model             String    @default("quick")
   parentImageId     String?
   includeLayers     Boolean   @default(false)
   errorMessage          String?
+  retryCount            Int       @default(0)
+  retryReason           String?
+  nextRetryAt           DateTime?
   aiModelId             String?
   attributeSnapshot     Json?
   descriptionSnapshot   Json?
@@ -152,6 +158,7 @@ model Generation {
   images             GeneratedImage[]
   parentImage        GeneratedImage?    @relation("DerivedFrom", fields: [parentImageId], references: [id], onDelete: SetNull)
   creditTransactions CreditTransaction[]
+  apiUsages          ApiUsage[]
 
   createdAt DateTime @default(now())
 
@@ -175,6 +182,57 @@ model CreditTransaction {
 
   @@index([userId])
   @@index([generationId])
+}
+
+model CreditPool {
+  id             String    @id @default(cuid())
+  userId         String
+  source         String
+  originalAmount Int
+  remaining      Int
+  priority       Int
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, priority, createdAt])
+}
+
+model ApiUsage {
+  id               String   @id @default(cuid())
+  userId           String?
+  generationId     String?
+  type             String   // "GENERATION", "AI_FILL", "AI_EDIT"
+  provider         String   // "gemini", "replicate", etc.
+  model            String
+
+  promptTokens     Int?
+  candidatesTokens Int?
+  totalTokens      Int?
+  estimatedCostUsd Decimal? @db.Decimal(10, 6)
+
+  success          Boolean
+  durationMs       Int?
+  attempt          Int      @default(1)
+
+  errorCode        String?
+  errorType        String?
+  errorMessage     String?
+  errorDetails     Json?
+
+  responseMetadata Json?
+
+  createdAt        DateTime @default(now())
+
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  generation Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([generationId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([success])
 }
 
 model GeneratedImage {

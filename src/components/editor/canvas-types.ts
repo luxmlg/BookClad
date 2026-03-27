@@ -102,7 +102,7 @@ export function getDefaultCanvasState(
         text: author,
         x: 800,
         y: 2200,
-        fontSize: 56,
+        fontSize: 80,
         fontFamily: "Montserrat",
         fill: "rgba(255,255,255,0.9)",
         align: "center",

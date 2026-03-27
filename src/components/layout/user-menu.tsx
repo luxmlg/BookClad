@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { LogOut, Settings, MessageSquarePlus } from "lucide-react";
+import { LogOut, Settings, MessageSquarePlus, HelpCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +47,12 @@ export function UserMenu({ name, email, image, signOutAction }: UserMenuProps) {
             </div>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem>
+            <Link href="/help" className="flex w-full items-center gap-2">
+              <HelpCircle className="size-3.5" />
+              Help & Docs
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem>
             <Link href="/settings" className="flex w-full items-center gap-2">
               <Settings className="size-3.5" />

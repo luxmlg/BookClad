@@ -8,7 +8,7 @@ import { CREDIT_PACKS, SUBSCRIPTION_STATUS } from "@/lib/constants";
 const packIds = CREDIT_PACKS.map((p) => p.id) as [string, ...string[]];
 
 const checkoutSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("subscription"), tier: z.enum(["STARTER", "PRO"]) }),
+  z.object({ type: z.literal("subscription"), tier: z.enum(["STARTER", "PRO", "STUDIO"]) }),
   z.object({ type: z.literal("credits"), packId: z.enum(packIds) }),
 ]);
 

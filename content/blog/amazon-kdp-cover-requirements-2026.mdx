@@ -1,0 +1,135 @@
+---
+title: "Amazon KDP Book Cover Requirements: The Complete Guide for 2026"
+description: "Everything you need to know about Amazon KDP cover specs — dimensions, DPI, file format, and how to get them right every time."
+date: "2026-03-27"
+tags: ["kdp", "cover-requirements", "self-publishing"]
+---
+
+You've written the book. You've chosen a title. Now you need a cover — and if you're publishing on Amazon KDP, the specs matter more than most authors realize.
+
+Amazon's cover requirements aren't arbitrary. They exist to ensure your book looks sharp in search results, on product pages, and on e-readers. Get them wrong and your upload gets rejected outright. Get them *almost* right and your cover looks fine until someone sees it in a 150-pixel thumbnail next to a competitor's professionally produced image — and suddenly yours looks soft, dark, or weirdly cropped.
+
+This guide covers every spec you need, what each one actually means, and the mistakes that catch authors off guard.
+
+---
+
+## The Exact KDP Cover Specifications
+
+Here's the short version for anyone who just wants the numbers:
+
+| Spec | Requirement |
+|---|---|
+| Dimensions | 1600 × 2560 pixels (minimum) |
+| Ideal dimensions | 1600 × 2560 px |
+| Aspect ratio | 5:8 |
+| Resolution | 300 DPI |
+| File format | JPEG |
+| Color space | RGB |
+| Maximum file size | 50 MB |
+
+Amazon accepts covers as small as 625 × 1000 pixels, but you should always target 1600 × 2560. Anything smaller will look noticeably soft on modern devices — especially on retina-display tablets and the Kindle Scribe.
+
+---
+
+## What Each Spec Actually Means
+
+### Dimensions: 1600 × 2560 pixels
+
+This is the width and height of your image in pixels. Think of it as the raw number of dots that make up your cover. More pixels means more detail. At 1600 × 2560, you have just over four million pixels to work with — enough for crisp text, fine details, and smooth gradients.
+
+The width comes first (1600), then the height (2560). Since the cover is taller than it is wide, it's a portrait orientation. If you accidentally create a landscape image (wider than tall), Amazon will reject it or display it sideways.
+
+### DPI: 300
+
+DPI stands for "dots per inch" — it describes how densely those pixels are packed when the image is rendered at a physical size. 300 DPI is the standard for print-quality output. At 300 DPI, a 1600 × 2560 pixel image prints cleanly at roughly 5.3 × 8.5 inches — which is exactly the standard US trade paperback size.
+
+For a pure ebook cover (no print version), DPI is technically a metadata value — screens render in pixels, not inches. But Amazon reads the DPI metadata and some internal processing pipelines rely on it. Set it to 300 and don't think about it again.
+
+### Aspect Ratio: 5:8
+
+Aspect ratio is the relationship between width and height. A 5:8 ratio means for every 5 units of width, you have 8 units of height. Do the math: 1600 ÷ 2560 = 0.625, which is exactly 5 ÷ 8.
+
+This is important because most design tools let you set canvas dimensions freely — and it's easy to accidentally create a canvas with slightly wrong proportions. A 1600 × 2400 canvas looks close but has a 2:3 ratio (0.667). When Amazon resizes it to fit their display frames, it either gets letterboxed with white bars or cropped, cutting off part of your design.
+
+More on this in a moment.
+
+### File Format: JPEG
+
+Amazon requires JPEG for ebook covers. Not PNG, not TIFF, not WebP. JPEG.
+
+JPEG uses lossy compression, which means it discards some image data to keep file sizes small. The quality setting controls how aggressively it compresses. At quality 92 (on a 0–100 scale), the visual difference from the original is imperceptible to the human eye, and the file size stays well under the 50 MB limit.
+
+PNG is lossless — it keeps every pixel — but at this image size, a PNG file can be 10–15 MB versus 2–4 MB for JPEG, with no visible quality advantage. Use JPEG.
+
+### Color Space: RGB
+
+RGB (Red, Green, Blue) is the color model used by screens. Your monitor, your phone, your Kindle — they all mix red, green, and blue light to produce colors.
+
+CMYK (Cyan, Magenta, Yellow, Black) is the color model used for *physical printing*, where inks are layered on paper. If you export your ebook cover in CMYK, Amazon's processing pipeline may convert it to RGB automatically — but the conversion often produces muted, slightly desaturated colors. Deep blues can go grey. Vibrant reds can flatten.
+
+Always export ebook covers in RGB. If you also have a paperback version, the wraparound print cover uses a different template with different rules — that's where CMYK enters the picture.
+
+---
+
+## The Aspect Ratio Problem (and Why It Trips People Up)
+
+5:8 looks similar to other common ratios but it's not the same:
+
+- **9:16** (0.5625) — standard smartphone screen ratio. Very close to 5:8, but not identical. A design built for a phone wallpaper will have its top and bottom slightly cropped when converted to KDP format.
+- **2:3** (0.667) — common in graphic design templates, photography prints, and some book cover generators that target a generic "book" format. If you start with a 2:3 canvas and export to KDP, the image gets letterboxed or stretched.
+- **1:√2** (A-series paper, ~0.707) — used by European publishing standards. Noticeably wider proportionally than KDP.
+
+The practical takeaway: always start your design with a canvas set to exactly 1600 × 2560 pixels. Don't start with a "close enough" size and resize at the end. Title text that sits near the top edge on a 2:3 canvas may get clipped when the image is fitted to a 5:8 frame.
+
+---
+
+## File Format and Quality: The Technical Details
+
+JPEG quality 92 is the sweet spot that most professional workflows use. Quality 100 creates noticeably larger files without a visible difference. Quality 80 starts to show compression artifacts in smooth gradients — exactly the kind of thing that appears in sky backgrounds and book cover soft lighting.
+
+A clean 1600 × 2560 JPEG at quality 92 typically weighs in between 1.5 MB and 4 MB, depending on the complexity of the image. That's well within Amazon's 50 MB limit.
+
+One nuance worth knowing: Amazon re-compresses your image after upload. They run it through their own processing to generate thumbnails at various sizes. This means your original file quality has a ceiling effect — submitting at quality 92 gives their pipeline the best source material to work from.
+
+---
+
+## Common Mistakes (and How to Avoid Them)
+
+**Designing at 72 DPI then upscaling.** Web-focused design tools sometimes default to 72 DPI — fine for website graphics, not for KDP. If you build your cover at 72 DPI and then upscale to reach 1600 × 2560, you're not creating new pixel detail, you're just interpolating (guessing). The result looks soft and blurry, especially on text edges and fine details. Always start at 300 DPI.
+
+**Using CMYK for an ebook cover.** Covered above, but worth repeating: muted colors, potential conversion artifacts. RGB only for ebook covers.
+
+**Forgetting bleed for paperback covers.** This guide focuses on ebook covers, but if you're also doing a paperback, KDP requires a wraparound template that includes bleed areas (extra margin beyond the trim line). The ebook and paperback covers are separate files with different specs — don't use your ebook cover file for paperback upload.
+
+**Wrong aspect ratio from a design template.** Many Canva templates labeled "book cover" use 2:3 or other ratios. Always verify the canvas dimensions before you start designing, not after.
+
+**Exporting at the wrong size from a high-DPI display.** On Mac Retina displays, some apps export at 2× size by default (3200 × 5120). Amazon will accept this (it's larger than the minimum), but double-check your export settings so you know what you're sending.
+
+---
+
+## If You Use BookClad
+
+If you're generating covers with BookClad, the KDP specs are handled automatically. The AI generates at full resolution targeting the 1600 × 2560 KDP dimensions, and the export produces a JPEG at quality 92 in RGB color space. No manual resizing, no Photoshop, no worrying about whether your dimensions are right.
+
+<ThemedImage lightSrc="/screenshots/export-buttons-light.png" darkSrc="/screenshots/export-buttons-dark.png" alt="BookClad right sidebar showing Export JPEG and Export PNG buttons" width={800} height={450} />
+
+The canvas editor also works at the correct aspect ratio, so any text or design elements you add stay within the safe zone for KDP display. What you see in the editor is what you get in the export.
+
+---
+
+## Quick Reference
+
+| Requirement | Value | Why It Matters |
+|---|---|---|
+| Width | 1600 px | Minimum for sharp thumbnails |
+| Height | 2560 px | Correct KDP portrait ratio |
+| Aspect ratio | 5:8 (0.625) | Prevents cropping or letterboxing |
+| Resolution | 300 DPI | Required by Amazon; print-quality standard |
+| Format | JPEG | Only accepted format for ebook covers |
+| Color space | RGB | Correct for screen display; CMYK causes color shifts |
+| Quality | 92 (out of 100) | Optimal balance of quality and file size |
+| Max file size | 50 MB | JPEG at quality 92 is typically 2–4 MB |
+
+---
+
+Getting your cover specs right is one of those things that takes five minutes to learn and saves you hours of troubleshooting later. Start with the right canvas, export in the right format, and your cover will upload cleanly on the first try — leaving you more time to focus on the stuff that actually sells books, like the design itself.

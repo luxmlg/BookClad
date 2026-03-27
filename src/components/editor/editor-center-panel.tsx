@@ -6,9 +6,7 @@ import {
   Loader2,
   ImageIcon,
   ChevronRight,
-  RefreshCw,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,11 +22,6 @@ import { GenerationQueue } from "./generation-queue";
 import { KindlePreview } from "./kindle-preview";
 import type Konva from "konva";
 import type { Generation } from "./types";
-
-const BrushTool = dynamic(
-  () => import("./brush-tool").then((m) => m.BrushTool),
-  { ssr: false }
-);
 
 const CoverCanvas = dynamic(
   () => import("./cover-canvas").then((m) => m.CoverCanvas),
@@ -54,15 +47,6 @@ interface EditorCenterPanelProps {
   loadingUrls: boolean;
   allImagesLength: number;
 
-  // Brush / inpaint
-  brushMode: boolean;
-  inpaintMask: string | null;
-  brushSize: number;
-  erasing: boolean;
-  brushToolRef: React.RefObject<import("./brush-tool").BrushToolHandle | null>;
-  setInpaintMask: (mask: string | null) => void;
-  setHasBrushMask: (has: boolean) => void;
-
   // Crossfade
   crossfadeSnapshot: string | null;
   bgLoaded: boolean;
@@ -77,7 +61,6 @@ interface EditorCenterPanelProps {
 
   // Generation state
   hasActiveGeneration: boolean;
-  handleRegenerate: () => void;
 
   // Bottom panel
   panelOpen: boolean;
@@ -99,6 +82,7 @@ interface EditorCenterPanelProps {
   onDiscardDrafts: () => void;
   onGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
   onDeletedImages: (deletedIds: string[], removedGenerationIds: string[]) => void;
+  tier: string;
 }
 
 export function EditorCenterPanel({
@@ -116,13 +100,6 @@ export function EditorCenterPanel({
   imageUrls,
   loadingUrls,
   allImagesLength,
-  brushMode,
-  inpaintMask,
-  brushSize,
-  erasing,
-  brushToolRef,
-  setInpaintMask,
-  setHasBrushMask,
   crossfadeSnapshot,
   bgLoaded,
   setCrossfadeSnapshot,
@@ -132,7 +109,6 @@ export function EditorCenterPanel({
   kindleCrossfadeSnapshot,
   setKindleCrossfadeSnapshot,
   hasActiveGeneration,
-  handleRegenerate,
   panelOpen,
   setPanelOpen,
   activeTab,
@@ -152,6 +128,7 @@ export function EditorCenterPanel({
   onDiscardDrafts,
   onGenerateMore,
   onDeletedImages,
+  tier,
 }: EditorCenterPanelProps) {
   const STORAGE_KEY = "bookclad:panel-height";
   const MIN_HEIGHT = 100;
@@ -215,7 +192,6 @@ export function EditorCenterPanel({
         <div ref={canvasContainerRef} className="relative shrink-0" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
           <div
             className="relative h-full w-full overflow-hidden rounded-xl border bg-background shadow-xl"
-            style={brushMode && !inpaintMask ? { cursor: 'none' } : undefined}
           >
           {allImagesLength > 0 ? (
             loadingUrls || Object.keys(imageUrls).length === 0 ? (
@@ -240,34 +216,14 @@ export function EditorCenterPanel({
                   imageUrl={selectedImageUrl}
                   nodes={nodes}
                   assetUrls={assetUrls}
-                  selectedNodeId={brushMode ? null : selectedNodeId}
-                  onSelectNode={brushMode ? () => {} : setSelectedNodeId}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNode={setSelectedNodeId}
                   onNodeDragEnd={handleNodeDragEnd}
                   onNodeTransformEnd={handleNodeTransformEnd}
-                  onTextEdit={brushMode ? undefined : handleTextEdit}
+                  onTextEdit={handleTextEdit}
                   stageRef={stageRef}
                   onImageLoad={handleBgLoaded}
-                  hideCursor={brushMode && !inpaintMask}
                 />
-                {brushMode && !inpaintMask && (
-                  <div className="absolute inset-0 z-20" style={{ cursor: "none", isolation: "isolate" }}>
-                    <BrushTool
-                      ref={brushToolRef}
-                      onExportMask={setInpaintMask}
-                      brushSize={brushSize}
-                      erasing={erasing}
-                      onHasMaskChange={setHasBrushMask}
-                    />
-                  </div>
-                )}
-                {inpaintMask && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={inpaintMask}
-                    alt=""
-                    className="absolute inset-0 z-20 h-full w-full object-cover opacity-40 pointer-events-none"
-                  />
-                )}
               </>
             ) : (
               <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
@@ -288,15 +244,14 @@ export function EditorCenterPanel({
               </p>
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
               <ImageIcon className="size-12 text-muted-foreground/30" />
               <p className="font-medium text-muted-foreground">
                 No generated images yet
               </p>
-              <Button variant="outline" size="sm" onClick={handleRegenerate}>
-                <RefreshCw className="mr-2 size-3.5" />
-                Generate Now
-              </Button>
+              <p className="text-sm text-muted-foreground">
+                Use the toolbar below to generate your first cover
+              </p>
             </div>
           )}
           </div>
@@ -388,6 +343,7 @@ export function EditorCenterPanel({
             <GenerationQueue
               generations={activeGenerations}
               onComplete={handleGenerationComplete}
+              tier={tier}
             />
           </div>
           </div>

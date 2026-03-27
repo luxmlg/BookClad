@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getGenerationQueue } from "@/lib/queue";
 import { createGenerationSchema } from "@/lib/validations";
-import { JOB_TYPE, GENERATION_STATUS } from "@/lib/constants";
+import { JOB_TYPE, GENERATION_STATUS, AI_MODELS, isModelAvailable, TIER_QUEUE_PRIORITY } from "@/lib/constants";
 import { calculateCreditCost, reserveCredits, InsufficientCreditsError } from "@/lib/credits";
 
 export async function POST(request: Request) {
@@ -52,6 +52,19 @@ export async function POST(request: Request) {
       if (refImage) referenceImageKey = refImage.storageKey;
     }
 
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: session.user.id },
+      select: { tier: true },
+    });
+
+    if (!isModelAvailable(model, user.tier)) {
+      const modelLabel = AI_MODELS.find((m) => m.value === model)?.label ?? model;
+      return NextResponse.json(
+        { error: `Upgrade to Starter to use the ${modelLabel} model` },
+        { status: 403 },
+      );
+    }
+
     const jobType = referenceImageKey ? JOB_TYPE.GENERATE_FROM_REFERENCE : JOB_TYPE.GENERATE;
     const creditCost = calculateCreditCost(model, imageCount);
 
@@ -69,6 +82,8 @@ export async function POST(request: Request) {
       textLayerSnapshot: textLayerSnapshot ?? undefined,
     });
 
+    const priority = TIER_QUEUE_PRIORITY[user.tier] ?? 10;
+
     await getGenerationQueue().add(jobType, {
       generationId,
       projectId: project.id,
@@ -78,6 +93,10 @@ export async function POST(request: Request) {
       referenceImageKey: referenceImageKey ?? null,
       flattenedImageDataUrl: flattenedImageDataUrl ?? null,
       creditCost,
+    }, {
+      priority,
+      attempts: 100,
+      backoff: { type: "custom" },
     });
 
     return NextResponse.json({ generationId }, { status: 202 });

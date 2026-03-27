@@ -9,15 +9,16 @@ export const dodo = new DodoPayments({
 export const DODO_PRODUCT_IDS: Record<string, string> = {
   STARTER: process.env.DODO_PRODUCT_ID_STARTER ?? "",
   PRO: process.env.DODO_PRODUCT_ID_PRO ?? "",
+  STUDIO: process.env.DODO_PRODUCT_ID_STUDIO ?? "",
 };
 
 const PRODUCT_ID_TO_TIER: Record<string, string> = Object.fromEntries(
   Object.entries(DODO_PRODUCT_IDS).map(([tier, productId]) => [productId, tier]),
 );
 
-export function tierFromProductId(productId: string): "STARTER" | "PRO" | null {
+export function tierFromProductId(productId: string): "STARTER" | "PRO" | "STUDIO" | null {
   const tier = PRODUCT_ID_TO_TIER[productId];
-  if (tier === "STARTER" || tier === "PRO") return tier;
+  if (tier === "STARTER" || tier === "PRO" || tier === "STUDIO") return tier;
   return null;
 }
 
@@ -29,6 +30,7 @@ export const DODO_CREDIT_PACK_IDS: Record<string, string> = {
   CREDITS_50: process.env.DODO_PRODUCT_ID_CREDITS_50 ?? "",
   CREDITS_100: process.env.DODO_PRODUCT_ID_CREDITS_100 ?? "",
   CREDITS_250: process.env.DODO_PRODUCT_ID_CREDITS_250 ?? "",
+  CREDITS_500: process.env.DODO_PRODUCT_ID_CREDITS_500 ?? "",
 };
 
 const CREDIT_PACK_PRODUCT_TO_CREDITS: Record<string, number> = Object.fromEntries(

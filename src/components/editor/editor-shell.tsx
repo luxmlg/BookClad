@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import type Konva from "konva";
 import type { TextNodeConfig, ImageNodeConfig, CanvasNode, CanvasState } from "./canvas-types";
@@ -11,7 +11,7 @@ import { DEFAULT_FONT, ensureFontLoaded, loadCustomFont } from "@/lib/fonts";
 import { LeftSidebar } from "./left-sidebar";
 import { RightSidebar } from "./right-sidebar";
 import { TextFloatingToolbar } from "./text-floating-toolbar";
-import { InpaintToolbar } from "./inpaint-toolbar";
+import { EditorToolbar } from "./editor-toolbar";
 import { EditorCenterPanel } from "./editor-center-panel";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import { buildDefaultConfig, computeAttributeDiff } from "@/lib/attributes";
@@ -37,17 +37,18 @@ import {
   useKindlePreview,
   useImageUrls,
 } from "./hooks";
-import { useInpaintState } from "./use-inpaint-state";
 import { useGenerationActions } from "./use-generation-actions";
 import { useCreditStore } from "@/lib/stores/credit-store";
 
 interface EditorShellProps {
   project: Project;
   showPrompt: boolean;
+  tier: string;
 }
 
-export function EditorShell({ project, showPrompt }: EditorShellProps) {
+export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const stageRef = useRef<Konva.Stage>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -153,18 +154,15 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
   const selectedTextNode = selectedNodeId
     ? nodes.find((n): n is TextNodeConfig => n.id === selectedNodeId && n.type === NODE_TYPE.TEXT)
     : undefined;
+  const selectedGenerationModel: string | null = selectedImageId
+    ? (completedGenerations.find((g) => g.images.some((img) => img.id === selectedImageId))?.model ?? null)
+    : null;
 
-  // Forward ref for inpaint — allows genActions to read live inpaint state in handlers
-  const inpaintRef = useRef<{ includeLayers: boolean; flattenCanvasToDataUrl: () => Promise<string | undefined> }>({
-    includeLayers: false,
-    flattenCanvasToDataUrl: async () => undefined,
-  });
-
-  // Generation actions (created first with ref — only reads inpaint in event handlers)
+  // Generation actions
   const genActions = useGenerationActions(
     project.id, project.generations,
     attributes, nodes, selectedImageId,
-    inpaintRef, router,
+    stageRef, router, tier,
   );
 
   const historyGenerations = useMemo(() => {
@@ -188,19 +186,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     [handleGenerationComplete, refreshCredits]
   );
 
-  // Inpaint state (uses genActions' stable setters)
-  const inpaint = useInpaintState(
-    stageRef, selectedImageId, setSelectedNodeId,
-    genActions.setActiveGenerationIds,
-    genActions.setPanelOpen,
-    genActions.setPendingSlotCounts,
-    genActions.model,
-    attributes, nodes, router,
-  );
-
-  // Keep inpaint ref in sync
-  inpaintRef.current = inpaint;
-
   // Auto-save
   useAutoSave(nodes, selectedImageId, project.id, attributes);
 
@@ -221,6 +206,16 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedNodeId]);
+
+  // Handle tab and gen query params on mount
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "history") {
+      genActions.setActiveTab(0);
+    } else if (tab === "queue") {
+      genActions.setActiveTab(1);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prevent page-level scroll
   useEffect(() => {
@@ -725,13 +720,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         imageUrls={imageUrls}
         loadingUrls={loadingUrls}
         allImagesLength={allImages.length}
-        brushMode={inpaint.brushMode}
-        inpaintMask={inpaint.inpaintMask}
-        brushSize={inpaint.brushSize}
-        erasing={inpaint.erasing}
-        brushToolRef={inpaint.brushToolRef}
-        setInpaintMask={inpaint.setInpaintMask}
-        setHasBrushMask={inpaint.setHasBrushMask}
         crossfadeSnapshot={crossfadeSnapshot}
         bgLoaded={bgLoaded}
         setCrossfadeSnapshot={setCrossfadeSnapshot}
@@ -741,7 +729,6 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         kindleCrossfadeSnapshot={kindleCrossfadeSnapshot}
         setKindleCrossfadeSnapshot={setKindleCrossfadeSnapshot}
         hasActiveGeneration={genActions.hasActiveGeneration}
-        handleRegenerate={genActions.handleRegenerate}
         panelOpen={genActions.panelOpen}
         setPanelOpen={genActions.setPanelOpen}
         activeTab={genActions.activeTab}
@@ -761,6 +748,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         onDiscardDrafts={discardAllDrafts}
         onGenerateMore={genActions.handleGenerateMore}
         onDeletedImages={handleDeletedImages}
+        tier={tier}
       />
 
       {/* Right sidebar */}
@@ -776,6 +764,7 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
           reorderNode={reorderNode}
           onImageUpload={handleImageUpload}
           hasSelectedImage={!!selectedImageUrl}
+          selectedGenerationModel={selectedGenerationModel}
           onExportJpeg={() => handleExport("jpeg")}
           onExportPng={() => handleExport("png")}
         />
@@ -802,8 +791,8 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
         </div>
       )}
 
-      {/* Fixed-position inpaint toolbar */}
-      {toolbarPos && selectedImageUrl && (
+      {/* Fixed-position editor toolbar */}
+      {toolbarPos && (
         <div
           className="pointer-events-none fixed z-50"
           style={{
@@ -813,36 +802,17 @@ export function EditorShell({ project, showPrompt }: EditorShellProps) {
           }}
         >
           <div className="pointer-events-auto">
-            <InpaintToolbar
-              brushMode={inpaint.brushMode}
-              setBrushMode={inpaint.setBrushMode}
-              selectedImageUrl={selectedImageUrl}
-              brushSize={inpaint.brushSize}
-              setBrushSize={inpaint.setBrushSize}
-              erasing={inpaint.erasing}
-              setErasing={inpaint.setErasing}
-              onBrushUndo={() => inpaint.brushToolRef.current?.undo()}
-              onBrushClear={() => inpaint.brushToolRef.current?.clear()}
-              onBrushDone={() => inpaint.brushToolRef.current?.export()}
-              hasBrushMask={inpaint.hasBrushMask}
+            <EditorToolbar
               onRegenerate={genActions.handleRegenerate}
               activeGenerationCount={genActions.allActiveIds.length}
               selectedImageId={selectedImageId}
-              inpaintMask={inpaint.inpaintMask}
-              inpaintSubmitting={inpaint.inpaintSubmitting}
-              onInpaintSubmit={inpaint.handleInpaintSubmit}
-              onCancelInpaint={() => {
-                inpaint.setBrushMode(false);
-                inpaint.setInpaintMask(null);
-              }}
-              onRepaint={() => inpaint.setInpaintMask(null)}
               onGenerateSimilar={genActions.handleGenerateSimilar}
-              includeLayers={inpaint.includeLayers}
-              onIncludeLayersChange={inpaint.handleIncludeLayersChange}
               model={genActions.model}
               setModel={genActions.setModel}
               imageCount={genActions.imageCount}
               setImageCount={genActions.setImageCount}
+              tier={tier}
+              nodes={nodes}
             />
           </div>
         </div>

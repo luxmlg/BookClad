@@ -315,6 +315,49 @@ export function getActiveValues(attribute: Attribute): AttributeValue[] {
   });
 }
 
+/** Remove duplicate values (by value slug), keeping the first occurrence. */
+export function deduplicateValues(values: AttributeValue[]): AttributeValue[] {
+  const seen = new Set<string>();
+  return values.filter((v) => {
+    if (seen.has(v.value)) return false;
+    seen.add(v.value);
+    return true;
+  });
+}
+
+/**
+ * Sanitize a config by deduplicating attributes by ID and values within
+ * each attribute. Returns the original reference if no changes were needed.
+ */
+export function sanitizeConfig(
+  config: AttributeConfigJson,
+): AttributeConfigJson {
+  let changed = false;
+
+  const seenIds = new Set<string>();
+  const dedupedAttributes: Attribute[] = [];
+  for (const attr of config.attributes) {
+    if (seenIds.has(attr.id)) {
+      changed = true;
+      continue;
+    }
+    seenIds.add(attr.id);
+    dedupedAttributes.push(attr);
+  }
+
+  const sanitizedAttributes = dedupedAttributes.map((attr) => {
+    const dedupedValues = deduplicateValues(attr.values);
+    if (dedupedValues.length !== attr.values.length) {
+      changed = true;
+      return { ...attr, values: dedupedValues };
+    }
+    return attr;
+  });
+
+  if (!changed) return config;
+  return { ...config, attributes: sanitizedAttributes };
+}
+
 /** Update a value's properties (description, disabled) within an attribute. */
 export function updateValueInAttribute(
   config: AttributeConfigJson,

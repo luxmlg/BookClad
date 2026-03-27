@@ -68,7 +68,7 @@ function SuggestionEditor({
   onChange,
   onClose,
 }: SuggestionEditorProps): React.ReactElement {
-  const type = suggestion.type;
+  const type = suggestion.type ?? attribute?.type ?? "text";
   const value = suggestion.value;
 
   const handleKeyDown = useCallback(
@@ -270,7 +270,7 @@ function SuggestionRow({
         <div className="space-y-0.5">
           <div className="flex flex-wrap items-center gap-1">
             <span className="text-xs font-medium text-foreground">
-              {suggestion.name}
+              {suggestion.name ?? suggestion.attributeId ?? "Unknown"}
             </span>
             {suggestion.isNew && (
               <Badge variant="secondary" className="h-4 text-[10px]">
@@ -403,7 +403,7 @@ export function AiFillReviewDialog({
           <DialogTitle>Review AI Suggestions</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="max-h-[50vh] space-y-3 overflow-y-auto">
           {updatedSuggestions.length > 0 && (
             <div>
               <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

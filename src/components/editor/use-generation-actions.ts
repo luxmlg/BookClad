@@ -4,14 +4,13 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CanvasNode } from "./canvas-types";
-import { NODE_TYPE } from "./canvas-types";
-import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, DEFAULT_MODEL } from "@/lib/constants";
+import { NODE_TYPE, CANVAS_WIDTH } from "./canvas-types";
+import { GENERATION_STATUS, IMAGE_COUNT_KEY_PREFIX, QUICK_CREATE_TIER_CONFIG, isModelAvailable, AI_MODELS, KDP } from "@/lib/constants";
 import type { AttributeSelection } from "@/lib/attributes";
 import { REF_PROMPT_KEY } from "@/lib/attributes";
 import { createGeneration, extendGeneration } from "@/lib/api";
 import { useCreditStore } from "@/lib/stores/credit-store";
 import type { Generation } from "./types";
-import type { UseInpaintStateResult } from "./use-inpaint-state";
 
 export interface UseGenerationActionsResult {
   activeGenerationIds: string[];
@@ -27,7 +26,7 @@ export interface UseGenerationActionsResult {
   pendingSlotCounts: Map<string, number>;
   setPendingSlotCounts: React.Dispatch<React.SetStateAction<Map<string, number>>>;
   handleRegenerate: () => Promise<void>;
-  handleGenerateSimilar: (prompt: string) => Promise<void>;
+  handleGenerateSimilar: (prompt: string, includeLayers: boolean) => Promise<void>;
   handleGenerateMore: (generation: Generation, imageCount: number) => Promise<void>;
   handleGenerationComplete: (generationId: string) => void;
   allActiveIds: string[];
@@ -41,16 +40,18 @@ export function useGenerationActions(
   attributes: AttributeSelection,
   canvasNodes: CanvasNode[],
   selectedImageId: string | null,
-  inpaintRef: React.RefObject<Pick<UseInpaintStateResult, "includeLayers" | "flattenCanvasToDataUrl">>,
+  stageRef: React.RefObject<import("konva").default.Stage | null>,
   router: ReturnType<typeof useRouter>,
+  tier: string = "FREE",
 ): UseGenerationActionsResult {
+  const tierConfig = QUICK_CREATE_TIER_CONFIG[tier as keyof typeof QUICK_CREATE_TIER_CONFIG] ?? QUICK_CREATE_TIER_CONFIG.FREE;
   const refreshCredits = useCreditStore((s) => s.refreshCredits);
   const [activeGenerationIds, setActiveGenerationIds] = useState<string[]>([]);
-  const [model, setModel] = useState<string>(DEFAULT_MODEL);
+  const [model, setModel] = useState<string>(tierConfig.model);
   const [imageCount, setImageCount] = useState(() => {
-    if (typeof window === "undefined") return 4;
+    if (typeof window === "undefined") return tierConfig.imageCount;
     const saved = localStorage.getItem(`${IMAGE_COUNT_KEY_PREFIX}:${projectId}`);
-    return saved ? Number(saved) : 4;
+    return saved ? Number(saved) : tierConfig.imageCount;
   });
   const [activeTab, setActiveTab] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -59,8 +60,15 @@ export function useGenerationActions(
     localStorage.setItem(`${IMAGE_COUNT_KEY_PREFIX}:${projectId}`, String(imageCount));
   }, [imageCount, projectId]);
 
+  useEffect(() => {
+    if (!isModelAvailable(model, tier)) {
+      const available = AI_MODELS.filter((m) => isModelAvailable(m.value, tier));
+      if (available.length > 0) setModel(available[available.length - 1].value);
+    }
+  }, [tier]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const pendingGenerations = projectGenerations.filter(
-    (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING
+    (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING || g.status === GENERATION_STATUS.RETRYING
   );
   const allActiveIds = useMemo(
     () => [
@@ -73,7 +81,7 @@ export function useGenerationActions(
   );
   const activeGenerations = useMemo(() => {
     const fromProject = projectGenerations.filter(
-      (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING
+      (g) => g.status === GENERATION_STATUS.QUEUED || g.status === GENERATION_STATUS.PROCESSING || g.status === GENERATION_STATUS.RETRYING
     );
     const projectIds = new Set(fromProject.map((g) => g.id));
     const localOnly = activeGenerationIds
@@ -96,6 +104,30 @@ export function useGenerationActions(
     );
   }, [projectGenerations]);
 
+  async function flattenCanvasToDataUrl(): Promise<string | undefined> {
+    const stage = stageRef.current;
+    if (!stage) return undefined;
+    await new Promise((r) => setTimeout(r, 50));
+    await document.fonts.ready;
+    const layers = stage.getLayers();
+    const hiddenLayers: import("konva").default.Layer[] = [];
+    for (let i = 2; i < layers.length; i++) {
+      if (layers[i].visible()) {
+        layers[i].visible(false);
+        hiddenLayers.push(layers[i]);
+      }
+    }
+    const dataUrl = stage.toDataURL({
+      pixelRatio: KDP.width / CANVAS_WIDTH,
+      mimeType: "image/jpeg",
+      quality: 0.9,
+    });
+    for (const layer of hiddenLayers) {
+      layer.visible(true);
+    }
+    return dataUrl;
+  }
+
   async function handleRegenerate() {
     try {
       const data = await createGeneration({
@@ -107,6 +139,7 @@ export function useGenerationActions(
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setPendingSlotCounts(prev => new Map(prev).set(data.generationId, imageCount));
       setPanelOpen(true);
+      setActiveTab(0);
       refreshCredits();
       toast.success("Regeneration queued!");
       router.refresh();
@@ -121,6 +154,7 @@ export function useGenerationActions(
       setActiveGenerationIds((prev) => [...prev, data.generationId]);
       setPendingSlotCounts(prev => new Map(prev).set(data.generationId, count));
       setPanelOpen(true);
+      setActiveTab(0);
       refreshCredits();
       toast.success("Generating more images...");
       router.refresh();
@@ -129,11 +163,11 @@ export function useGenerationActions(
     }
   }
 
-  async function handleGenerateSimilar(prompt: string) {
+  async function handleGenerateSimilar(prompt: string, includeLayers: boolean) {
     if (!selectedImageId) return;
-    const shouldIncludeLayers = inpaintRef.current.includeLayers;
-    const flattenedImageDataUrl = shouldIncludeLayers ? await inpaintRef.current.flattenCanvasToDataUrl() : undefined;
+    const flattenedImageDataUrl = includeLayers ? await flattenCanvasToDataUrl() : undefined;
     const snapshot: AttributeSelection = { ...attributes };
+    delete snapshot[REF_PROMPT_KEY];
     if (prompt) snapshot[REF_PROMPT_KEY] = prompt;
     const data = await createGeneration({
       projectId,
@@ -142,7 +176,7 @@ export function useGenerationActions(
       referenceImageId: selectedImageId,
       flattenedImageDataUrl,
       attributeSnapshot: snapshot,
-      textLayerSnapshot: shouldIncludeLayers
+      textLayerSnapshot: includeLayers
         ? canvasNodes.filter(n => n.visible !== false).map((n) => ({
             name: n.name ?? n.id,
             text: n.type === NODE_TYPE.TEXT ? (n.text ?? "") : "",
@@ -153,6 +187,7 @@ export function useGenerationActions(
     setActiveGenerationIds((prev) => [...prev, data.generationId]);
     setPendingSlotCounts(prev => new Map(prev).set(data.generationId, imageCount));
     setPanelOpen(true);
+    setActiveTab(0);
     refreshCredits();
     toast.success("Reference generation queued!");
     router.refresh();

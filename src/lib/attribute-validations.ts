@@ -23,6 +23,32 @@ const attributeSchema = z.object({
 export const attributeConfigSchema = z.object({
   attributes: z.array(attributeSchema).min(1),
   briefPosition: z.number().int().min(0).optional(),
+}).superRefine((config, ctx) => {
+  const seenIds = new Set<string>();
+  for (let i = 0; i < config.attributes.length; i++) {
+    const id = config.attributes[i].id;
+    if (seenIds.has(id)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Duplicate attribute ID "${id}"`,
+        path: ["attributes", i, "id"],
+      });
+    }
+    seenIds.add(id);
+
+    const seenValues = new Set<string>();
+    for (let j = 0; j < config.attributes[i].values.length; j++) {
+      const val = config.attributes[i].values[j].value;
+      if (seenValues.has(val)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate value "${val}" in attribute "${id}"`,
+          path: ["attributes", i, "values", j, "value"],
+        });
+      }
+      seenValues.add(val);
+    }
+  }
 });
 
 export const attributeSelectionSchema = z.record(

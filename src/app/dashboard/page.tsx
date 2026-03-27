@@ -1,9 +1,10 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, BookOpen, MoreHorizontal, Pencil, Coins } from "lucide-react";
+import { Plus, BookOpen, MoreHorizontal, Pencil } from "lucide-react";
 import { GENRES, GENERATION_STATUS } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
 import {
@@ -13,15 +14,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DeleteProjectButton } from "@/components/dashboard/delete-project-button";
+import { ActiveGenerationRows } from "@/components/dashboard/active-generation-row";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/sign-in");
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { creditBalance: true, tier: true },
-  });
 
   const projects = await prisma.coverProject.findMany({
     where: { userId: session.user.id },
@@ -29,29 +30,52 @@ export default async function DashboardPage() {
     include: {
       generations: {
         where: { status: GENERATION_STATUS.COMPLETED },
-        include: { images: { where: { selected: true }, take: 1 } },
+        include: { images: { take: 1, orderBy: [{ selected: "desc" }, { id: "asc" }] } },
         take: 1,
         orderBy: { createdAt: "desc" },
       },
     },
   });
 
+  // Separate query for active generations
+  const activeGenerations = await prisma.generation.findMany({
+    where: {
+      project: { userId: session.user.id },
+      status: { in: [GENERATION_STATUS.QUEUED, GENERATION_STATUS.PROCESSING, GENERATION_STATUS.RETRYING] },
+    },
+    select: {
+      id: true,
+      projectId: true,
+      status: true,
+      imageCount: true,
+      model: true,
+      retryCount: true,
+      retryReason: true,
+      nextRetryAt: true,
+      errorMessage: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Group by project
+  const activeByProject = new Map<string, typeof activeGenerations>();
+  for (const gen of activeGenerations) {
+    const list = activeByProject.get(gen.projectId) ?? [];
+    list.push(gen);
+    activeByProject.set(gen.projectId, list);
+  }
+
   return (
     <div className="container mx-auto max-w-6xl px-4 py-10">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">My Covers</h1>
-          <p className="text-muted-foreground">
-            {projects.length} project{projects.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5">
-          <Coins className="size-4 text-yellow-500" />
-          <span className="text-sm font-medium">{user?.creditBalance ?? 0} credits</span>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">My Covers</h1>
+        <p className="text-muted-foreground">
+          {projects.length} project{projects.length !== 1 ? "s" : ""}
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 items-start">
         <Link href="/create">
           <Card className="group border-dashed p-0 hover:border-primary/50 hover:shadow-lg transition-all">
             <div className="relative aspect-5/8 flex flex-col items-center justify-center gap-3 text-muted-foreground group-hover:text-primary transition-colors">
@@ -66,7 +90,7 @@ export default async function DashboardPage() {
             return (
               <Card
                 key={project.id}
-                className="group relative overflow-hidden p-0 transition-shadow hover:shadow-lg"
+                className="group relative gap-0 overflow-hidden p-0 transition-shadow hover:shadow-lg"
               >
                 <Link href={`/editor/${project.id}`}>
                   <div className="relative aspect-5/8 bg-linear-to-br from-muted to-muted/50 flex items-center justify-center overflow-hidden">
@@ -92,6 +116,12 @@ export default async function DashboardPage() {
                     </div>
                   </div>
                 </Link>
+                {activeByProject.has(project.id) && (
+                  <ActiveGenerationRows
+                    projectId={project.id}
+                    initialGenerations={activeByProject.get(project.id)!}
+                  />
+                )}
                 <div className="absolute top-2 right-2 z-10">
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger className="rounded-md bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/70 group-hover:opacity-100">

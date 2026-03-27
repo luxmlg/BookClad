@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { dodo, tierFromProductId } from "@/lib/dodo";
+import { dodo, tierFromProductId, creditsFromProductId } from "@/lib/dodo";
 import { grantCredits } from "@/lib/credits";
 import { TIER_CREDITS, SUBSCRIPTION_STATUS } from "@/lib/constants";
 import type { UnwrapWebhookEvent } from "dodopayments/resources/webhooks/webhooks";
@@ -53,15 +53,22 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   console.log(`[webhook] Received ${event.type} (id: ${webhookId})`);
 
-  // Idempotency: check if this webhook was already processed
-  const existing = await prisma.webhookEvent.findUnique({ where: { id: webhookId } });
-  if (existing?.processed) {
-    return NextResponse.json({ received: true });
-  }
-  if (!existing) {
+  // Idempotency: atomically claim the webhook via unique constraint
+  try {
     await prisma.webhookEvent.create({
       data: { id: webhookId, eventType: event.type, processed: false },
     });
+  } catch (err) {
+    // Unique constraint violation — another request already claimed this webhook
+    if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2002") {
+      const existing = await prisma.webhookEvent.findUnique({ where: { id: webhookId } });
+      if (existing?.processed) {
+        return NextResponse.json({ received: true });
+      }
+      // Not yet processed but claimed — another request is handling it
+      return NextResponse.json({ received: true });
+    }
+    throw err;
   }
 
   try {
@@ -161,30 +168,72 @@ async function handleSubscriptionRenewed(
   const user = await findUserByDodoCustomer(customer.customer_id);
   if (!user) return;
 
+  // Skip credit grant if this renewal was triggered by a plan change
+  const PLAN_CHANGE_WINDOW = 5 * 60 * 1000;
+  const recentPlanChange = user.lastPlanChangeAt &&
+    Date.now() - new Date(user.lastPlanChangeAt).getTime() < PLAN_CHANGE_WINDOW;
+
+  const tierCredits = TIER_CREDITS[tier] ?? 0;
+  const currentPeriodEnd = new Date(next_billing_date);
+
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: user.id },
       data: {
         subscriptionStatus: SUBSCRIPTION_STATUS.ACTIVE,
-        currentPeriodEnd: new Date(next_billing_date),
+        currentPeriodEnd,
       },
     });
+
+    if (!recentPlanChange) {
+      // Zero out old subscription pools (no rollover)
+      const oldPools = await tx.creditPool.findMany({
+        where: { userId: user.id, source: "SUBSCRIPTION", remaining: { gt: 0 } },
+      });
+      const oldRemaining = oldPools.reduce((sum, p) => sum + p.remaining, 0);
+
+      if (oldRemaining > 0) {
+        await tx.creditPool.updateMany({
+          where: { userId: user.id, source: "SUBSCRIPTION", remaining: { gt: 0 } },
+          data: { remaining: 0 },
+        });
+      }
+
+      // Create new subscription pool
+      await tx.creditPool.create({
+        data: {
+          userId: user.id,
+          source: "SUBSCRIPTION",
+          originalAmount: tierCredits,
+          remaining: tierCredits,
+          priority: 0,
+          expiresAt: currentPeriodEnd,
+        },
+      });
+
+      // Update balance: remove old, add new
+      const balanceDelta = tierCredits - oldRemaining;
+      const updatedUser = await tx.user.update({
+        where: { id: user.id },
+        data: { creditBalance: { increment: balanceDelta } },
+      });
+
+      await tx.creditTransaction.create({
+        data: {
+          userId: user.id,
+          amount: tierCredits,
+          balanceAfter: updatedUser.creditBalance,
+          type: "GRANT",
+          description: `Subscription renewed: ${tier} plan`,
+        },
+      });
+    }
+
     await tx.webhookEvent.update({
       where: { id: webhookId },
       data: { processed: true },
     });
   });
-
-  // Skip credit grant if this renewal was triggered by a plan change (which already granted credits)
-  const PLAN_CHANGE_WINDOW = 5 * 60 * 1000;
-  const recentPlanChange = user.lastPlanChangeAt &&
-    Date.now() - new Date(user.lastPlanChangeAt).getTime() < PLAN_CHANGE_WINDOW;
-
-  if (!recentPlanChange) {
-    await grantCredits(user.id, TIER_CREDITS[tier], `Subscription renewed: ${tier} plan`);
-  } else {
-    console.log(`[webhook] Skipping renewal credit grant for user ${user.id} — triggered by plan change`);
-  }
 }
 
 async function handleSubscriptionCancelled(
@@ -274,29 +323,73 @@ async function handleSubscriptionPlanChanged(
   const user = await findUserByDodoCustomer(customer.customer_id);
   if (!user) return;
 
-  const oldCredits = TIER_CREDITS[user.tier] ?? 0;
   const newCredits = TIER_CREDITS[newTier] ?? 0;
-  const creditDiff = newCredits - oldCredits;
+
+  // Use currentPeriodEnd from User record — plan_changed events may not include next_billing_date
+  const fullUser = await prisma.user.findUniqueOrThrow({
+    where: { id: user.id },
+    select: { currentPeriodEnd: true },
+  });
+  const currentPeriodEnd = fullUser.currentPeriodEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   await prisma.$transaction(async (tx) => {
+    // Zero out old subscription pools
+    const oldPools = await tx.creditPool.findMany({
+      where: { userId: user.id, source: "SUBSCRIPTION", remaining: { gt: 0 } },
+    });
+    const oldRemaining = oldPools.reduce((sum, p) => sum + p.remaining, 0);
+
+    if (oldRemaining > 0) {
+      await tx.creditPool.updateMany({
+        where: { userId: user.id, source: "SUBSCRIPTION", remaining: { gt: 0 } },
+        data: { remaining: 0 },
+      });
+    }
+
+    // Create new subscription pool with full tier credits
+    await tx.creditPool.create({
+      data: {
+        userId: user.id,
+        source: "SUBSCRIPTION",
+        originalAmount: newCredits,
+        remaining: newCredits,
+        priority: 0,
+        expiresAt: currentPeriodEnd,
+      },
+    });
+
+    // Update balance: remove old, add new
+    const balanceDelta = newCredits - oldRemaining;
     await tx.user.update({
       where: { id: user.id },
       data: {
         tier: newTier,
+        creditBalance: { increment: balanceDelta },
         subscriptionStatus: SUBSCRIPTION_STATUS.ACTIVE,
         lastPlanChangeAt: new Date(),
       },
     });
+
+    const updatedUser = await tx.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: { creditBalance: true },
+    });
+
+    await tx.creditTransaction.create({
+      data: {
+        userId: user.id,
+        amount: balanceDelta,
+        balanceAfter: updatedUser.creditBalance,
+        type: "GRANT",
+        description: `Plan changed to ${newTier}: ${newCredits} credits`,
+      },
+    });
+
     await tx.webhookEvent.update({
       where: { id: webhookId },
       data: { processed: true },
     });
   });
-
-  // Grant extra credits on upgrade, don't revoke on downgrade
-  if (creditDiff > 0) {
-    await grantCredits(user.id, creditDiff, `Plan upgraded to ${newTier}: +${creditDiff} credits`);
-  }
 }
 
 async function handlePaymentSucceeded(
@@ -316,9 +409,17 @@ async function handlePaymentSucceeded(
   }
 
   const userId = metadata.userId;
-  const credits = parseInt(metadata.credits, 10);
-  if (!userId || !credits || isNaN(credits)) {
-    console.error(`[webhook] payment.succeeded: invalid metadata`, metadata);
+  if (!userId) {
+    console.error(`[webhook] payment.succeeded: missing userId in metadata`, metadata);
+    return;
+  }
+
+  // Derive credit amount from product_id (defense-in-depth: don't trust metadata.credits)
+  const productCart = event.data.product_cart;
+  const productId = productCart?.[0]?.product_id;
+  const credits = productId ? creditsFromProductId(productId) : null;
+  if (!credits) {
+    console.error(`[webhook] payment.succeeded: could not derive credits from product_id ${productId}`, metadata);
     return;
   }
 
@@ -337,5 +438,12 @@ async function handlePaymentSucceeded(
     data: { processed: true },
   });
 
-  await grantCredits(user.id, credits, `Credit pack: ${credits} credits`);
+  const twelveMonthsFromNow = new Date();
+  twelveMonthsFromNow.setFullYear(twelveMonthsFromNow.getFullYear() + 1);
+
+  await grantCredits(user.id, credits, `Credit pack: ${credits} credits`, {
+    source: "PURCHASE",
+    expiresAt: twelveMonthsFromNow,
+    priority: 1,
+  });
 }

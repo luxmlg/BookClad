@@ -1,11 +1,10 @@
-import { Sparkles, Copy, Wand2 } from "lucide-react";
+import { Sparkles, Copy } from "lucide-react";
 import { AI_MODELS, JOB_TYPE } from "@/lib/constants";
 import type { Generation } from "./types";
 
 export const JOB_TYPE_ICON: Record<string, typeof Sparkles> = {
   [JOB_TYPE.GENERATE]: Sparkles,
   [JOB_TYPE.GENERATE_FROM_REFERENCE]: Copy,
-  [JOB_TYPE.INPAINT]: Wand2,
 };
 
 export function getModelLabel(modelValue?: string): string | null {

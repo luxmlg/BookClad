@@ -57,7 +57,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             config: buildDefaultConfig() as unknown as Prisma.InputJsonValue,
           },
         }),
-        grantCredits(user.id, TIER_CREDITS.FREE, "Welcome bonus (FREE tier)"),
+        grantCredits(user.id, TIER_CREDITS.FREE, "Welcome bonus (FREE tier)", {
+          source: "SIGNUP_GRANT",
+          expiresAt: null,
+          priority: 1,
+        }),
       ]);
     },
   },

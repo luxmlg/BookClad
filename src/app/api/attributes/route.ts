@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ensureBuiltInAttributes, type AttributeConfigJson } from "@/lib/attributes";
+import { ensureBuiltInAttributes, sanitizeConfig, type AttributeConfigJson } from "@/lib/attributes";
 import { attributeConfigSchema } from "@/lib/attribute-validations";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -24,7 +24,7 @@ export async function GET() {
     }
 
     const raw = record.config as unknown as AttributeConfigJson;
-    const config = ensureBuiltInAttributes(raw);
+    const config = sanitizeConfig(ensureBuiltInAttributes(raw));
 
     if (config !== raw) {
       await prisma.attributeConfig.update({
@@ -59,10 +59,12 @@ export async function PUT(request: Request) {
       );
     }
 
+    const sanitized = sanitizeConfig(parsed.data as unknown as AttributeConfigJson);
+
     const record = await prisma.attributeConfig.upsert({
       where: { userId: session.user.id },
-      create: { userId: session.user.id, config: parsed.data as unknown as Prisma.InputJsonValue },
-      update: { config: parsed.data as unknown as Prisma.InputJsonValue },
+      create: { userId: session.user.id, config: sanitized as unknown as Prisma.InputJsonValue },
+      update: { config: sanitized as unknown as Prisma.InputJsonValue },
     });
 
     return NextResponse.json(record.config);

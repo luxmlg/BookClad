@@ -17,6 +17,7 @@ import {
   listFonts,
   getPreferences,
   updatePreferences,
+  getCredits,
   type FontDetail,
 } from "@/lib/api";
 import { GeneralTab } from "./general-tab";
@@ -52,22 +53,25 @@ export function SettingsClient() {
   const [fonts, setFonts] = useState<FontDetail[]>([]);
   const [defaultFont, setDefaultFont] = useState(DEFAULT_FONT);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function init() {
       try {
-        const [configData, presetsData, fontsData, prefs] = await Promise.all([
+        const [configData, presetsData, fontsData, prefs, creditsData] = await Promise.all([
           getAttributeConfig(),
           getPresets(),
           listFonts(),
           getPreferences(),
+          getCredits(),
         ]);
         setConfig(configData);
         setPresets(presetsData);
         setFonts(fontsData);
         if (prefs.defaultFont) setDefaultFont(prefs.defaultFont);
         if (prefs.showPrompt != null) setShowPrompt(prefs.showPrompt);
+        if (creditsData.subscriptionStatus) setSubscriptionStatus(creditsData.subscriptionStatus);
         for (const f of fontsData) {
           loadCustomFont(f.family, f.url);
         }
@@ -131,6 +135,7 @@ export function SettingsClient() {
         <GeneralTab
           showPrompt={showPrompt}
           onShowPromptChange={handleShowPromptChange}
+          subscriptionStatus={subscriptionStatus}
         />
       </TabsContent>
 

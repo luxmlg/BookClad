@@ -21,8 +21,8 @@ import {
 import { getGenerationQueue } from "@/lib/queue";
 import {
   buildDefaultConfig,
-  buildDefaultSelection,
   ensureBuiltInAttributes,
+  sanitizeConfig,
 } from "@/lib/attributes";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import type { Prisma } from "@/generated/prisma/client";
@@ -53,7 +53,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
 
     const tierConfig = QUICK_CREATE_TIER_CONFIG[user.tier];
-    const { model, imageCount } = tierConfig;
+    const { model } = tierConfig;
+    const imageCount = parsed.data.imageCount ?? tierConfig.imageCount;
     const generationCreditCost = calculateCreditCost(model, imageCount);
     const totalCost = AI_FILL_CREDIT_COST + generationCreditCost;
 
@@ -95,11 +96,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     // Build seed selection with genre pre-set
-    const seedSelection: AttributeSelection = buildDefaultSelection(config);
-    seedSelection.genre = genre;
+    const seedSelection: AttributeSelection = { genre };
 
     // Generate attributes via AI Fill
-    const suggestions = await generateAttributeSuggestions(
+    const { suggestions } = await generateAttributeSuggestions(
       config,
       seedSelection,
       description,
@@ -112,10 +112,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       suggestions,
     );
 
-    // Save updated config
+    // Sanitize and save updated config
+    const sanitizedConfig = sanitizeConfig(finalConfig);
     await prisma.attributeConfig.update({
       where: { userId: session.user.id },
-      data: { config: finalConfig as unknown as Prisma.InputJsonValue },
+      data: { config: sanitizedConfig as unknown as Prisma.InputJsonValue },
     });
 
     // Create project

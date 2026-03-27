@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { CreatePageClient } from "@/components/wizard/create-page-client";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function CreatePage() {
   const session = await auth();

@@ -15,12 +15,14 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import {
   GENRES,
   AI_FILL_CREDIT_COST,
   CREDIT_COST_PER_IMAGE,
   QUICK_CREATE_TIER_CONFIG,
   AI_FILL_PROMPT_MAX_LENGTH,
+  MAX_IMAGES_PER_GENERATION,
 } from "@/lib/constants";
 import { quickCreate } from "@/lib/api";
 
@@ -45,8 +47,9 @@ export function QuickCreateForm({
   const tierConfig =
     QUICK_CREATE_TIER_CONFIG[tier as keyof typeof QUICK_CREATE_TIER_CONFIG] ??
     QUICK_CREATE_TIER_CONFIG.FREE;
+  const [imageCount, setImageCount] = useState(tierConfig.imageCount);
   const generationCost =
-    tierConfig.imageCount * CREDIT_COST_PER_IMAGE[tierConfig.model];
+    imageCount * CREDIT_COST_PER_IMAGE[tierConfig.model];
   const totalCost = AI_FILL_CREDIT_COST + generationCost;
   const canAfford = creditBalance >= totalCost;
   const isValid =
@@ -66,6 +69,7 @@ export function QuickCreateForm({
         author: author.trim(),
         genre,
         description: description.trim(),
+        imageCount,
       });
       router.push(`/editor/${projectId}`);
     } catch (err) {
@@ -124,6 +128,21 @@ export function QuickCreateForm({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
+          <Label>Number of Covers</Label>
+          <span className="text-xs tabular-nums text-muted-foreground">{imageCount}</span>
+        </div>
+        <Slider
+          min={1}
+          max={MAX_IMAGES_PER_GENERATION}
+          step={1}
+          value={[imageCount]}
+          onValueChange={(v) => setImageCount(Array.isArray(v) ? v[0] : v)}
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <Label htmlFor="description">Book Description</Label>
           <span className="text-xs text-muted-foreground">
             {description.length}/{AI_FILL_PROMPT_MAX_LENGTH}
@@ -169,7 +188,7 @@ export function QuickCreateForm({
         {canAfford && (
           <p className="text-center text-xs text-muted-foreground">
             Uses {totalCost} credits ({AI_FILL_CREDIT_COST} for AI Fill +{" "}
-            {generationCost} for {tierConfig.imageCount} covers)
+            {generationCost} for {imageCount} covers)
           </p>
         )}
 

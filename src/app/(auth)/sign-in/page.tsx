@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,6 +9,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 const showApple = !!(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET);
 const showAmazon = !!(process.env.AUTH_AMAZON_ID && process.env.AUTH_AMAZON_SECRET);
@@ -80,6 +86,23 @@ export default function SignInPage() {
           </form>
         )}
       </CardContent>
+      <div className="px-6 pb-6 text-center">
+        <div className="flex items-center justify-center gap-3">
+          <Link
+            href="/privacy"
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Privacy Policy
+          </Link>
+          <span className="text-xs text-muted-foreground">·</span>
+          <Link
+            href="/terms"
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Terms of Use
+          </Link>
+        </div>
+      </div>
     </Card>
   );
 }

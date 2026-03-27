@@ -12,7 +12,7 @@ export interface CustomerPortalResponse {
   portalUrl: string;
 }
 
-export async function createCheckout(tier: "STARTER" | "PRO"): Promise<CheckoutResult> {
+export async function createCheckout(tier: "STARTER" | "PRO" | "STUDIO"): Promise<CheckoutResult> {
   const { data } = await api.post<CheckoutResult>("/api/checkout", { type: "subscription", tier });
   return data;
 }

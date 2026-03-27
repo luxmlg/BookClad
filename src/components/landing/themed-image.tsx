@@ -1,0 +1,61 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+import Image, { type ImageProps } from "next/image";
+import { useTheme } from "next-themes";
+
+const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
+
+function useMounted(): boolean {
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+interface ThemedImageProps {
+  lightSrc: ImageProps["src"];
+  darkSrc: ImageProps["src"];
+  alt: string;
+  width?: number | string;
+  height?: number | string;
+  priority?: boolean;
+  className?: string;
+}
+
+export function ThemedImage({
+  lightSrc,
+  darkSrc,
+  alt,
+  width: rawWidth,
+  height: rawHeight,
+  priority,
+  className,
+}: ThemedImageProps) {
+  const width = Number(rawWidth) || 800;
+  const height = Number(rawHeight) || 450;
+  const { resolvedTheme } = useTheme();
+  const mounted = useMounted();
+
+  const isDark = mounted && resolvedTheme === "dark";
+
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <Image
+        src={lightSrc}
+        alt={alt}
+        width={width}
+        height={height}
+        priority={priority}
+        className={`transition-opacity duration-300 ${isDark ? "opacity-0" : "opacity-100"}`}
+      />
+      <Image
+        src={darkSrc}
+        alt={`${alt} (dark)`}
+        width={width}
+        height={height}
+        priority={priority}
+        className={`absolute inset-0 transition-opacity duration-300 ${isDark ? "opacity-100" : "opacity-0"}`}
+      />
+    </div>
+  );
+}

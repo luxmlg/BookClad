@@ -42,6 +42,7 @@ interface RightSidebarProps {
   reorderNode: (fromIndex: number, toIndex: number) => void;
   onImageUpload: (file: File) => void;
   hasSelectedImage: boolean;
+  selectedGenerationModel: string | null;
   onExportJpeg: () => void;
   onExportPng: () => void;
 }
@@ -62,6 +63,7 @@ export function RightSidebar({
   reorderNode,
   onImageUpload,
   hasSelectedImage,
+  selectedGenerationModel,
   onExportJpeg,
   onExportPng,
 }: RightSidebarProps) {
@@ -305,7 +307,7 @@ export function RightSidebar({
         <Button
           className="w-full gap-2"
           onClick={onExportJpeg}
-          disabled={!hasSelectedImage}
+          disabled={!hasSelectedImage || selectedGenerationModel === "quick"}
         >
           <Download className="size-4" />
           Export JPEG (KDP-Ready)
@@ -314,11 +316,16 @@ export function RightSidebar({
           variant="outline"
           className="w-full gap-2"
           onClick={onExportPng}
-          disabled={!hasSelectedImage}
+          disabled={!hasSelectedImage || selectedGenerationModel === "quick"}
         >
           <Download className="size-4" />
           Export PNG
         </Button>
+        {selectedGenerationModel === "quick" && (
+          <p className="text-xs text-muted-foreground">
+            Quick images are drafts — generate with Detailed or Premium for KDP-ready export
+          </p>
+        )}
       </div>
     </div>
   );
