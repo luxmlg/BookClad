@@ -4,7 +4,6 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { readFile, writeFile, mkdir, unlink } from "fs/promises";
 import { join, dirname } from "path";
 import { DEFAULT_BUCKET } from "@/lib/constants";
@@ -29,14 +28,11 @@ export const bucket = process.env.R2_BUCKET ?? DEFAULT_BUCKET;
 
 /**
  * Returns a URL for downloading the given storage key.
- * Uses a signed S3 URL in production, or a local `/api/uploads/` path in dev.
+ * Always proxies through `/api/uploads/` for same-origin access (no CORS issues)
+ * and browser caching (immutable cache headers).
  */
 export async function getSignedDownloadUrl(key: string): Promise<string> {
-  if (useLocalStorage || !s3) {
-    return `/api/uploads/${key}`;
-  }
-  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-  return getSignedUrl(s3, command, { expiresIn: 3600 });
+  return `/api/uploads/${key}`;
 }
 
 /**
