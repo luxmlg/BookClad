@@ -56,7 +56,7 @@ postgres_data/
 redis_data/
 
 # local image uploads (dev)
-uploads/
+/uploads/
 
 /prisma/src/generated/prisma
 .superpowers/
