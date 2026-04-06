@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getGenerationQueue, getRedisPublisher } from "@/lib/queue";
 import { GENERATION_STATUS, EVENT_TYPE } from "@/lib/constants";
 import { refundCredits } from "@/lib/credits";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export async function POST(
   _request: Request,
@@ -100,6 +101,19 @@ export async function POST(
   } catch {
     // Best-effort
   }
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: session.user.id,
+    event: "generation_cancelled",
+    properties: {
+      generation_id: generationId,
+      project_id: generation.projectId,
+      prior_status: generation.status,
+      credits_refunded: generation.creditCost ?? 0,
+    },
+  });
+  await posthog.shutdown();
 
   return NextResponse.json({ success: true });
 }

@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dodo, productIdFromTier, DODO_CREDIT_PACK_IDS } from "@/lib/dodo";
 import { CREDIT_PACKS, SUBSCRIPTION_STATUS } from "@/lib/constants";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 const packIds = CREDIT_PACKS.map((p) => p.id) as [string, ...string[]];
 
@@ -70,6 +71,20 @@ export async function POST(request: Request): Promise<NextResponse> {
         quantity: 1,
         proration_billing_mode: "prorated_immediately",
       });
+
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: session.user.id,
+        event: "checkout_initiated",
+        properties: {
+          type: "subscription",
+          tier: data.tier,
+          from_tier: user.tier,
+          plan_changed_inline: true,
+        },
+      });
+      await posthog.shutdown();
+
       return NextResponse.json({ planChanged: true });
     }
 
@@ -102,6 +117,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!checkoutSession.checkout_url) {
     return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 });
   }
+
+  const posthogProperties =
+    data.type === "subscription"
+      ? { type: "subscription", tier: data.tier, from_tier: user.tier, plan_changed_inline: false }
+      : { type: "credit_pack", pack_id: data.packId, credits: metadata.credits };
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: session.user.id,
+    event: "checkout_initiated",
+    properties: posthogProperties,
+  });
+  await posthog.shutdown();
 
   return NextResponse.json({ checkoutUrl: checkoutSession.checkout_url });
 }

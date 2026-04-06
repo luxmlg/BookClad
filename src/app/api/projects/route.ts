@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createProjectSchema } from "@/lib/validations";
 import { GENERATION_STATUS } from "@/lib/constants";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export async function GET() {
   const session = await auth();
@@ -60,6 +61,18 @@ export async function POST(request: Request) {
         attributes,
       },
     });
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "project_created",
+      properties: {
+        project_id: project.id,
+        title,
+        author: author ?? undefined,
+      },
+    });
+    await posthog.shutdown();
 
     return NextResponse.json(project, { status: 201 });
   } catch {

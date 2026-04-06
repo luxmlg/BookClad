@@ -10,6 +10,7 @@ import { getCredits, type CreditTransaction } from "@/lib/api/credits";
 import { createCheckout, createCreditPackCheckout, createCustomerPortal } from "@/lib/api/checkout";
 import { TIER_CREDITS, TIER_ORDER, PLAN_PRICES, CREDIT_PACKS, SUBSCRIPTION_STATUS } from "@/lib/constants";
 import { useCreditStore } from "@/lib/stores/credit-store";
+import posthog from "posthog-js";
 
 const TXN_TYPE_LABEL: Record<string, string> = {
   GRANT: "Credit",
@@ -137,6 +138,7 @@ export function BillingTab() {
   }, [showSuccess, applyCreditsData]);
 
   async function handleUpgrade(targetTier: "STARTER" | "PRO" | "STUDIO") {
+    posthog.capture("upgrade_clicked", { target_tier: targetTier, current_tier: tier });
     setCheckoutLoading(targetTier);
     try {
       const result = await createCheckout(targetTier);
@@ -153,6 +155,8 @@ export function BillingTab() {
   }
 
   async function handleBuyCredits(packId: string) {
+    const pack = CREDIT_PACKS.find((p) => p.id === packId);
+    posthog.capture("credit_pack_checkout_clicked", { pack_id: packId, credits: pack?.credits, price: pack?.price });
     setCheckoutLoading(packId);
     try {
       const { checkoutUrl } = await createCreditPackCheckout(packId);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GENERATION_STATUS } from "@/lib/constants";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export async function POST(
   _request: Request,
@@ -48,6 +49,20 @@ export async function POST(
         { status: 400 },
       );
     }
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "cover_exported",
+      properties: {
+        project_id: id,
+        image_id: selectedImage.id,
+        model: generationModel ?? undefined,
+        width: selectedImage.width,
+        height: selectedImage.height,
+      },
+    });
+    await posthog.shutdown();
 
     // TODO: Fetch image from R2, flatten canvas layers with Sharp, export as JPEG/PNG
     // For now, return the storage key so the client can download via signed URL
