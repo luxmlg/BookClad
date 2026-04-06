@@ -7,8 +7,10 @@ import { NavbarWrapper } from "@/components/layout/navbar-wrapper";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
 import { CreditHydrator } from "@/components/providers/credit-hydrator";
+import { PostHogIdentifier } from "@/components/providers/posthog-identifier";
 import { CookieConsent } from "@/components/cookie-consent";
 import { GoogleAnalytics } from "@/components/google-analytics";
+import { PostHogConsent } from "@/components/posthog-consent";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -92,11 +94,19 @@ export default async function RootLayout({
       >
         <Providers>
           {session?.user && <CreditHydrator balance={creditBalance} />}
+          {session?.user?.id && (
+            <PostHogIdentifier
+              userId={session.user.id}
+              email={session.user.email}
+              name={session.user.name}
+            />
+          )}
           <NavbarWrapper><Navbar /></NavbarWrapper>
           {children}
           <Toaster richColors position="bottom-right" />
           <CookieConsent />
           <GoogleAnalytics />
+          <PostHogConsent />
         </Providers>
       </body>
     </html>

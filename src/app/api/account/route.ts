@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { deleteFromStorage } from "@/lib/storage";
 import { dodo } from "@/lib/dodo";
 import { SUBSCRIPTION_STATUS } from "@/lib/constants";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export async function DELETE(): Promise<NextResponse> {
   const session = await auth();
@@ -62,6 +63,17 @@ export async function DELETE(): Promise<NextResponse> {
         // Proceed regardless — best effort
       }
     }
+
+    // Capture account_deleted before deleting the user record
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "account_deleted",
+      properties: {
+        had_active_subscription: user.dodoSubscriptionId !== null && user.subscriptionStatus === SUBSCRIPTION_STATUS.ACTIVE,
+      },
+    });
+    await posthog.shutdown();
 
     // Delete user — Prisma cascade handles all related records
     await prisma.user.delete({ where: { id: session.user.id } });

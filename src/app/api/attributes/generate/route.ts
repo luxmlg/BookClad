@@ -8,6 +8,7 @@ import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import { parseGeminiUsage, classifyError } from "@/lib/api-usage";
 import { API_USAGE_TYPE } from "@/lib/constants";
 import { Prisma } from "@/generated/prisma/client";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await auth();
@@ -90,6 +91,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     } catch (logErr) {
       console.error("[api-usage] Failed to log AI Fill usage:", logErr);
     }
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "ai_fill_used",
+      properties: {
+        project_id: projectId,
+        suggestion_count: suggestions.length,
+        duration_ms: durationMs,
+      },
+    });
+    await posthog.shutdown();
 
     return NextResponse.json({ suggestions });
   } catch (err) {

@@ -26,6 +26,7 @@ import {
 } from "@/lib/attributes";
 import type { AttributeConfigJson, AttributeSelection } from "@/lib/attributes";
 import type { Prisma } from "@/generated/prisma/client";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await auth();
@@ -167,6 +168,35 @@ export async function POST(request: Request): Promise<NextResponse> {
       flattenedImageDataUrl: null,
       creditCost: generationCreditCost,
     });
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "project_created",
+      properties: {
+        project_id: project.id,
+        title,
+        author: author ?? undefined,
+        source: "quick_create",
+        genre,
+      },
+    });
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "generation_started",
+      properties: {
+        generation_id: generationId,
+        project_id: project.id,
+        model,
+        image_count: imageCount,
+        credit_cost: generationCreditCost,
+        is_reference: false,
+        includes_layers: false,
+        user_tier: user.tier,
+        source: "quick_create",
+      },
+    });
+    await posthog.shutdown();
 
     return NextResponse.json(
       { projectId: project.id, generationId },

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { dodo, tierFromProductId, creditsFromProductId } from "@/lib/dodo";
 import { grantCredits } from "@/lib/credits";
 import { TIER_CREDITS, SUBSCRIPTION_STATUS } from "@/lib/constants";
+import { getPostHogClient } from "@/lib/posthog-server";
 import type { UnwrapWebhookEvent } from "dodopayments/resources/webhooks/webhooks";
 
 type SubscriptionEvent = Extract<
@@ -153,6 +154,14 @@ async function handleSubscriptionActive(
   // Credits are granted by handleSubscriptionRenewed, not here.
   // DodoPayments fires both subscription.active and subscription.renewed
   // on initial activation — granting here would double-count.
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: user.id,
+    event: "subscription_activated",
+    properties: { tier, subscription_id },
+  });
+  await posthog.shutdown();
 }
 
 async function handleSubscriptionRenewed(
@@ -259,6 +268,14 @@ async function handleSubscriptionCancelled(
       data: { processed: true },
     });
   });
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: user.id,
+    event: "subscription_cancelled",
+    properties: { tier: user.tier },
+  });
+  await posthog.shutdown();
 }
 
 async function handleSubscriptionExpired(
@@ -390,6 +407,14 @@ async function handleSubscriptionPlanChanged(
       data: { processed: true },
     });
   });
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: user.id,
+    event: "plan_changed",
+    properties: { from_tier: user.tier, to_tier: newTier },
+  });
+  await posthog.shutdown();
 }
 
 async function handlePaymentSucceeded(
@@ -446,4 +471,16 @@ async function handlePaymentSucceeded(
     expiresAt: twelveMonthsFromNow,
     priority: 1,
   });
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: user.id,
+    event: "credit_pack_purchased",
+    properties: {
+      credits,
+      pack_id: metadata.packId,
+      product_id: productId,
+    },
+  });
+  await posthog.shutdown();
 }

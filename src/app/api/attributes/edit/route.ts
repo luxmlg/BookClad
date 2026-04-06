@@ -7,6 +7,7 @@ import type { AttributeConfigJson, Attribute } from "@/lib/attributes";
 import { parseGeminiUsage, classifyError } from "@/lib/api-usage";
 import { API_USAGE_TYPE } from "@/lib/constants";
 import { Prisma } from "@/generated/prisma/client";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -184,6 +185,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     } catch (logErr) {
       console.error("[api-usage] Failed to log AI Edit usage:", logErr);
     }
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "ai_edit_used",
+      properties: {
+        prompt_length: prompt.length,
+        duration_ms: durationMs,
+      },
+    });
+    await posthog.shutdown();
 
     return NextResponse.json({ before, after });
   } catch (err) {

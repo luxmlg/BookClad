@@ -5,6 +5,7 @@ import { getGenerationQueue } from "@/lib/queue";
 import { createGenerationSchema } from "@/lib/validations";
 import { JOB_TYPE, GENERATION_STATUS, AI_MODELS, isModelAvailable, TIER_QUEUE_PRIORITY } from "@/lib/constants";
 import { calculateCreditCost, reserveCredits, InsufficientCreditsError } from "@/lib/credits";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -98,6 +99,23 @@ export async function POST(request: Request) {
       attempts: 100,
       backoff: { type: "custom" },
     });
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: session.user.id,
+      event: "generation_started",
+      properties: {
+        generation_id: generationId,
+        project_id: projectId,
+        model,
+        image_count: imageCount,
+        credit_cost: creditCost,
+        is_reference: !!referenceImageKey,
+        includes_layers: !!flattenedImageDataUrl,
+        user_tier: user.tier,
+      },
+    });
+    await posthog.shutdown();
 
     return NextResponse.json({ generationId }, { status: 202 });
   } catch (err) {
