@@ -7,7 +7,7 @@ const NOOP_CLIENT = {
 
 export function getPostHogClient(): PostHog {
   const token = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
-  if (!token || process.env.NODE_ENV !== "production") {
+  if (!token) {
     return NOOP_CLIENT;
   }
   return new PostHog(token, {
