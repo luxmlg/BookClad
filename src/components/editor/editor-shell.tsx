@@ -683,7 +683,20 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
   // ── Render ────────────────────────────────────────────────
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
+    <>
+    {/* Mobile warning */}
+    <div className="flex h-[calc(100vh-3.5rem)] flex-col items-center justify-center gap-4 px-6 text-center md:hidden">
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+      <h2 className="text-lg font-semibold">Desktop Required</h2>
+      <p className="text-sm text-muted-foreground max-w-sm">
+        The cover editor needs a larger screen for the canvas, typography tools, and layer controls. Please open this page on a desktop or laptop.
+      </p>
+      <button onClick={() => router.push("/dashboard")} className="mt-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
+        Back to Dashboard
+      </button>
+    </div>
+
+    <div className="hidden md:flex h-[calc(100vh-3.5rem)] overflow-hidden">
       {/* Left sidebar */}
       <div className="hidden lg:flex w-72 flex-col border-r bg-background">
         <LeftSidebar
@@ -818,5 +831,6 @@ export function EditorShell({ project, showPrompt, tier }: EditorShellProps) {
         </div>
       )}
     </div>
+    </>
   );
 }
