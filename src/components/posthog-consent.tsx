@@ -10,9 +10,6 @@ export function PostHogConsent() {
   useEffect(() => {
     if (consent === "accepted") {
       posthog.set_config({ persistence: "localStorage+cookie" });
-      posthog.opt_in_capturing();
-    } else if (consent === "declined") {
-      posthog.opt_out_capturing();
     }
   }, [consent]);
 
