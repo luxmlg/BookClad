@@ -82,7 +82,7 @@ export const TIER_QUEUE_PRIORITY: Record<string, number> = {
 };
 
 export const QUICK_CREATE_TIER_CONFIG = {
-  FREE: { model: "quick", imageCount: 4 },
+  FREE: { model: "detailed", imageCount: 2 },
   STARTER: { model: "detailed", imageCount: 8 },
   PRO: { model: "detailed", imageCount: 8 },
   STUDIO: { model: "detailed", imageCount: 8 },
@@ -106,7 +106,7 @@ export const AI_MODELS = [
       "Recommended for most covers. High-efficiency generation with improved consistency and detail — the best balance of speed, quality, and cost.",
     capabilities: [JOB_TYPE.GENERATE] as const,
     creditCost: CREDIT_COST_PER_IMAGE.detailed,
-    requiredTier: "STARTER",
+    requiredTier: "FREE",
     exportable: true,
   },
   {
@@ -116,7 +116,7 @@ export const AI_MODELS = [
       "Professional-grade cover generation with advanced reasoning. Excels at following complex instructions and rendering high-fidelity text and intricate details.",
     capabilities: [JOB_TYPE.GENERATE] as const,
     creditCost: CREDIT_COST_PER_IMAGE.premium,
-    requiredTier: "STARTER",
+    requiredTier: "FREE",
     exportable: true,
   },
 ] as const;
